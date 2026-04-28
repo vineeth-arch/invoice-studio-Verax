@@ -37,13 +37,26 @@ export default function DocumentsPage() {
     }
   }, [invoices, purchaseOrders, saveInvoice, savePurchaseOrder, addToast]);
 
-  if (invLoading || poLoading) return <div className="p-8 text-slate-400">Loading documents...</div>;
+  if (invLoading || poLoading) {
+    return (
+      <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>
+        Loading documents…
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 max-w-7xl">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Documents</h1>
-        <p className="text-slate-500 text-sm">All your invoices and purchase orders</p>
+    <div className="p-5 md:p-7 max-w-[1200px]">
+      <div className="mb-7">
+        <h1
+          className="font-display text-[28px] font-extrabold leading-tight"
+          style={{ color: "var(--text-primary)" }}
+        >
+          Documents
+        </h1>
+        <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
+          All your invoices and purchase orders
+        </p>
       </div>
       <DocumentTable
         invoices={invoices}

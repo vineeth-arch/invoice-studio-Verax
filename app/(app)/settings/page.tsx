@@ -29,7 +29,7 @@ export default function SettingsPage() {
     : "";
 
   const onSubmit = async (values: DocumentTemplateSettings) => {
-    const result = saveSettings(values);
+    const result = await saveSettings(values);
     if (result.success) addToast("Settings saved!", "success");
     else addToast(result.error ?? "Failed to save settings.", "error");
   };

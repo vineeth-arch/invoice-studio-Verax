@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
@@ -13,9 +14,7 @@ interface Props {
   control: Control<InvoiceFormValues>;
   register: UseFormRegister<InvoiceFormValues>;
   errors: FieldErrors<InvoiceFormValues>;
-  savedClients: SavedClient[];
-  selectedClientId: string;
-  onSelectSavedClient: (clientId: string) => void;
+  onSelectSavedClient: (client: SavedClient | null) => void;
   onSaveClient: () => void;
   savingClient?: boolean;
 }
@@ -24,12 +23,28 @@ export function BuyerDetailsSection({
   control,
   register,
   errors,
-  savedClients,
-  selectedClientId,
   onSelectSavedClient,
   onSaveClient,
   savingClient,
 }: Props) {
+  const [savedClients, setSavedClients] = useState<SavedClient[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("di_clients");
+      const parsed = raw ? JSON.parse(raw) : [];
+      console.log("[Invoice BuyerDetailsSection] di_clients on mount:", parsed);
+      setSavedClients(Array.isArray(parsed) ? parsed : []);
+    } catch (error) {
+      console.error("[Invoice BuyerDetailsSection] Failed to parse di_clients", error);
+      setSavedClients([]);
+    }
+  }, []);
+
+  const hasClients = savedClients.length > 0;
+
   return (
     <FormSection title="Buyer Details">
       <div className="grid grid-cols-2 gap-3">
@@ -37,9 +52,21 @@ export function BuyerDetailsSection({
           <select
             className={inputClass}
             value={selectedClientId}
-            onChange={(e) => onSelectSavedClient(e.target.value)}
+            disabled={!hasClients}
+            onChange={(e) => {
+              const nextValue = e.target.value;
+              setSelectedClientId(nextValue);
+              if (!nextValue || nextValue === "__clear__") {
+                onSelectSavedClient(null);
+                return;
+              }
+              onSelectSavedClient(savedClients.find((client) => client.id === nextValue) ?? null);
+            }}
           >
-            <option value="">Select saved client</option>
+            <option value="">
+              {hasClients ? "Select a saved client..." : "No saved clients — add one in Clients"}
+            </option>
+            {hasClients && <option value="__clear__">Clear selection</option>}
             {savedClients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.name}{client.gstin ? ` • ${client.gstin}` : ""}

@@ -21,6 +21,7 @@ import { POAuthorizationSection } from "./sections/POAuthorizationSection";
 import { Button } from "@/components/ui/Button";
 import { useDocumentNumber } from "@/lib/hooks/useDocumentNumber";
 import type { Invoice } from "@/lib/types/invoice";
+import type { SavedClient } from "@/lib/types/client";
 
 interface POFormProps {
   initialValues?: Partial<PurchaseOrder>;
@@ -113,6 +114,34 @@ export function POForm({ initialValues, settings, companyProfile, existingDocs, 
     if (companyProfile.logoImageBase64) setValue("buyer.logoImageBase64", companyProfile.logoImageBase64);
   }, [companyProfile, setValue]);
 
+  const applySavedClient = useCallback((client: SavedClient | null) => {
+    if (!client) {
+      setValue("buyer.name", "");
+      setValue("buyer.address.line1", "");
+      setValue("buyer.address.line2", "");
+      setValue("buyer.address.city", "");
+      setValue("buyer.address.state", "");
+      setValue("buyer.address.stateCode", "");
+      setValue("buyer.address.pincode", "");
+      setValue("buyer.stateCode", "");
+      setValue("buyer.gstin", "");
+      setValue("buyer.contact.email", "");
+      setValue("buyer.contact.phone", "");
+      return;
+    }
+    setValue("buyer.name", client.name);
+    setValue("buyer.address.line1", client.address1);
+    setValue("buyer.address.line2", client.address2);
+    setValue("buyer.address.city", client.city);
+    setValue("buyer.address.state", client.state);
+    setValue("buyer.address.stateCode", client.stateCode);
+    setValue("buyer.address.pincode", client.pincode);
+    setValue("buyer.stateCode", client.stateCode);
+    setValue("buyer.gstin", client.gstin);
+    setValue("buyer.contact.email", client.email);
+    setValue("buyer.contact.phone", client.phone);
+  }, [setValue]);
+
   return (
     <form className="space-y-3">
       {companyProfile && (
@@ -124,7 +153,7 @@ export function POForm({ initialValues, settings, companyProfile, existingDocs, 
       )}
 
       <PODetailsSection control={control} register={register} errors={errors} isDuplicate={isDuplicate} />
-      <POBuyerSection control={control} register={register} errors={errors} />
+      <POBuyerSection control={control} register={register} errors={errors} onSelectSavedClient={applySavedClient} />
       <POVendorSection control={control} register={register} errors={errors} />
       <PODeliverySection register={register} errors={errors} />
       <POLineItemsSection control={control} setValue={setValue} errors={errors} />

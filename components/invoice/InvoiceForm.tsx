@@ -24,6 +24,7 @@ import { useSavedClients } from "@/lib/hooks/useSavedClients";
 import type { DocumentTemplateSettings } from "@/lib/types/settings";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { useToast } from "@/lib/hooks/useToast";
+import type { SavedClient } from "@/lib/types/client";
 
 interface InvoiceFormProps {
   initialValues?: Partial<Invoice>;
@@ -98,9 +99,8 @@ export function InvoiceForm({
     existingDocs,
     initialValues?.id
   );
-  const { clients: savedClients, saveBuyerFromInvoice } = useSavedClients();
+  const { saveBuyerFromInvoice } = useSavedClients();
   const { addToast } = useToast();
-  const [selectedClientId, setSelectedClientId] = useState("");
   const [savingClient, setSavingClient] = useState(false);
 
   const defaultValues = useMemo(
@@ -181,28 +181,37 @@ export function InvoiceForm({
     }
   }, [companyProfile, setValue]);
 
-  const applySavedClient = useCallback((clientId: string) => {
-    setSelectedClientId(clientId);
-    const selected = savedClients.find((client) => client.id === clientId);
-    if (!selected) return;
+  const applySavedClient = useCallback((selected: SavedClient | null) => {
+    if (!selected) {
+      setValue("buyer.name", "");
+      setValue("buyer.billingAddress.line1", "");
+      setValue("buyer.billingAddress.line2", "");
+      setValue("buyer.billingAddress.city", "");
+      setValue("buyer.billingAddress.state", "");
+      setValue("buyer.billingAddress.stateCode", "");
+      setValue("buyer.billingAddress.pincode", "");
+      setValue("buyer.gstin", "");
+      setValue("buyer.placeOfSupply", "");
+      setValue("buyer.placeOfSupplyCode", "");
+      setValue("buyer.contact.email", "");
+      setValue("buyer.contact.phone", "");
+      return;
+    }
 
     setValue("buyer.name", selected.name);
-    setValue("buyer.billingAddress", {
-      line1: selected.address1,
-      line2: selected.address2,
-      city: selected.city,
-      state: selected.state,
-      stateCode: selected.stateCode,
-      pincode: selected.pincode,
-      country: "India",
-    });
+    setValue("buyer.billingAddress.line1", selected.address1);
+    setValue("buyer.billingAddress.line2", selected.address2);
+    setValue("buyer.billingAddress.city", selected.city);
+    setValue("buyer.billingAddress.state", selected.state);
+    setValue("buyer.billingAddress.stateCode", selected.stateCode);
+    setValue("buyer.billingAddress.pincode", selected.pincode);
     setValue("buyer.gstin", selected.gstin);
     setValue("buyer.placeOfSupply", selected.placeOfSupply);
     setValue("buyer.placeOfSupplyCode", selected.placeOfSupplyCode);
     setValue("buyer.contact.email", selected.email);
     setValue("buyer.contact.phone", selected.phone);
     setValue("shipping.sameAsBilling", true);
-  }, [savedClients, setValue]);
+  }, [setValue]);
 
   const handleSaveClient = useCallback(async () => {
     setSavingClient(true);
@@ -236,8 +245,6 @@ export function InvoiceForm({
         control={control}
         register={register}
         errors={errors}
-        savedClients={savedClients}
-        selectedClientId={selectedClientId}
         onSelectSavedClient={applySavedClient}
         onSaveClient={handleSaveClient}
         savingClient={savingClient}

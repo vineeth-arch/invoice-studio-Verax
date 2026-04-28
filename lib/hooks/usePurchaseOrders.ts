@@ -37,7 +37,7 @@ export function usePurchaseOrders() {
       cloudSynced: result.cloudSynced,
       source: result.source,
     };
-  }, []);
+  }, [refresh]);
 
   const deletePurchaseOrder = useCallback(async (id: string) => {
     const result = await purchaseOrdersRepository.delete(id);
@@ -45,7 +45,7 @@ export function usePurchaseOrders() {
       await refresh();
     }
     return result;
-  }, []);
+  }, [refresh]);
 
   const getPurchaseOrder = useCallback((id: string) => {
     return purchaseOrders.find((po) => po.id === id);

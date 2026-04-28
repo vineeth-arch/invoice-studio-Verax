@@ -37,7 +37,7 @@ export function useInvoices() {
       cloudSynced: result.cloudSynced,
       source: result.source,
     };
-  }, []);
+  }, [refresh]);
 
   const deleteInvoice = useCallback(async (id: string) => {
     const result = await invoicesRepository.delete(id);
@@ -45,7 +45,7 @@ export function useInvoices() {
       await refresh();
     }
     return result;
-  }, []);
+  }, [refresh]);
 
   const getInvoice = useCallback((id: string) => {
     return invoices.find((invoice) => invoice.id === id);

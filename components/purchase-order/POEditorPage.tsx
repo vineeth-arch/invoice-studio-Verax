@@ -69,7 +69,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
     }
   }, [existingPO, poId, savePurchaseOrder, addToast, router]);
 
-  const pdfFilename = `PO_${previewPO.poNumber ?? "draft"}_${previewPO.vendor?.name ?? "vendor"}`;
+  const pdfFilename = `PO-${previewPO.poNumber ?? "draft"}-${previewPO.vendor?.name ?? "vendor"}`;
 
   return (
     <div className="flex flex-col h-screen">

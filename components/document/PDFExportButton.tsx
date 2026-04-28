@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/lib/hooks/useToast";
 import { sanitizeFileName } from "@/lib/utils/numbering";
 
 interface PDFExportButtonProps {
@@ -13,75 +14,83 @@ interface PDFExportButtonProps {
 
 export function PDFExportButton({ previewRef, filename, className }: PDFExportButtonProps) {
   const [loading, setLoading] = useState(false);
+  const { addToast } = useToast();
+
+  const isIOSDevice = () => {
+    if (typeof window === "undefined") return false;
+
+    return /iPad|iPhone|iPod/.test(window.navigator.userAgent) ||
+      (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
+  };
 
   const handleExport = async () => {
     const element = previewRef.current;
     if (!element) return;
-    setLoading(true);
-    try {
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import("html2canvas"),
-        import("jspdf"),
-      ]);
 
-      // Reset transform before capture
-      const origTransform = element.style.transform;
-      const origWidth = element.style.width;
+    setLoading(true);
+    const originalTransform = element.style.transform;
+    const originalWidth = element.style.width;
+    const originalBoxShadow = element.style.boxShadow;
+
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+      const fileName = `${sanitizeFileName(filename)}.pdf`;
+      const options = {
+        margin: 10,
+        filename: fileName,
+        enableLinks: false,
+        image: {
+          type: "jpeg",
+          quality: 0.95,
+        },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+          windowWidth: 794,
+          width: 794,
+          ignoreElements: (node: Element) => node.classList.contains("no-print"),
+        },
+        jsPDF: {
+          unit: "mm",
+          format: "a4",
+          orientation: "portrait",
+        },
+        pagebreak: {
+          mode: ["css", "legacy"],
+        },
+      } as const;
+
       element.style.transform = "none";
       element.style.width = "794px";
+      element.style.boxShadow = "none";
 
-      // Wait one frame for repaint
-      await new Promise((r) => requestAnimationFrame(r));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
 
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        width: 794,
-        windowWidth: 794,
-      });
+      const worker = html2pdf().set(options as never).from(element);
 
-      // Restore
-      element.style.transform = origTransform;
-      element.style.width = origWidth;
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfWidth = 210;
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      if (pdfHeight <= 297) {
-        pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, pdfHeight);
+      if (isIOSDevice()) {
+        const blobUrl = await worker.toPdf().output("bloburl");
+        window.open(blobUrl, "_blank", "noopener,noreferrer");
       } else {
-        // Multi-page: slice into 297mm segments
-        const pageHeight = (297 / pdfWidth) * canvas.width;
-        let yOffset = 0;
-        let pageNum = 0;
-        while (yOffset < canvas.height) {
-          const pageCanvas = document.createElement("canvas");
-          const segHeight = Math.min(canvas.height - yOffset, pageHeight);
-          pageCanvas.width = canvas.width;
-          pageCanvas.height = segHeight;
-          pageCanvas.getContext("2d")!.drawImage(canvas, 0, -yOffset);
-          const segImg = pageCanvas.toDataURL("image/jpeg", 0.95);
-          if (pageNum > 0) pdf.addPage();
-          pdf.addImage(segImg, "JPEG", 0, 0, pdfWidth, (segHeight * pdfWidth) / canvas.width);
-          yOffset += pageHeight;
-          pageNum++;
-        }
+        await worker.save();
       }
-
-      pdf.save(`${sanitizeFileName(filename)}.pdf`);
+    } catch (error) {
+      console.error("PDF generation failed", error);
+      addToast("Failed to generate PDF. Please try again.", "error");
     } finally {
+      element.style.transform = originalTransform;
+      element.style.width = originalWidth;
+      element.style.boxShadow = originalBoxShadow;
       setLoading(false);
     }
   };
 
   return (
     <Button onClick={handleExport} loading={loading} className={className}>
-      <Download className="h-4 w-4" />
-      Download PDF
+      {!loading && <Download className="h-4 w-4" />}
+      {loading ? "Generating..." : "Download PDF"}
     </Button>
   );
 }

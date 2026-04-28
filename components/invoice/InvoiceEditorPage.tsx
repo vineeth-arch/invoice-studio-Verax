@@ -79,7 +79,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
     }
   }, [existingInvoice, invoiceId, saveInvoice, saveBuyerFromInvoice, addToast, router]);
 
-  const pdfFilename = `Invoice_${previewInvoice.invoiceNumber ?? "draft"}_${previewInvoice.buyer?.name ?? "client"}`;
+  const pdfFilename = `INV-${previewInvoice.invoiceNumber ?? "draft"}-${previewInvoice.buyer?.name ?? "client"}`;
 
   return (
     <div className="flex flex-col h-screen">

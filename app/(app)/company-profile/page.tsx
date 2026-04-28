@@ -32,7 +32,7 @@ export default function CompanyProfilePage() {
   }, [profile, reset]);
 
   const onSubmit = async (values: CompanyProfileFormValues) => {
-    const result = saveProfile({
+    const result = await saveProfile({
       ...values,
       id: profile?.id ?? uuidv4(),
       updatedAt: new Date().toISOString(),

@@ -9,10 +9,11 @@ const A4_HEIGHT_PX = 1123;
 interface A4PreviewWrapperProps {
   children: React.ReactNode;
   className?: string;
+  noPadding?: boolean;
 }
 
 export const A4PreviewWrapper = forwardRef<HTMLDivElement, A4PreviewWrapperProps>(
-  ({ children, className }, ref) => {
+  ({ children, className, noPadding = false }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
 
@@ -35,13 +36,13 @@ export const A4PreviewWrapper = forwardRef<HTMLDivElement, A4PreviewWrapperProps
         <div style={{ height: A4_HEIGHT_PX * scale }}>
           <div
             ref={ref}
-            className="a4-print-area bg-white shadow-lg"
+            className={`a4-print-area bg-white shadow-lg${noPadding ? " di-document-wrapper" : ""}`}
             style={{
               width: A4_WIDTH_PX,
               minHeight: A4_HEIGHT_PX,
               transformOrigin: "top left",
               transform: `scale(${scale})`,
-              padding: "60px 53px",
+              padding: noPadding ? "0" : "60px 53px",
               fontFamily: "'Inter', system-ui, sans-serif",
             }}
           >

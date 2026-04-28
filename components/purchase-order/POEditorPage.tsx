@@ -104,7 +104,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
           </div>
         </div>
         <div className={`${activeTab === "form" ? "hidden" : "flex"} lg:flex w-full lg:w-1/2 flex-col overflow-y-auto bg-gray-200 p-4`}>
-          <A4PreviewWrapper ref={previewRef}>
+          <A4PreviewWrapper ref={previewRef} noPadding>
             <POPreview po={previewPO} />
           </A4PreviewWrapper>
         </div>

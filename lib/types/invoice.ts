@@ -82,6 +82,7 @@ export interface Invoice {
   invoiceDate: string;
   dueDate?: string;
   poReference?: string;
+  projectDescription?: string;
   ewayBillNumber?: string;
   reverseCharge: boolean;
   irnNumber?: string;

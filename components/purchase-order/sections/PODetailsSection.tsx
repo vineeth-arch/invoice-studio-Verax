@@ -32,6 +32,16 @@ export function PODetailsSection({ control, register, errors, isDuplicate }: Pro
           <input type="date" className={inputClass} {...register("expectedDeliveryDate")} />
         </FormField>
 
+        <FormField label="Project Description (optional)" error={errors.projectDescription?.message}>
+          <input
+            type="text"
+            className={inputClass}
+            placeholder="e.g. Brand identity design consultancy for ABC Foods"
+            maxLength={120}
+            {...register("projectDescription")}
+          />
+        </FormField>
+
         <FormField label="PO Status">
           <select className={inputClass} {...register("poStatus")}>
             <option value="Under Approval">Under Approval</option>

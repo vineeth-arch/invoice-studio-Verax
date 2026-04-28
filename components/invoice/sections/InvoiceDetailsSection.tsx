@@ -57,6 +57,16 @@ export function InvoiceDetailsSection({ control, register, errors, isDuplicate }
           <input type="text" className={inputClass} placeholder="PO-2026-001" {...register("poReference")} />
         </FormField>
 
+        <FormField label="Project Description (optional)" error={errors.projectDescription?.message}>
+          <input
+            type="text"
+            className={inputClass}
+            placeholder="e.g. Brand identity design consultancy for ABC Foods"
+            maxLength={120}
+            {...register("projectDescription")}
+          />
+        </FormField>
+
         <FormField label="E-Way Bill Number" error={errors.ewayBillNumber?.message}>
           <input type="text" className={inputClass} placeholder="EWB number" {...register("ewayBillNumber")} />
         </FormField>

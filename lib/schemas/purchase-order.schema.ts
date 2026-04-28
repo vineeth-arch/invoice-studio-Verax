@@ -31,6 +31,7 @@ export const purchaseOrderSchema = z.object({
   poNumber: z.string().min(1, "PO number is required"),
   poDate: z.string().min(1, "PO date is required"),
   expectedDeliveryDate: z.string().optional(),
+  projectDescription: z.string().max(120, "Project description must be ≤ 120 characters").optional(),
   paymentTerms: z.string().min(1, "Payment terms are required"),
   deliveryTerms: z.string().min(1, "Delivery terms are required"),
   quotationReference: z.string().optional(),

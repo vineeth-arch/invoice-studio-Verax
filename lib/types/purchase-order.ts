@@ -70,6 +70,7 @@ export interface PurchaseOrder {
   poNumber: string;
   poDate: string;
   expectedDeliveryDate?: string;
+  projectDescription?: string;
   paymentTerms: string;
   deliveryTerms: string;
   quotationReference?: string;

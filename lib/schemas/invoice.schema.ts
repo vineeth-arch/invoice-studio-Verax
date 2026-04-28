@@ -37,6 +37,7 @@ export const invoiceSchema = z.object({
   invoiceDate: z.string().min(1, "Invoice date is required"),
   dueDate: z.string().optional(),
   poReference: z.string().optional(),
+  projectDescription: z.string().max(120, "Project description must be ≤ 120 characters").optional(),
   ewayBillNumber: z.string().optional(),
   reverseCharge: z.boolean().default(false),
   irnNumber: z.string().optional(),

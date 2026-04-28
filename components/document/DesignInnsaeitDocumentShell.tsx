@@ -29,7 +29,7 @@ export function DesignInnsaeitDocumentShell({
         fontFamily: '"Inter", Arial, sans-serif',
         display: "flex",
         flexDirection: "column",
-        minHeight: "100%",
+        minHeight: "297mm",
         backgroundColor: "#ffffff",
       }}
     >

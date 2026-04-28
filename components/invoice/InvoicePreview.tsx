@@ -3,29 +3,30 @@ import { DesignInnsaeitDocumentShell } from "@/components/document/DesignInnsaei
 import { formatCurrencyINR, formatDate, formatNumber } from "@/lib/utils/formatting";
 
 const BRAND_PURPLE = "#2828b0";
-const SECTION_LABEL_STYLE: React.CSSProperties = {
-  fontSize: "8px",
-  fontWeight: 600,
-  letterSpacing: "0.8px",
+const HEADER_LABEL_STYLE: React.CSSProperties = {
+  fontSize: "10px",
+  fontWeight: 700,
+  letterSpacing: "1.2px",
   textTransform: "uppercase",
-  color: BRAND_PURPLE,
-  borderBottom: `1.5px solid ${BRAND_PURPLE}`,
-  paddingBottom: "3px",
-  marginBottom: "6px",
+  color: "#6b7280",
+  marginBottom: "10px",
+};
+
+const DETAIL_TEXT_STYLE: React.CSSProperties = {
+  fontSize: "11.5px",
+  color: "#374151",
+  lineHeight: 1.55,
+};
+
+const DOC_VALUE_STYLE: React.CSSProperties = {
+  fontSize: "11.5px",
+  fontWeight: 500,
+  color: "#111827",
+  textAlign: "right",
 };
 
 interface InvoicePreviewProps {
   invoice: Partial<Invoice>;
-}
-
-function DocLine({ label, value }: { label: string; value?: string | number | null }) {
-  if (!value && value !== 0) return null;
-  return (
-    <div style={{ display: "flex", gap: "4px", fontSize: "9.5px", marginBottom: "2px" }}>
-      <span style={{ color: "#6b7280", flexShrink: 0 }}>{label}:</span>
-      <span style={{ fontWeight: 500, color: "#111827" }}>{value}</span>
-    </div>
-  );
 }
 
 function StatusBadge({ status }: { status?: string }) {
@@ -56,14 +57,16 @@ function StatusBadge({ status }: { status?: string }) {
   );
 }
 
-function addrLine(addr?: { line1?: string; line2?: string; city?: string; state?: string; pincode?: string }) {
-  if (!addr) return null;
-  return [
-    addr.line1,
-    addr.line2,
-    [addr.city, addr.state].filter(Boolean).join(", "),
-    addr.pincode,
-  ].filter(Boolean);
+function buildAddressLines(addr?: {
+  line1?: string;
+  line2?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}): string[] {
+  if (!addr) return [];
+  const cityStatePincode = [addr.city, addr.state, addr.pincode].filter(Boolean).join(", ");
+  return [addr.line1, addr.line2, cityStatePincode].filter((line): line is string => Boolean(line));
 }
 
 function hasShippingDiff(
@@ -76,6 +79,78 @@ function hasShippingDiff(
   const ba = buyer?.billingAddress;
   if (!ba) return true;
   return sa.line1 !== ba.line1 || sa.city !== ba.city || sa.pincode !== ba.pincode;
+}
+
+function DocMetaRow({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        gap: "12px",
+        marginBottom: "5px",
+      }}
+    >
+      <span style={{ ...DETAIL_TEXT_STYLE, color: "#6b7280" }}>{label}</span>
+      <span style={DOC_VALUE_STYLE}>{value}</span>
+    </div>
+  );
+}
+
+function PartyColumn({
+  label,
+  name,
+  lines,
+  gstin,
+  phone,
+  logo,
+  showUnregistered,
+}: {
+  label: string;
+  name?: string;
+  lines: string[];
+  gstin?: string;
+  phone?: string;
+  logo?: string;
+  showUnregistered?: boolean;
+}) {
+  return (
+    <div style={{ padding: "0 14px" }}>
+      <div style={HEADER_LABEL_STYLE}>{label}</div>
+      {logo && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logo}
+          alt={`${name || label} logo`}
+          crossOrigin="anonymous"
+          style={{ maxHeight: "38px", width: "auto", objectFit: "contain", marginBottom: "8px" }}
+        />
+      )}
+      <div style={{ fontSize: "14.5px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>
+        {name || "—"}
+      </div>
+      <div style={DETAIL_TEXT_STYLE}>
+        {lines.map((line, index) => (
+          <div key={`${label}-${index}`}>{line}</div>
+        ))}
+      </div>
+      <div style={{ marginTop: "6px", ...DETAIL_TEXT_STYLE }}>
+        {gstin ? (
+          <div>
+            <span style={{ fontWeight: 600 }}>GSTIN:</span> {gstin}
+          </div>
+        ) : showUnregistered ? (
+          <div style={{ fontSize: "10.5px", color: "#6b7280" }}>Unregistered</div>
+        ) : null}
+        {phone && (
+          <div>
+            <span style={{ fontWeight: 600 }}>Phone:</span> {phone}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 const DI_BANK = {
@@ -109,10 +184,8 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const isIGST = gstMode === "IGST";
   const showTax = gstMode !== "NO_TAX";
   const showServiceLocation = hasShippingDiff(shipping, buyer);
-  const serviceRef = invoice.poReference;
   const bank = paymentDetails?.bankName || paymentDetails?.accountNumber ? paymentDetails : null;
   const statusBadge = invoice.status ? <StatusBadge status={invoice.status} /> : undefined;
-
   const colCount = 6 + (isCGST ? 2 : 0) + (isIGST ? 1 : 0) + 1;
 
   return (
@@ -121,91 +194,72 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       subtitle="Design Consultancy / Creative Services"
       statusBadge={statusBadge}
     >
-      <div style={{ display: "flex", minHeight: "100%", flexDirection: "column" }}>
-        <div>
+      <div
+        style={{
+          minHeight: "100%",
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ flex: 1 }}>
           <div
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr 1fr",
-              gap: "16px",
-              marginBottom: "16px",
+              borderBottom: "1px solid #d1d5db",
+              marginBottom: "14px",
+              paddingBottom: "14px",
             }}
           >
-            <div>
-              <div style={SECTION_LABEL_STYLE}>Invoice Details</div>
-              <DocLine label="Invoice No." value={invoice.invoiceNumber} />
-              <DocLine label="Date" value={formatDate(invoice.invoiceDate)} />
-              <DocLine label="Due Date" value={formatDate(invoice.dueDate)} />
-              <DocLine label="Supplier GSTIN" value={supplier?.gstin} />
-              <DocLine label="State Code" value={supplier?.stateCode} />
-              <DocLine label="Place of Supply" value={buyer?.placeOfSupply} />
-              <DocLine label="Reverse Charge" value={invoice.reverseCharge ? "Yes" : "No"} />
-              {invoice.ewayBillNumber && <DocLine label="E-Way Bill" value={invoice.ewayBillNumber} />}
-              {invoice.irnNumber && <DocLine label="IRN" value={invoice.irnNumber} />}
+            <div style={{ borderRight: "1px solid #e5e7eb" }}>
+              <PartyColumn
+                label="From"
+                name={supplier?.name || "Design Innsaeit"}
+                lines={buildAddressLines(supplier?.address)}
+                gstin={supplier?.gstin}
+                phone={supplier?.contact?.phone}
+                logo={supplier?.logoImageBase64}
+              />
             </div>
 
-            <div>
-              <div style={SECTION_LABEL_STYLE}>From</div>
-              <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#111827", marginBottom: "3px" }}>
-                {supplier?.name || "Design Innsaeit"}
-              </div>
-              {supplier?.address && (
-                <div style={{ fontSize: "9.5px", color: "#374151", lineHeight: 1.5 }}>
-                  {addrLine(supplier.address)?.map((line, index) => (
-                    <div key={index}>{line}</div>
-                  ))}
-                </div>
-              )}
-              <div style={{ marginTop: "4px" }}>
-                <DocLine label="GSTIN" value={supplier?.gstin} />
-                {supplier?.pan && <DocLine label="PAN" value={supplier.pan} />}
-                <DocLine label="State Code" value={supplier?.stateCode} />
-                <DocLine label="Email" value={supplier?.contact?.email} />
-                <DocLine label="Phone" value={supplier?.contact?.phone} />
-              </div>
+            <div style={{ borderRight: "1px solid #e5e7eb" }}>
+              <PartyColumn
+                label="Bill To"
+                name={buyer?.name}
+                lines={buildAddressLines(buyer?.billingAddress)}
+                gstin={buyer?.gstin}
+                showUnregistered
+              />
             </div>
 
-            <div>
-              <div style={SECTION_LABEL_STYLE}>Bill To / Recipient</div>
-              <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#111827", marginBottom: "3px" }}>
-                {buyer?.name || "—"}
-              </div>
-              {buyer?.billingAddress && (
-                <div style={{ fontSize: "9.5px", color: "#374151", lineHeight: 1.5 }}>
-                  {addrLine(buyer.billingAddress)?.map((line, index) => (
-                    <div key={index}>{line}</div>
-                  ))}
+            <div style={{ padding: "0 14px" }}>
+              <div style={HEADER_LABEL_STYLE}>Doc Details</div>
+              <DocMetaRow label="Invoice No." value={invoice.invoiceNumber} />
+              <DocMetaRow label="Invoice Date" value={formatDate(invoice.invoiceDate)} />
+              <DocMetaRow label="Due Date" value={formatDate(invoice.dueDate)} />
+              <DocMetaRow label="PO Reference" value={invoice.poReference} />
+              <DocMetaRow label="E-Way Bill" value={invoice.ewayBillNumber} />
+
+              {(invoice.projectDescription || buyer?.placeOfSupply) && (
+                <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid #e5e7eb" }}>
+                  {invoice.projectDescription && (
+                    <div style={{ marginBottom: buyer?.placeOfSupply ? "10px" : 0 }}>
+                      <div style={HEADER_LABEL_STYLE}>Service For / Project</div>
+                      <div style={DETAIL_TEXT_STYLE}>{invoice.projectDescription}</div>
+                    </div>
+                  )}
+                  {buyer?.placeOfSupply && (
+                    <div>
+                      <div style={HEADER_LABEL_STYLE}>Place of Supply</div>
+                      <div style={DETAIL_TEXT_STYLE}>{buyer.placeOfSupply}</div>
+                    </div>
+                  )}
                 </div>
               )}
-              <div style={{ marginTop: "4px" }}>
-                {buyer?.gstin && <DocLine label="GSTIN" value={buyer.gstin} />}
-                <DocLine label="State" value={buyer?.billingAddress?.state} />
-                <DocLine label="State Code" value={buyer?.billingAddress?.stateCode} />
-                <DocLine label="Place of Supply" value={buyer?.placeOfSupply} />
-                {buyer?.contact?.email && <DocLine label="Email" value={buyer.contact.email} />}
-                {buyer?.contact?.phone && <DocLine label="Phone" value={buyer.contact.phone} />}
-              </div>
             </div>
           </div>
-
-          {serviceRef && (
-            <div
-              style={{
-                backgroundColor: "#f5f3ff",
-                border: `1px solid ${BRAND_PURPLE}22`,
-                borderRadius: "4px",
-                padding: "7px 12px",
-                marginBottom: "14px",
-                display: "flex",
-                gap: "8px",
-                alignItems: "center",
-                fontSize: "9.5px",
-              }}
-            >
-              <span style={{ fontWeight: 600, color: BRAND_PURPLE }}>Service / Project Reference:</span>
-              <span style={{ color: "#374151" }}>{serviceRef}</span>
-            </div>
-          )}
 
           {showServiceLocation && (
             <div
@@ -222,7 +276,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
               <div style={{ fontWeight: 600, color: "#111827" }}>{shipping?.name}</div>
               {shipping?.address && (
                 <div style={{ color: "#374151", lineHeight: 1.5 }}>
-                  {addrLine(shipping.address)?.map((line, index) => (
+                  {buildAddressLines(shipping.address).map((line, index) => (
                     <div key={index}>{line}</div>
                   ))}
                 </div>
@@ -365,30 +419,32 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
           )}
         </div>
 
-        <div style={{ marginTop: "auto", paddingTop: "14px" }}>
+        <div style={{ borderTop: "1px solid #d1d5db", paddingTop: "14px", marginTop: "16px" }}>
           <div className="print-keep-together" style={{ marginBottom: "14px" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
               <div>
-                <div style={SECTION_LABEL_STYLE}>Bank / Payment Details</div>
-                {(bank ? (
-                  <>
-                    {bank.accountName && <DocLine label="Account Name" value={bank.accountName} />}
-                    {bank.bankName && <DocLine label="Bank" value={bank.bankName} />}
-                    {bank.accountNumber && <DocLine label="Account No." value={bank.accountNumber} />}
-                    {bank.branch && <DocLine label="Branch" value={bank.branch} />}
-                    {bank.ifscCode && <DocLine label="IFSC" value={bank.ifscCode} />}
-                    {bank.upiId && <DocLine label="UPI" value={bank.upiId} />}
-                  </>
-                ) : (
-                  <>
-                    <DocLine label="Account Name" value={DI_BANK.accountName} />
-                    <DocLine label="Bank" value={DI_BANK.bankName} />
-                    <DocLine label="Account No." value={DI_BANK.accountNumber} />
-                    <DocLine label="Branch" value={DI_BANK.branch} />
-                    <DocLine label="IFSC" value={DI_BANK.ifscCode} />
-                    <DocLine label="MICR" value={DI_BANK.micr} />
-                  </>
-                ))}
+                <div style={HEADER_LABEL_STYLE}>Bank / Payment Details</div>
+                <div style={DETAIL_TEXT_STYLE}>
+                  {(bank ? (
+                    <>
+                      {bank.accountName && <div><span style={{ fontWeight: 600 }}>Account Name:</span> {bank.accountName}</div>}
+                      {bank.bankName && <div><span style={{ fontWeight: 600 }}>Bank:</span> {bank.bankName}</div>}
+                      {bank.accountNumber && <div><span style={{ fontWeight: 600 }}>Account No.:</span> {bank.accountNumber}</div>}
+                      {bank.branch && <div><span style={{ fontWeight: 600 }}>Branch:</span> {bank.branch}</div>}
+                      {bank.ifscCode && <div><span style={{ fontWeight: 600 }}>IFSC:</span> {bank.ifscCode}</div>}
+                      {bank.upiId && <div><span style={{ fontWeight: 600 }}>UPI:</span> {bank.upiId}</div>}
+                    </>
+                  ) : (
+                    <>
+                      <div><span style={{ fontWeight: 600 }}>Account Name:</span> {DI_BANK.accountName}</div>
+                      <div><span style={{ fontWeight: 600 }}>Bank:</span> {DI_BANK.bankName}</div>
+                      <div><span style={{ fontWeight: 600 }}>Account No.:</span> {DI_BANK.accountNumber}</div>
+                      <div><span style={{ fontWeight: 600 }}>Branch:</span> {DI_BANK.branch}</div>
+                      <div><span style={{ fontWeight: 600 }}>IFSC:</span> {DI_BANK.ifscCode}</div>
+                      <div><span style={{ fontWeight: 600 }}>MICR:</span> {DI_BANK.micr}</div>
+                    </>
+                  ))}
+                </div>
               </div>
 
               {bank?.upiQrImageBase64 && (
@@ -408,7 +464,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
 
           {(invoice.notes || invoice.termsAndConditions || invoice.declaration || !invoice.termsAndConditions) && (
             <div className="print-keep-together" style={{ marginBottom: "14px" }}>
-              <div style={SECTION_LABEL_STYLE}>Notes &amp; Terms</div>
+              <div style={HEADER_LABEL_STYLE}>Notes &amp; Terms</div>
               {invoice.notes && (
                 <div style={{ fontSize: "9px", color: "#374151", marginBottom: "4px" }}>
                   <span style={{ fontWeight: 600 }}>Notes: </span>{invoice.notes}

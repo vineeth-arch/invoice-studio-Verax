@@ -72,6 +72,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
       invoiceType: "TAX_INVOICE",
       invoiceDate: new Date().toISOString().slice(0, 10),
       poReference: existingPO.poNumber,
+      projectDescription: existingPO.projectDescription,
       buyer: {
         name: existingPO.buyer.name,
         billingAddress: { ...existingPO.buyer.address, country: existingPO.buyer.address.country ?? "India" },

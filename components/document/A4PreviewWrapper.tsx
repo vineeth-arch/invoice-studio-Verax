@@ -41,7 +41,7 @@ export const A4PreviewWrapper = forwardRef<HTMLDivElement, A4PreviewWrapperProps
               minHeight: A4_HEIGHT_PX,
               transformOrigin: "top left",
               transform: `scale(${scale})`,
-              padding: "60px 53px",
+              padding: 0,
               fontFamily: "'Inter', system-ui, sans-serif",
             }}
           >

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils/cn";
-import type { DocumentStatus } from "@/lib/types/common";
+import type { DocumentStatus, PaymentStatus, POStatus } from "@/lib/types/common";
 
 const statusStyles: Record<DocumentStatus, string> = {
   DRAFT: "bg-amber-100 text-amber-800",
@@ -57,6 +57,35 @@ export function Badge({ children, variant = "default", className }: GenericBadge
       )}
     >
       {children}
+    </span>
+  );
+}
+
+const paymentStatusStyles: Record<PaymentStatus, string> = {
+  Unpaid: "bg-yellow-100 text-yellow-800",
+  Partial: "bg-blue-100 text-blue-800",
+  Paid: "bg-green-100 text-green-800",
+  Overdue: "bg-red-100 text-red-800",
+};
+
+const poStatusStyles: Record<POStatus, string> = {
+  "Under Approval": "bg-amber-100 text-amber-800",
+  Approved: "bg-blue-100 text-blue-800",
+  Processed: "bg-green-100 text-green-800",
+};
+
+export function PaymentStatusBadge({ status, className }: { status: PaymentStatus; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", paymentStatusStyles[status], className)}>
+      {status}
+    </span>
+  );
+}
+
+export function POStatusBadge({ status, className }: { status: POStatus; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", poStatusStyles[status], className)}>
+      {status}
     </span>
   );
 }

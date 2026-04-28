@@ -6,17 +6,48 @@ import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { GSTINInput } from "@/components/ui/GSTINInput";
+import { Button } from "@/components/ui/Button";
+import type { SavedClient } from "@/lib/types/client";
 
 interface Props {
   control: Control<InvoiceFormValues>;
   register: UseFormRegister<InvoiceFormValues>;
   errors: FieldErrors<InvoiceFormValues>;
+  savedClients: SavedClient[];
+  selectedClientId: string;
+  onSelectSavedClient: (clientId: string) => void;
+  onSaveClient: () => void;
+  savingClient?: boolean;
 }
 
-export function BuyerDetailsSection({ control, register, errors }: Props) {
+export function BuyerDetailsSection({
+  control,
+  register,
+  errors,
+  savedClients,
+  selectedClientId,
+  onSelectSavedClient,
+  onSaveClient,
+  savingClient,
+}: Props) {
   return (
     <FormSection title="Buyer Details">
       <div className="grid grid-cols-2 gap-3">
+        <FormField label="Select saved client" className="col-span-2">
+          <select
+            className={inputClass}
+            value={selectedClientId}
+            onChange={(e) => onSelectSavedClient(e.target.value)}
+          >
+            <option value="">Select saved client</option>
+            {savedClients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}{client.gstin ? ` • ${client.gstin}` : ""}
+              </option>
+            ))}
+          </select>
+        </FormField>
+
         <FormField label="Buyer Name" required error={errors.buyer?.name?.message} className="col-span-2">
           <input type="text" className={inputClass} placeholder="Client / customer name" {...register("buyer.name")} />
         </FormField>
@@ -66,6 +97,12 @@ export function BuyerDetailsSection({ control, register, errors }: Props) {
         <FormField label="Buyer Phone">
           <input type="tel" className={inputClass} {...register("buyer.contact.phone")} />
         </FormField>
+      </div>
+
+      <div className="mt-3">
+        <Button type="button" variant="outline" size="sm" onClick={onSaveClient} loading={savingClient}>
+          Save this client
+        </Button>
       </div>
     </FormSection>
   );

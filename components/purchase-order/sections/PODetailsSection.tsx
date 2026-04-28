@@ -32,6 +32,14 @@ export function PODetailsSection({ control, register, errors, isDuplicate }: Pro
           <input type="date" className={inputClass} {...register("expectedDeliveryDate")} />
         </FormField>
 
+        <FormField label="PO Status">
+          <select className={inputClass} {...register("poStatus")}>
+            <option value="Under Approval">Under Approval</option>
+            <option value="Approved">Approved</option>
+            <option value="Processed">Processed</option>
+          </select>
+        </FormField>
+
         <FormField label="Payment Terms" required error={errors.paymentTerms?.message}>
           <input type="text" className={inputClass} placeholder="e.g. Net 30, Advance" {...register("paymentTerms")} />
         </FormField>

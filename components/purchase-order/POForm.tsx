@@ -41,6 +41,7 @@ function buildDefaultValues(settings: DocumentTemplateSettings | null, profile: 
     status: "DRAFT",
     lineItems: [],
     otherCharges: 0,
+    poStatus: "Under Approval",
     buyer: profile ? {
       name: profile.companyName,
       address: { ...profile.address, country: "India" },

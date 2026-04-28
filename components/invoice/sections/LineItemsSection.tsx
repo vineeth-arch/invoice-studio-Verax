@@ -1,16 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { useFieldArray, useWatch, type Control, type UseFormSetValue, type FieldErrors } from "react-hook-form";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, Trash2 } from "lucide-react";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import type { GSTMode } from "@/lib/types/common";
+import type { SavedService } from "@/lib/types/service";
 import { FormSection } from "@/components/ui/FormSection";
 import { GSTModeSelector } from "../GSTModeSelector";
 import { calculateLineItem } from "@/lib/utils/calculations";
 import { formatNumber } from "@/lib/utils/formatting";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
+import { useServices } from "@/lib/hooks/useServices";
+import { Modal } from "@/components/ui/Modal";
+import Link from "next/link";
 
 interface Props {
   control: Control<InvoiceFormValues>;
@@ -145,9 +150,25 @@ function LineItemRow({
 export function LineItemsSection({ control, setValue, errors }: Props) {
   const { fields, append, remove } = useFieldArray({ control, name: "lineItems" });
   const gstMode = useWatch({ control, name: "gstMode" }) as GSTMode;
+  const { services } = useServices();
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
 
   const addRow = () => {
     append({ id: uuidv4(), description: "", hsnSac: "", quantity: 1, unit: "PCS", rate: 0, discountPercent: 0, gstRate: 18 });
+  };
+
+  const addService = (service: SavedService) => {
+    append({
+      id: uuidv4(),
+      description: service.description,
+      hsnSac: service.sacCode,
+      quantity: 1,
+      unit: service.unit || "PCS",
+      rate: service.defaultRate,
+      discountPercent: 0,
+      gstRate: service.defaultGstPercent,
+    });
+    setCatalogueOpen(false);
   };
 
   return (
@@ -203,10 +224,46 @@ export function LineItemsSection({ control, setValue, errors }: Props) {
         </table>
       </div>
 
-      <Button type="button" variant="outline" size="sm" onClick={addRow} className="mt-2">
-        <Plus className="h-3.5 w-3.5" />
-        Add Item
-      </Button>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={addRow}>
+          <Plus className="h-3.5 w-3.5" />
+          Add Item
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => setCatalogueOpen(true)}>
+          Add from catalogue
+        </Button>
+      </div>
+
+      <Modal
+        open={catalogueOpen}
+        onClose={() => setCatalogueOpen(false)}
+        title="Service catalogue"
+      >
+        {services.length === 0 ? (
+          <div className="space-y-3">
+            <p>No saved services yet.</p>
+            <Link href="/services" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+              Open Services page
+            </Link>
+          </div>
+        ) : (
+          <div className="max-h-80 space-y-2 overflow-y-auto">
+            {services.map((service) => (
+              <button
+                key={service.id}
+                type="button"
+                onClick={() => addService(service)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-left transition-colors hover:border-slate-300 hover:bg-slate-50"
+              >
+                <div className="text-sm font-medium text-slate-900">{service.description}</div>
+                <div className="text-xs text-slate-500">
+                  SAC {service.sacCode || "N/A"} • {service.unit} • ₹{service.defaultRate} • GST {service.defaultGstPercent}%
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </Modal>
     </FormSection>
   );
 }

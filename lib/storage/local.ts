@@ -5,6 +5,7 @@ import type { Invoice } from "@/lib/types/invoice";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import type { BusinessProfile } from "@/lib/types/company";
 import type { SavedClient } from "@/lib/types/client";
+import type { SavedService } from "@/lib/types/service";
 import type { DocumentTemplateSettings } from "@/lib/types/settings";
 import { getDefaultCompanyProfile, mergeCompanyProfileWithDefaults } from "@/lib/defaults/companyProfile";
 import { STORAGE_KEYS } from "./keys";
@@ -139,48 +140,107 @@ export function replaceCompanyProfile(profile: BusinessProfile | null): SaveResu
 
 // ─── Saved Clients ─────────────────────────────────────
 
+function isNewSavedClient(client: SavedClient | LegacySavedClient): client is SavedClient {
+  return "address1" in client;
+}
+
+type LegacySavedClient = {
+  id: string;
+  name: string;
+  billingAddress: Invoice["buyer"]["billingAddress"];
+  gstin?: string;
+  contact?: Invoice["buyer"]["contact"];
+  placeOfSupply: string;
+  placeOfSupplyCode: string;
+  lastUsedAt: string;
+};
+
+function migrateLegacyClient(client: LegacySavedClient): SavedClient {
+  return {
+    id: client.id,
+    name: client.name,
+    address1: client.billingAddress.line1,
+    address2: client.billingAddress.line2 ?? "",
+    city: client.billingAddress.city,
+    state: client.billingAddress.state,
+    stateCode: client.billingAddress.stateCode,
+    pincode: client.billingAddress.pincode,
+    gstin: client.gstin ?? "",
+    email: client.contact?.email ?? "",
+    phone: client.contact?.phone ?? "",
+    placeOfSupply: client.placeOfSupply,
+    placeOfSupplyCode: client.placeOfSupplyCode,
+    createdAt: client.lastUsedAt,
+    updatedAt: client.lastUsedAt,
+  };
+}
+
 export function getSavedClients(): SavedClient[] {
-  return safeGet<SavedClient[]>(STORAGE_KEYS.SAVED_CLIENTS, [])
-    .sort((a, b) => new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime());
+  const current = safeGet<Array<SavedClient | LegacySavedClient>>(STORAGE_KEYS.CLIENTS, []);
+  const legacy = current.length === 0
+    ? safeGet<LegacySavedClient[]>(STORAGE_KEYS.LEGACY_SAVED_CLIENTS, [])
+    : [];
+  const clients = [...current, ...legacy]
+    .map((client) => isNewSavedClient(client) ? client : migrateLegacyClient(client))
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  if (clients.length > 0) {
+    safeSet(STORAGE_KEYS.CLIENTS, clients);
+  }
+
+  return clients;
 }
 
 export function saveSavedClient(client: SavedClient): SaveResult {
   const clients = getSavedClients();
-  const normalizedName = client.name.trim().toLowerCase();
-  const normalizedGstin = (client.gstin ?? "").trim().toLowerCase();
-  const existingIdx = clients.findIndex((saved) =>
-    saved.name.trim().toLowerCase() === normalizedName &&
-    (saved.gstin ?? "").trim().toLowerCase() === normalizedGstin
-  );
+  const normalizedGstin = client.gstin.trim().toLowerCase();
+  const existingIdx = normalizedGstin
+    ? clients.findIndex((saved) => saved.gstin.trim().toLowerCase() === normalizedGstin)
+    : clients.findIndex((saved) => saved.id === client.id);
 
   if (existingIdx >= 0) {
-    clients[existingIdx] = { ...clients[existingIdx], ...client, lastUsedAt: new Date().toISOString() };
+    clients[existingIdx] = { ...clients[existingIdx], ...client };
   } else {
-    clients.push({ ...client, lastUsedAt: new Date().toISOString() });
+    clients.push(client);
   }
 
-  return safeSet(STORAGE_KEYS.SAVED_CLIENTS, clients);
-}
-
-export function saveBuyerAsClient(buyer: Invoice["buyer"] | undefined | null): SaveResult {
-  if (!buyer?.name?.trim() || !buyer.billingAddress?.line1?.trim()) {
-    return { success: true };
-  }
-
-  return saveSavedClient({
-    id: uuidv4(),
-    name: buyer.name,
-    billingAddress: buyer.billingAddress,
-    gstin: buyer.gstin,
-    contact: buyer.contact,
-    placeOfSupply: buyer.placeOfSupply,
-    placeOfSupplyCode: buyer.placeOfSupplyCode,
-    lastUsedAt: new Date().toISOString(),
-  });
+  return safeSet(STORAGE_KEYS.CLIENTS, clients);
 }
 
 export function replaceSavedClients(clients: SavedClient[]): SaveResult {
-  return safeSet(STORAGE_KEYS.SAVED_CLIENTS, clients);
+  return safeSet(STORAGE_KEYS.CLIENTS, clients);
+}
+
+export function deleteSavedClient(id: string): SaveResult {
+  return safeSet(STORAGE_KEYS.CLIENTS, getSavedClients().filter((client) => client.id !== id));
+}
+
+// ─── Saved Services ───────────────────────────────────
+
+export function getSavedServices(): SavedService[] {
+  return safeGet<SavedService[]>(STORAGE_KEYS.SERVICES, [])
+    .sort((a, b) => a.description.localeCompare(b.description));
+}
+
+export function saveSavedService(service: SavedService): SaveResult {
+  const services = getSavedServices();
+  const existingIdx = services.findIndex((saved) => saved.id === service.id);
+
+  if (existingIdx >= 0) {
+    services[existingIdx] = { ...services[existingIdx], ...service };
+  } else {
+    services.push(service);
+  }
+
+  return safeSet(STORAGE_KEYS.SERVICES, services);
+}
+
+export function replaceSavedServices(services: SavedService[]): SaveResult {
+  return safeSet(STORAGE_KEYS.SERVICES, services);
+}
+
+export function deleteSavedService(id: string): SaveResult {
+  return safeSet(STORAGE_KEYS.SERVICES, getSavedServices().filter((service) => service.id !== id));
 }
 
 // ─── Settings ───────────────────────────────────────────

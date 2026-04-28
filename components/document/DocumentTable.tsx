@@ -6,7 +6,7 @@ import { Edit, Copy, Trash2 } from "lucide-react";
 import type { Invoice } from "@/lib/types/invoice";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import type { DocumentStatus } from "@/lib/types/common";
-import { StatusBadge } from "@/components/ui/Badge";
+import { PaymentStatusBadge, POStatusBadge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { formatCurrencyINR, formatDate } from "@/lib/utils/formatting";
@@ -20,6 +20,8 @@ type DocEntry = {
   date: string;
   amount: number;
   status: DocumentStatus;
+  paymentStatus?: Invoice["paymentStatus"];
+  poStatus?: PurchaseOrder["poStatus"];
 };
 
 function toDocEntry(doc: Invoice | PurchaseOrder): DocEntry {
@@ -32,6 +34,7 @@ function toDocEntry(doc: Invoice | PurchaseOrder): DocEntry {
       date: doc.invoiceDate,
       amount: doc.totals.grandTotal,
       status: doc.status,
+      paymentStatus: doc.paymentStatus,
     };
   }
   return {
@@ -42,6 +45,7 @@ function toDocEntry(doc: Invoice | PurchaseOrder): DocEntry {
     date: doc.poDate,
     amount: doc.totals.grandTotal,
     status: doc.status,
+    poStatus: doc.poStatus,
   };
 }
 
@@ -134,7 +138,13 @@ export function DocumentTable({ invoices, purchaseOrders, onDelete, onDuplicate 
                   <td className="px-4 py-3 text-sm text-slate-600">{doc.partyName}</td>
                   <td className="px-4 py-3 text-sm text-slate-500">{formatDate(doc.date)}</td>
                   <td className="px-4 py-3 text-sm font-medium text-slate-900">{formatCurrencyINR(doc.amount)}</td>
-                  <td className="px-4 py-3"><StatusBadge status={doc.status} /></td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <StatusBadge status={doc.status} />
+                      {doc.type === "invoice" && doc.paymentStatus && <PaymentStatusBadge status={doc.paymentStatus} />}
+                      {doc.type === "po" && doc.poStatus && <POStatusBadge status={doc.poStatus} />}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <Link href={`/${doc.type === "invoice" ? "invoice" : "purchase-order"}/${doc.id}/edit`}>

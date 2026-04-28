@@ -85,6 +85,7 @@ export const invoiceSchema = z.object({
     paymentLink: z.string().optional(),
     upiQrImageBase64: z.string().optional(),
   }).optional(),
+  paymentStatus: z.enum(["Unpaid", "Partial", "Paid", "Overdue"]).default("Unpaid"),
 
   notes: z.string().optional(),
   termsAndConditions: z.string().optional(),

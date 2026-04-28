@@ -6,7 +6,7 @@ import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
 import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
 import { formatCurrencyINR, formatDate } from "@/lib/utils/formatting";
-import { StatusBadge } from "@/components/ui/Badge";
+import { PaymentStatusBadge, POStatusBadge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
 function SummaryCard({ label, value, sub, icon: Icon, color }: {
@@ -37,8 +37,8 @@ export default function DashboardPage() {
   const drafts = [...invoices, ...purchaseOrders].filter(d => d.status === "DRAFT").length;
 
   const recent = [
-    ...invoices.map(i => ({ id: i.id, type: "invoice" as const, number: i.invoiceNumber, party: i.buyer.name, date: i.invoiceDate, amount: i.totals.grandTotal, status: i.status })),
-    ...purchaseOrders.map(p => ({ id: p.id, type: "po" as const, number: p.poNumber, party: p.vendor.name, date: p.poDate, amount: p.totals.grandTotal, status: p.status })),
+    ...invoices.map(i => ({ id: i.id, type: "invoice" as const, number: i.invoiceNumber, party: i.buyer.name, date: i.invoiceDate, amount: i.totals.grandTotal, status: i.status, paymentStatus: i.paymentStatus })),
+    ...purchaseOrders.map(p => ({ id: p.id, type: "po" as const, number: p.poNumber, party: p.vendor.name, date: p.poDate, amount: p.totals.grandTotal, status: p.status, poStatus: p.poStatus })),
   ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
   if (invLoading || poLoading) return <div className="p-8 text-slate-400">Loading...</div>;
@@ -125,7 +125,11 @@ export default function DashboardPage() {
                     <div className="text-sm font-medium text-slate-800">{formatCurrencyINR(doc.amount)}</div>
                     <div className="text-xs text-slate-400">{formatDate(doc.date)}</div>
                   </div>
-                  <StatusBadge status={doc.status} />
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <StatusBadge status={doc.status} />
+                    {doc.type === "invoice" && doc.paymentStatus && <PaymentStatusBadge status={doc.paymentStatus} />}
+                    {doc.type === "po" && doc.poStatus && <POStatusBadge status={doc.poStatus} />}
+                  </div>
                 </div>
               </Link>
             ))}

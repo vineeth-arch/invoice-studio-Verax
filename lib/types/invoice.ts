@@ -1,4 +1,4 @@
-import type { Address, ContactInfo, BankDetails, GSTMode, DocumentStatus, SignatureInfo } from "./common";
+import type { Address, ContactInfo, BankDetails, GSTMode, DocumentStatus, PaymentStatus, SignatureInfo } from "./common";
 
 export type InvoiceType =
   | "TAX_INVOICE"
@@ -95,6 +95,7 @@ export interface Invoice {
   cess: number;
   otherCharges: number;
   paymentDetails?: BankDetails;
+  paymentStatus: PaymentStatus;
   notes?: string;
   termsAndConditions?: string;
   declaration?: string;

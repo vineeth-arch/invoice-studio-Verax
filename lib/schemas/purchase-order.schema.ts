@@ -100,6 +100,7 @@ export const purchaseOrderSchema = z.object({
     signatureImageBase64: z.string().optional(),
   }).optional(),
 
+  poStatus: z.enum(["Under Approval", "Approved", "Processed"]).default("Under Approval"),
   status: z.enum(["DRAFT", "FINAL", "PAID", "CANCELLED"]).default("DRAFT"),
 });
 

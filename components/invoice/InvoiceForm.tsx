@@ -2,7 +2,7 @@
 
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useEffect, useCallback } from "react";
+import { useMemo, useEffect, useCallback, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import { invoiceSchema } from "@/lib/schemas/invoice.schema";
@@ -23,6 +23,7 @@ import { useDocumentNumber } from "@/lib/hooks/useDocumentNumber";
 import { useSavedClients } from "@/lib/hooks/useSavedClients";
 import type { DocumentTemplateSettings } from "@/lib/types/settings";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
+import { useToast } from "@/lib/hooks/useToast";
 
 interface InvoiceFormProps {
   initialValues?: Partial<Invoice>;
@@ -48,6 +49,7 @@ function buildDefaultValues(
     cess: 0,
     otherCharges: 0,
     status: "DRAFT",
+    paymentStatus: "Unpaid",
     shipping: { sameAsBilling: true },
     lineItems: [],
     supplier: profile
@@ -96,7 +98,10 @@ export function InvoiceForm({
     existingDocs,
     initialValues?.id
   );
-  const { clients: savedClients } = useSavedClients();
+  const { clients: savedClients, saveBuyerFromInvoice } = useSavedClients();
+  const { addToast } = useToast();
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [savingClient, setSavingClient] = useState(false);
 
   const defaultValues = useMemo(
     () => initialValues
@@ -177,18 +182,41 @@ export function InvoiceForm({
   }, [companyProfile, setValue]);
 
   const applySavedClient = useCallback((clientId: string) => {
+    setSelectedClientId(clientId);
     const selected = savedClients.find((client) => client.id === clientId);
     if (!selected) return;
 
     setValue("buyer.name", selected.name);
-    setValue("buyer.billingAddress", selected.billingAddress);
-    setValue("buyer.gstin", selected.gstin ?? "");
+    setValue("buyer.billingAddress", {
+      line1: selected.address1,
+      line2: selected.address2,
+      city: selected.city,
+      state: selected.state,
+      stateCode: selected.stateCode,
+      pincode: selected.pincode,
+      country: "India",
+    });
+    setValue("buyer.gstin", selected.gstin);
     setValue("buyer.placeOfSupply", selected.placeOfSupply);
     setValue("buyer.placeOfSupplyCode", selected.placeOfSupplyCode);
-    setValue("buyer.contact.email", selected.contact?.email ?? "");
-    setValue("buyer.contact.phone", selected.contact?.phone ?? "");
+    setValue("buyer.contact.email", selected.email);
+    setValue("buyer.contact.phone", selected.phone);
     setValue("shipping.sameAsBilling", true);
   }, [savedClients, setValue]);
+
+  const handleSaveClient = useCallback(async () => {
+    setSavingClient(true);
+    try {
+      const result = await saveBuyerFromInvoice(formValues.buyer);
+      if (result.success) {
+        addToast("Client saved successfully.", "success");
+      } else {
+        addToast(result.error ?? "Failed to save client.", "error");
+      }
+    } finally {
+      setSavingClient(false);
+    }
+  }, [saveBuyerFromInvoice, formValues.buyer, addToast]);
 
   return (
     <form className="space-y-3">
@@ -204,31 +232,16 @@ export function InvoiceForm({
         control={control} register={register} errors={errors} isDuplicate={isDuplicate}
       />
       <SupplierDetailsSection control={control} register={register} errors={errors} />
-      {savedClients.length > 0 && (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-          <div className="mb-2 text-sm font-medium text-slate-800">Saved Clients</div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <select
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
-              defaultValue=""
-              onChange={(e) => {
-                if (e.target.value) applySavedClient(e.target.value);
-              }}
-            >
-              <option value="">Select a saved client</option>
-              {savedClients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}{client.gstin ? ` • ${client.gstin}` : ""}
-                </option>
-              ))}
-            </select>
-            <div className="text-xs text-slate-500">
-              Buyers are saved automatically when you save an invoice.
-            </div>
-          </div>
-        </div>
-      )}
-      <BuyerDetailsSection control={control} register={register} errors={errors} />
+      <BuyerDetailsSection
+        control={control}
+        register={register}
+        errors={errors}
+        savedClients={savedClients}
+        selectedClientId={selectedClientId}
+        onSelectSavedClient={applySavedClient}
+        onSaveClient={handleSaveClient}
+        savingClient={savingClient}
+      />
       <ShippingDetailsSection register={register} watch={watch} setValue={setValue} />
       <LineItemsSection control={control} setValue={setValue} errors={errors} />
       <TotalsSummarySection control={control} register={register} />

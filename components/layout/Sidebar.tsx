@@ -8,6 +8,8 @@ import {
   ShoppingCart,
   FolderOpen,
   Building2,
+  Users,
+  BriefcaseBusiness,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -18,6 +20,8 @@ const nav = [
   { href: "/invoice/new", label: "New Invoice", icon: FileText },
   { href: "/purchase-order/new", label: "New PO", icon: ShoppingCart },
   { href: "/documents", label: "Documents", icon: FolderOpen },
+  { href: "/clients", label: "Clients", icon: Users },
+  { href: "/services", label: "Services", icon: BriefcaseBusiness },
   { href: "/company-profile", label: "Company Profile", icon: Building2 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

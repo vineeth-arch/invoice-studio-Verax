@@ -16,6 +16,14 @@ export function PaymentDetailsSection({ control, register }: Props) {
   return (
     <FormSection title="Payment Details" defaultOpen={false}>
       <div className="grid grid-cols-2 gap-3">
+        <FormField label="Payment Status">
+          <select className={inputClass} {...register("paymentStatus")}>
+            <option value="Unpaid">Unpaid</option>
+            <option value="Partial">Partial</option>
+            <option value="Paid">Paid</option>
+            <option value="Overdue">Overdue</option>
+          </select>
+        </FormField>
         <FormField label="Bank Name">
           <input type="text" className={inputClass} {...register("paymentDetails.bankName")} />
         </FormField>

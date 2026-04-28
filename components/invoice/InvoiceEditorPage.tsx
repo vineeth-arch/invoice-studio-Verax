@@ -10,7 +10,6 @@ import { InvoicePreview } from "./InvoicePreview";
 import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
 import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
-import { useSavedClients } from "@/lib/hooks/useSavedClients";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { useToast } from "@/lib/hooks/useToast";
 import { documentNumberingRepository } from "@/lib/repositories/documentNumberingRepository";
@@ -33,7 +32,6 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   const { invoices, saveInvoice, getInvoice } = useInvoices();
   const { purchaseOrders } = usePurchaseOrders();
   const { profile } = useCompanyProfile();
-  const { saveBuyerFromInvoice } = useSavedClients();
   const { settings } = useSettings();
   const { addToast } = useToast();
 
@@ -63,7 +61,6 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
 
       const result = await saveInvoice(invoice);
       if (result.success) {
-        await saveBuyerFromInvoice(values.buyer);
         if (!existingInvoice && !invoiceId) {
           await documentNumberingRepository.incrementInvoiceSequence();
         }
@@ -77,7 +74,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
     } finally {
       setIsSaving(false);
     }
-  }, [existingInvoice, invoiceId, saveInvoice, saveBuyerFromInvoice, addToast, router]);
+  }, [existingInvoice, invoiceId, saveInvoice, addToast, router]);
 
   const pdfFilename = `INV-${previewInvoice.invoiceNumber ?? "draft"}-${previewInvoice.buyer?.name ?? "client"}`;
 

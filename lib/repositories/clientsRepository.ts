@@ -2,7 +2,6 @@
 
 import type { SavedClient } from "@/lib/types/client";
 import type { Database, Json } from "@/lib/supabase/types";
-import type { Invoice } from "@/lib/types/invoice";
 import * as local from "@/lib/storage/local";
 import { getCloudContext, toRepositoryError, type RepositoryResult } from "./_shared";
 
@@ -13,29 +12,43 @@ function toCloudClient(client: SavedClient, userId: string): Database["public"][
     id: client.id,
     user_id: userId,
     name: client.name,
-    gstin: client.gstin ?? null,
-    email: client.contact?.email ?? null,
-    phone: client.contact?.phone ?? null,
-    address: client.billingAddress as unknown as Json,
+    gstin: client.gstin || null,
+    email: client.email || null,
+    phone: client.phone || null,
+    address: {
+      line1: client.address1,
+      line2: client.address2,
+      city: client.city,
+      state: client.state,
+      stateCode: client.stateCode,
+      pincode: client.pincode,
+      country: "India",
+    } as Json,
     place_of_supply: client.placeOfSupply,
     state_code: client.placeOfSupplyCode,
-    updated_at: client.lastUsedAt,
+    created_at: client.createdAt,
+    updated_at: client.updatedAt,
   };
 }
 
 function fromCloudClient(row: ClientRow): SavedClient {
+  const address = (row.address ?? {}) as Record<string, string | undefined>;
   return {
     id: row.id,
     name: row.name,
-    billingAddress: row.address as unknown as SavedClient["billingAddress"],
-    gstin: row.gstin ?? undefined,
-    contact: {
-      email: row.email ?? undefined,
-      phone: row.phone ?? undefined,
-    },
+    address1: address.line1 ?? "",
+    address2: address.line2 ?? "",
+    city: address.city ?? "",
+    state: address.state ?? "",
+    stateCode: address.stateCode ?? row.state_code ?? "",
+    pincode: address.pincode ?? "",
+    gstin: row.gstin ?? "",
+    email: row.email ?? "",
+    phone: row.phone ?? "",
     placeOfSupply: row.place_of_supply ?? "",
     placeOfSupplyCode: row.state_code ?? "",
-    lastUsedAt: row.updated_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -94,19 +107,29 @@ export const clientsRepository = {
     }
   },
 
-  async saveBuyerFromInvoice(buyer: Invoice["buyer"] | undefined | null): Promise<RepositoryResult> {
-    const localResult = local.saveBuyerAsClient(buyer);
+  async delete(id: string): Promise<RepositoryResult> {
+    const localResult = local.deleteSavedClient(id);
     if (!localResult.success) {
       return { success: false, error: localResult.error };
     }
 
-    const saved = local.getSavedClients()[0];
-    if (!saved || !buyer?.name?.trim()) {
-      return { success: true, cloudSynced: false };
+    const cloud = await getCloudContext();
+    if (!cloud) {
+      return { success: true, source: "local", cloudSynced: false };
     }
 
-    const result = await this.save(saved);
-    return { success: result.success, error: result.error, cloudSynced: result.cloudSynced, source: result.source };
+    try {
+      const { error } = await cloud.client.from("clients").delete().eq("user_id", cloud.userId).eq("id", id);
+      if (error) throw error;
+      return { success: true, source: "cloud", cloudSynced: true };
+    } catch (error) {
+      return {
+        success: true,
+        source: "local",
+        cloudSynced: false,
+        error: toRepositoryError(error, "Deleted client locally, but cloud delete failed."),
+      };
+    }
   },
 
   async syncLocalToCloud(): Promise<RepositoryResult> {

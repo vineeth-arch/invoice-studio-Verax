@@ -1,4 +1,4 @@
-import type { Address, ContactInfo, DocumentStatus, SignatureInfo } from "./common";
+import type { Address, ContactInfo, DocumentStatus, POStatus, SignatureInfo } from "./common";
 
 export interface POLineItem {
   id: string;
@@ -89,6 +89,7 @@ export interface PurchaseOrder {
   preparedBySignature?: SignatureInfo;
   approvedBySignature?: SignatureInfo;
   vendorAcceptanceSignature?: SignatureInfo;
+  poStatus: POStatus;
   status: DocumentStatus;
   createdAt: string;
   updatedAt: string;

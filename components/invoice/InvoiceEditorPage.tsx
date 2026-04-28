@@ -12,7 +12,7 @@ import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
 import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { useToast } from "@/lib/hooks/useToast";
-import { incrementInvoiceSequence } from "@/lib/storage/local";
+import { incrementInvoiceSequence, saveBuyerAsClient } from "@/lib/storage/local";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import type { Invoice } from "@/lib/types/invoice";
 import type { GSTMode } from "@/lib/types/common";
@@ -61,6 +61,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
 
       const result = saveInvoice(invoice);
       if (result.success) {
+        saveBuyerAsClient(values.buyer);
         if (!existingInvoice && !invoiceId) incrementInvoiceSequence();
         addToast(`Invoice ${status === "DRAFT" ? "saved as draft" : "finalized"} successfully!`, "success");
         if (result.id && !invoiceId) {

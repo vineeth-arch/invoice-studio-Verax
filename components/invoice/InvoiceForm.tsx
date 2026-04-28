@@ -20,6 +20,7 @@ import { PaymentDetailsSection } from "./sections/PaymentDetailsSection";
 import { TermsSignatureSection } from "./sections/TermsSignatureSection";
 import { Button } from "@/components/ui/Button";
 import { useDocumentNumber } from "@/lib/hooks/useDocumentNumber";
+import { useSavedClients } from "@/lib/hooks/useSavedClients";
 import type { DocumentTemplateSettings } from "@/lib/types/settings";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 
@@ -95,6 +96,7 @@ export function InvoiceForm({
     existingDocs,
     initialValues?.id
   );
+  const { clients: savedClients } = useSavedClients();
 
   const defaultValues = useMemo(
     () => initialValues
@@ -174,6 +176,20 @@ export function InvoiceForm({
     }
   }, [companyProfile, setValue]);
 
+  const applySavedClient = useCallback((clientId: string) => {
+    const selected = savedClients.find((client) => client.id === clientId);
+    if (!selected) return;
+
+    setValue("buyer.name", selected.name);
+    setValue("buyer.billingAddress", selected.billingAddress);
+    setValue("buyer.gstin", selected.gstin ?? "");
+    setValue("buyer.placeOfSupply", selected.placeOfSupply);
+    setValue("buyer.placeOfSupplyCode", selected.placeOfSupplyCode);
+    setValue("buyer.contact.email", selected.contact?.email ?? "");
+    setValue("buyer.contact.phone", selected.contact?.phone ?? "");
+    setValue("shipping.sameAsBilling", true);
+  }, [savedClients, setValue]);
+
   return (
     <form className="space-y-3">
       {companyProfile && (
@@ -188,6 +204,30 @@ export function InvoiceForm({
         control={control} register={register} errors={errors} isDuplicate={isDuplicate}
       />
       <SupplierDetailsSection control={control} register={register} errors={errors} />
+      {savedClients.length > 0 && (
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+          <div className="mb-2 text-sm font-medium text-slate-800">Saved Clients</div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) applySavedClient(e.target.value);
+              }}
+            >
+              <option value="">Select a saved client</option>
+              {savedClients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}{client.gstin ? ` • ${client.gstin}` : ""}
+                </option>
+              ))}
+            </select>
+            <div className="text-xs text-slate-500">
+              Buyers are saved automatically when you save an invoice.
+            </div>
+          </div>
+        </div>
+      )}
       <BuyerDetailsSection control={control} register={register} errors={errors} />
       <ShippingDetailsSection register={register} watch={watch} setValue={setValue} />
       <LineItemsSection control={control} setValue={setValue} errors={errors} />

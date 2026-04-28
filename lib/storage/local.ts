@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { Invoice } from "@/lib/types/invoice";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import type { BusinessProfile } from "@/lib/types/company";
+import type { SavedClient } from "@/lib/types/client";
 import type { DocumentTemplateSettings } from "@/lib/types/settings";
 import { STORAGE_KEYS } from "./keys";
 import { getFinancialYear } from "@/lib/utils/numbering";
@@ -109,6 +110,48 @@ export function getCompanyProfile(): BusinessProfile | null {
 export function saveCompanyProfile(profile: BusinessProfile): SaveResult {
   const now = new Date().toISOString();
   return safeSet(STORAGE_KEYS.COMPANY_PROFILE, { ...profile, updatedAt: now });
+}
+
+// ─── Saved Clients ─────────────────────────────────────
+
+export function getSavedClients(): SavedClient[] {
+  return safeGet<SavedClient[]>(STORAGE_KEYS.SAVED_CLIENTS, [])
+    .sort((a, b) => new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime());
+}
+
+export function saveSavedClient(client: SavedClient): SaveResult {
+  const clients = getSavedClients();
+  const normalizedName = client.name.trim().toLowerCase();
+  const normalizedGstin = (client.gstin ?? "").trim().toLowerCase();
+  const existingIdx = clients.findIndex((saved) =>
+    saved.name.trim().toLowerCase() === normalizedName &&
+    (saved.gstin ?? "").trim().toLowerCase() === normalizedGstin
+  );
+
+  if (existingIdx >= 0) {
+    clients[existingIdx] = { ...clients[existingIdx], ...client, lastUsedAt: new Date().toISOString() };
+  } else {
+    clients.push({ ...client, lastUsedAt: new Date().toISOString() });
+  }
+
+  return safeSet(STORAGE_KEYS.SAVED_CLIENTS, clients);
+}
+
+export function saveBuyerAsClient(buyer: Invoice["buyer"] | undefined | null): SaveResult {
+  if (!buyer?.name?.trim() || !buyer.billingAddress?.line1?.trim()) {
+    return { success: true };
+  }
+
+  return saveSavedClient({
+    id: uuidv4(),
+    name: buyer.name,
+    billingAddress: buyer.billingAddress,
+    gstin: buyer.gstin,
+    contact: buyer.contact,
+    placeOfSupply: buyer.placeOfSupply,
+    placeOfSupplyCode: buyer.placeOfSupplyCode,
+    lastUsedAt: new Date().toISOString(),
+  });
 }
 
 // ─── Settings ───────────────────────────────────────────

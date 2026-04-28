@@ -14,25 +14,25 @@ export default function DocumentsPage() {
   const { purchaseOrders, loading: poLoading, deletePurchaseOrder, savePurchaseOrder } = usePurchaseOrders();
   const { addToast } = useToast();
 
-  const handleDelete = useCallback((id: string, type: "invoice" | "po") => {
-    const result = type === "invoice" ? deleteInvoice(id) : deletePurchaseOrder(id);
+  const handleDelete = useCallback(async (id: string, type: "invoice" | "po") => {
+    const result = await Promise.resolve(type === "invoice" ? deleteInvoice(id) : deletePurchaseOrder(id));
     if (result.success) addToast("Document deleted.", "success");
     else addToast(result.error ?? "Failed to delete.", "error");
   }, [deleteInvoice, deletePurchaseOrder, addToast]);
 
-  const handleDuplicate = useCallback((id: string, type: "invoice" | "po") => {
+  const handleDuplicate = useCallback(async (id: string, type: "invoice" | "po") => {
     const now = new Date().toISOString();
     if (type === "invoice") {
       const inv = invoices.find((i) => i.id === id);
       if (!inv) return;
       const dup: Partial<Invoice> = { ...inv, id: uuidv4(), invoiceNumber: `${inv.invoiceNumber}-COPY`, status: "DRAFT", createdAt: now, updatedAt: now };
-      const result = saveInvoice(dup);
+      const result = await saveInvoice(dup);
       if (result.success) addToast("Invoice duplicated.", "success");
     } else {
       const po = purchaseOrders.find((p) => p.id === id);
       if (!po) return;
       const dup: Partial<PurchaseOrder> = { ...po, id: uuidv4(), poNumber: `${po.poNumber}-COPY`, status: "DRAFT", createdAt: now, updatedAt: now };
-      const result = savePurchaseOrder(dup);
+      const result = await Promise.resolve(savePurchaseOrder(dup));
       if (result.success) addToast("Purchase order duplicated.", "success");
     }
   }, [invoices, purchaseOrders, saveInvoice, savePurchaseOrder, addToast]);

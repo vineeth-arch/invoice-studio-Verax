@@ -1,33 +1,55 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { invoicesRepository } from "@/lib/repositories/invoicesRepository";
 import type { Invoice } from "@/lib/types/invoice";
-import * as storage from "@/lib/storage/local";
 
 export function useInvoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
 
-  useEffect(() => {
-    setInvoices(storage.getInvoices());
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const result = await invoicesRepository.list();
+    if (result.success) {
+      setInvoices(result.data ?? []);
+    }
     setLoading(false);
-  }, []);
-
-  const saveInvoice = useCallback((invoice: Partial<Invoice> & { id?: string }) => {
-    const result = storage.saveInvoice(invoice);
-    if (result.success) setInvoices(storage.getInvoices());
     return result;
   }, []);
 
-  const deleteInvoice = useCallback((id: string) => {
-    const result = storage.deleteInvoice(id);
-    if (result.success) setInvoices(storage.getInvoices());
+  useEffect(() => {
+    if (authLoading) return;
+    void refresh();
+  }, [authLoading, refresh, user?.id]);
+
+  const saveInvoice = useCallback(async (invoice: Partial<Invoice> & { id?: string }) => {
+    const result = await invoicesRepository.save(invoice as Invoice);
+    if (result.success) {
+      await refresh();
+    }
+    return {
+      success: result.success,
+      error: result.error,
+      id: result.data?.id,
+      cloudSynced: result.cloudSynced,
+      source: result.source,
+    };
+  }, []);
+
+  const deleteInvoice = useCallback(async (id: string) => {
+    const result = await invoicesRepository.delete(id);
+    if (result.success) {
+      await refresh();
+    }
     return result;
   }, []);
 
   const getInvoice = useCallback((id: string) => {
-    return storage.getInvoice(id);
-  }, []);
+    return invoices.find((invoice) => invoice.id === id);
+  }, [invoices]);
 
-  return { invoices, loading, saveInvoice, deleteInvoice, getInvoice };
+  return { invoices, loading, refresh, saveInvoice, deleteInvoice, getInvoice };
 }

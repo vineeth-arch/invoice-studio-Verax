@@ -59,26 +59,17 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
-    const mediaQuery = window.matchMedia("(min-width: 1024px)");
-    const updateDesktopState = () => setIsDesktop(mediaQuery.matches);
-    updateDesktopState();
-
-    const storedRatio = Number(window.localStorage.getItem(SPLIT_RATIO_KEY));
-    if (!Number.isNaN(storedRatio) && storedRatio > 0 && storedRatio < 1) {
-      setSplitRatio(storedRatio);
-    }
-
-    mediaQuery.addEventListener("change", updateDesktopState);
-    return () => mediaQuery.removeEventListener("change", updateDesktopState);
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    const stored = Number(window.localStorage.getItem(SPLIT_RATIO_KEY));
+    if (!Number.isNaN(stored) && stored > 0 && stored < 1) setSplitRatio(stored);
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
   }, []);
 
   useEffect(() => {
-    if (invoiceId || typeof window === "undefined") {
-      setDraftReady(true);
-      return;
-    }
-
+    if (invoiceId || typeof window === "undefined") { setDraftReady(true); return; }
     const draft = getInvoiceConversionDraft();
     setConversionDraft(draft);
     clearInvoiceConversionDraft();
@@ -99,7 +90,6 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
         )
       );
       const totals = calculateInvoiceTotals(items, Number(values.cess) || 0, Number(values.otherCharges) || 0);
-
       const invoice = {
         ...existingInvoice,
         ...(values as unknown as Partial<Invoice>),
@@ -111,16 +101,11 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
         status,
         shareToken: existingInvoice?.shareToken,
       } as Partial<Invoice>;
-
       const result = await saveInvoice(invoice);
       if (result.success) {
-        if (!existingInvoice && !invoiceId) {
-          await documentNumberingRepository.incrementInvoiceSequence();
-        }
+        if (!existingInvoice && !invoiceId) await documentNumberingRepository.incrementInvoiceSequence();
         addToast(`Invoice ${status === "DRAFT" ? "saved as draft" : "finalized"} successfully!`, "success");
-        if (result.id && !invoiceId) {
-          router.push(`/invoice/${result.id}/edit`);
-        }
+        if (result.id && !invoiceId) router.push(`/invoice/${result.id}/edit`);
       } else {
         addToast(result.error ?? "Failed to save invoice.", "error");
       }
@@ -130,14 +115,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   }, [existingInvoice, invoiceId, saveInvoice, addToast, router]);
 
   const copyToClipboard = useCallback(async (url: string) => {
-    if (typeof window === "undefined") return false;
-
-    try {
-      await window.navigator.clipboard.writeText(url);
-      return true;
-    } catch {
-      return false;
-    }
+    try { await window.navigator.clipboard.writeText(url); return true; } catch { return false; }
   }, []);
 
   const buildShareUrl = useCallback((token: string) => {
@@ -147,77 +125,54 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
 
   const handleShare = useCallback(async () => {
     if (!existingInvoice) return;
-
     setIsShareActionLoading(true);
     try {
       let token = existingInvoice.shareToken || shareToken;
       if (!token) {
         token = uuidv4();
         const result = await saveInvoice({ ...existingInvoice, shareToken: token });
-        if (!result.success) {
-          addToast(result.error ?? "Failed to create share link.", "error");
-          return;
-        }
+        if (!result.success) { addToast(result.error ?? "Failed to create share link.", "error"); return; }
       }
-
       setShareToken(token);
       const url = buildShareUrl(token);
       setShareUrl(url);
       setIsShareModalOpen(true);
-
       const copied = await copyToClipboard(url);
       addToast(copied ? "Link copied" : "Share link ready to copy.", copied ? "success" : "info");
-    } finally {
-      setIsShareActionLoading(false);
-    }
+    } finally { setIsShareActionLoading(false); }
   }, [addToast, buildShareUrl, copyToClipboard, existingInvoice, saveInvoice, shareToken]);
 
   const handleCopyShareLink = useCallback(async () => {
     if (!shareUrl) return;
     const copied = await copyToClipboard(shareUrl);
-    addToast(copied ? "Link copied" : "Copy failed. Please copy the link manually.", copied ? "success" : "error");
+    addToast(copied ? "Link copied" : "Copy failed.", copied ? "success" : "error");
   }, [addToast, copyToClipboard, shareUrl]);
 
   const handleRevokeShareLink = useCallback(async () => {
     if (!existingInvoice || !shareToken) return;
-
     setIsShareActionLoading(true);
     try {
       const result = await saveInvoice({ ...existingInvoice, shareToken: undefined });
-      if (!result.success) {
-        addToast(result.error ?? "Failed to revoke share link.", "error");
-        return;
-      }
-
-      setShareToken("");
-      setShareUrl("");
-      setIsShareModalOpen(false);
+      if (!result.success) { addToast(result.error ?? "Failed to revoke share link.", "error"); return; }
+      setShareToken(""); setShareUrl(""); setIsShareModalOpen(false);
       addToast("Share link revoked.", "success");
-    } finally {
-      setIsShareActionLoading(false);
-    }
+    } finally { setIsShareActionLoading(false); }
   }, [addToast, existingInvoice, saveInvoice, shareToken]);
 
   const startSplitDrag = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!isDesktop) return;
-
     const container = splitPaneRef.current;
     if (!container) return;
-
     event.preventDefault();
-
     const { left, width } = container.getBoundingClientRect();
     const minRatio = MIN_FORM_WIDTH / width;
     const maxRatio = (width - MIN_PREVIEW_WIDTH) / width;
     let currentRatio = splitRatio;
-
-    const onMove = (moveEvent: MouseEvent) => {
-      const nextWidth = moveEvent.clientX - left;
-      const nextRatio = Math.min(maxRatio, Math.max(minRatio, nextWidth / width));
+    const onMove = (e: MouseEvent) => {
+      const nextRatio = Math.min(maxRatio, Math.max(minRatio, (e.clientX - left) / width));
       currentRatio = nextRatio;
       setSplitRatio(nextRatio);
     };
-
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
@@ -225,7 +180,6 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
       document.body.style.userSelect = "";
       window.localStorage.setItem(SPLIT_RATIO_KEY, String(currentRatio));
     };
-
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
     window.addEventListener("mousemove", onMove);
@@ -236,21 +190,37 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   const canShare = existingInvoice?.status === "FINAL";
 
   if (!draftReady || (invoiceId && invoicesLoading)) {
-    return <div className="flex h-screen items-center justify-center text-sm text-slate-500">Loading invoice editor...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
+        Loading invoice editor…
+      </div>
+    );
   }
-
   if (invoiceId && !existingInvoice) {
-    return <div className="flex h-screen items-center justify-center text-sm text-slate-500">Invoice not found.</div>;
+    return (
+      <div className="flex h-screen items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
+        Invoice not found.
+      </div>
+    );
   }
 
   return (
     <div className="flex h-screen flex-col">
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 no-print">
+      {/* ── Editor top bar ── */}
+      <div
+        className="flex items-center justify-between px-5 py-3 shrink-0 no-print"
+        style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}
+      >
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">
-            {existingInvoice ? `Edit Invoice: ${existingInvoice.invoiceNumber}` : "New Invoice"}
+          <h1
+            className="font-display font-bold text-[18px] leading-tight"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {existingInvoice ? `Edit Invoice — ${existingInvoice.invoiceNumber}` : "New Invoice"}
           </h1>
-          <p className="text-xs text-slate-500">Fill the form on the left, preview on the right</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+            Fill the form on the left · preview on the right
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {canShare && (
@@ -263,25 +233,32 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
         </div>
       </div>
 
-      <div className="flex border-b border-slate-200 bg-white no-print lg:hidden">
-        <button
-          onClick={() => setActiveTab("form")}
-          className={`flex-1 py-2 text-sm font-medium ${activeTab === "form" ? "border-b-2 border-brand-500 text-brand-600" : "text-slate-500"}`}
-        >
-          Form
-        </button>
-        <button
-          onClick={() => setActiveTab("preview")}
-          className={`flex-1 py-2 text-sm font-medium ${activeTab === "preview" ? "border-b-2 border-brand-500 text-brand-600" : "text-slate-500"}`}
-        >
-          Preview
-        </button>
+      {/* ── Mobile tab switcher ── */}
+      <div
+        className="flex shrink-0 no-print lg:hidden"
+        style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}
+      >
+        {(["form", "preview"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className="flex-1 py-2.5 text-sm font-medium capitalize transition-colors"
+            style={{
+              color: activeTab === tab ? "var(--accent-yellow)" : "var(--text-secondary)",
+              borderBottom: activeTab === tab ? "2px solid var(--accent-yellow)" : "2px solid transparent",
+            }}
+          >
+            {tab}
+          </button>
+        ))}
       </div>
 
+      {/* ── Split pane ── */}
       <div ref={splitPaneRef} className="flex flex-1 overflow-hidden">
+        {/* Form panel */}
         <div
-          className={`${activeTab === "preview" ? "hidden" : "flex"} w-full flex-col overflow-y-auto bg-slate-50 no-print lg:flex lg:min-w-[380px]`}
-          style={isDesktop ? { flexBasis: `${splitRatio * 100}%` } : undefined}
+          className={`${activeTab === "preview" ? "hidden" : "flex"} w-full flex-col overflow-y-auto no-print lg:flex lg:min-w-[380px]`}
+          style={isDesktop ? { flexBasis: `${splitRatio * 100}%`, background: "var(--bg)" } : { background: "var(--bg)" }}
         >
           <div className="space-y-3 p-4">
             <InvoiceForm
@@ -296,58 +273,79 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
           </div>
         </div>
 
+        {/* Drag divider */}
         <div
-          className="hidden w-3 shrink-0 cursor-col-resize items-center justify-center bg-slate-100 transition-colors hover:bg-slate-200 no-print lg:flex"
+          className="hidden w-4 shrink-0 cursor-col-resize items-center justify-center no-print lg:flex transition-colors"
+          style={{ background: "var(--bg)" }}
           onMouseDown={startSplitDrag}
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize form and preview panels"
+          aria-label="Resize panels"
         >
-          <div className="h-14 w-1 rounded-full bg-slate-300" />
+          <div
+            className="h-10 w-1 rounded-full transition-colors"
+            style={{ background: "var(--border-strong)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-yellow)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--border-strong)"; }}
+          />
         </div>
 
+        {/* Preview panel — always white, theme-immune */}
         <div
-          className={`${activeTab === "form" ? "hidden" : "flex"} w-full flex-col overflow-y-auto bg-gray-200 p-4 lg:flex lg:min-w-[320px]`}
-          style={isDesktop ? { flexBasis: `${(1 - splitRatio) * 100}%` } : undefined}
+          className={`${activeTab === "form" ? "hidden" : "flex"} w-full flex-col overflow-y-auto p-5 lg:flex lg:min-w-[320px]`}
+          style={isDesktop ? { flexBasis: `${(1 - splitRatio) * 100}%`, background: "#E8E8E4" } : { background: "#E8E8E4" }}
         >
-          <A4PreviewWrapper ref={previewRef} noPadding>
-            <InvoicePreview invoice={previewInvoice} />
-          </A4PreviewWrapper>
+          {/* Device-frame wrapper */}
+          <div
+            className="rounded-2xl overflow-hidden shadow-2xl mx-auto"
+            style={{ maxWidth: 820, background: "#FFFFFF" }}
+          >
+            <A4PreviewWrapper ref={previewRef} noPadding>
+              <div className="pdf-preview-surface">
+                <InvoicePreview invoice={previewInvoice} />
+              </div>
+            </A4PreviewWrapper>
+          </div>
         </div>
       </div>
 
+      {/* Share modal */}
       <Modal
         open={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
         title="Invoice sharing"
-        actions={(
+        actions={
           <>
             {shareToken && (
               <Button variant="destructive" onClick={handleRevokeShareLink} loading={isShareActionLoading}>
-                Revoke share link
+                Revoke link
               </Button>
             )}
-            <Button variant="outline" onClick={handleCopyShareLink}>
-              Copy link
-            </Button>
-            <Button onClick={() => setIsShareModalOpen(false)}>
-              Close
-            </Button>
+            <Button variant="outline" onClick={handleCopyShareLink}>Copy link</Button>
+            <Button onClick={() => setIsShareModalOpen(false)}>Close</Button>
           </>
-        )}
+        }
       >
         <div className="space-y-3">
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Local storage mode: this share link works only on this same browser and device until Supabase-backed sharing is connected.
+          <p
+            className="rounded-xl px-3 py-2 text-xs"
+            style={{ background: "var(--accent-yellow-muted)", color: "var(--accent-yellow-text)" }}
+          >
+            Local storage mode: share link works only on this browser/device until Supabase is connected.
           </p>
           <div>
-            <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Share URL</div>
-            <div className="break-all rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <div className="mb-1 text-xs font-medium uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+              Share URL
+            </div>
+            <div
+              className="break-all rounded-xl px-3 py-2 text-sm font-mono"
+              style={{ border: "1px solid var(--border)", background: "var(--surface-raised)", color: "var(--text-secondary)" }}
+            >
               {shareUrl || "Share link will appear here."}
             </div>
           </div>
-          <p className="text-xs text-slate-500">
-            Invoice settings: revoking the link clears the share token and immediately invalidates the current URL.
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Revoking clears the share token and immediately invalidates the current URL.
           </p>
         </div>
       </Modal>

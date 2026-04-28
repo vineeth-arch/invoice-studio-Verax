@@ -1,91 +1,88 @@
 import { cn } from "@/lib/utils/cn";
 import type { DocumentStatus, PaymentStatus, POStatus } from "@/lib/types/common";
 
-const statusStyles: Record<DocumentStatus, string> = {
-  DRAFT: "bg-amber-100 text-amber-800",
-  FINAL: "bg-blue-100 text-blue-800",
-  PAID: "bg-green-100 text-green-800",
-  CANCELLED: "bg-red-100 text-red-800",
+/* ── Document Status ── */
+const statusStyles: Record<DocumentStatus, { bg: string; text: string }> = {
+  DRAFT:     { bg: "var(--accent-yellow-muted)", text: "var(--accent-yellow-text)" },
+  FINAL:     { bg: "var(--accent-purple-muted)", text: "var(--accent-purple-text)" },
+  PAID:      { bg: "var(--accent-mint-muted)",   text: "var(--accent-mint-text)" },
+  CANCELLED: { bg: "var(--accent-coral-muted)",  text: "var(--accent-coral-text)" },
 };
-
 const statusLabels: Record<DocumentStatus, string> = {
-  DRAFT: "Draft",
-  FINAL: "Final",
-  PAID: "Paid",
-  CANCELLED: "Cancelled",
+  DRAFT: "Draft", FINAL: "Final", PAID: "Paid", CANCELLED: "Cancelled",
 };
 
-interface BadgeProps {
-  status: DocumentStatus;
-  className?: string;
-}
-
-export function StatusBadge({ status, className }: BadgeProps) {
+export function StatusBadge({ status, className }: { status: DocumentStatus; className?: string }) {
+  const s = statusStyles[status];
   return (
     <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        statusStyles[status],
-        className
-      )}
+      className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold badge-transition", className)}
+      style={{ background: s.bg, color: s.text }}
     >
       {statusLabels[status]}
     </span>
   );
 }
 
+/* ── Payment Status ── */
+const paymentStyles: Record<PaymentStatus, { bg: string; text: string }> = {
+  Unpaid:  { bg: "var(--accent-yellow-muted)", text: "var(--accent-yellow-text)" },
+  Partial: { bg: "var(--accent-purple-muted)", text: "var(--accent-purple-text)" },
+  Paid:    { bg: "var(--accent-mint-muted)",   text: "var(--accent-mint-text)" },
+  Overdue: { bg: "var(--accent-coral-muted)",  text: "var(--accent-coral-text)" },
+};
+
+export function PaymentStatusBadge({ status, className }: { status: PaymentStatus; className?: string }) {
+  const s = paymentStyles[status];
+  return (
+    <span
+      className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold badge-transition", className)}
+      style={{ background: s.bg, color: s.text }}
+    >
+      {status}
+    </span>
+  );
+}
+
+/* ── PO Status ── */
+const poStyles: Record<POStatus, { bg: string; text: string }> = {
+  "Under Approval": { bg: "var(--accent-yellow-muted)", text: "var(--accent-yellow-text)" },
+  Approved:         { bg: "var(--accent-mint-muted)",   text: "var(--accent-mint-text)" },
+  Processed:        { bg: "var(--accent-purple-muted)", text: "var(--accent-purple-text)" },
+};
+
+export function POStatusBadge({ status, className }: { status: POStatus; className?: string }) {
+  const s = poStyles[status];
+  return (
+    <span
+      className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold badge-transition", className)}
+      style={{ background: s.bg, color: s.text }}
+    >
+      {status}
+    </span>
+  );
+}
+
+/* ── Generic Badge ── */
 interface GenericBadgeProps {
   children: React.ReactNode;
   variant?: "default" | "warning" | "success" | "error";
   className?: string;
 }
-
 const genericStyles = {
-  default: "bg-slate-100 text-slate-700",
-  warning: "bg-amber-100 text-amber-800",
-  success: "bg-green-100 text-green-800",
-  error: "bg-red-100 text-red-800",
+  default: { bg: "var(--surface-raised)", text: "var(--text-secondary)" },
+  warning: { bg: "var(--accent-yellow-muted)", text: "var(--accent-yellow-text)" },
+  success: { bg: "var(--accent-mint-muted)", text: "var(--accent-mint-text)" },
+  error:   { bg: "var(--accent-coral-muted)", text: "var(--accent-coral-text)" },
 };
-
 export function Badge({ children, variant = "default", className }: GenericBadgeProps) {
+  const s = genericStyles[variant];
   return (
     <span
-      className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        genericStyles[variant],
-        className
-      )}
+      className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold", className)}
+      style={{ background: s.bg, color: s.text }}
     >
       {children}
-    </span>
-  );
-}
-
-const paymentStatusStyles: Record<PaymentStatus, string> = {
-  Unpaid: "bg-yellow-100 text-yellow-800",
-  Partial: "bg-blue-100 text-blue-800",
-  Paid: "bg-green-100 text-green-800",
-  Overdue: "bg-red-100 text-red-800",
-};
-
-const poStatusStyles: Record<POStatus, string> = {
-  "Under Approval": "bg-amber-100 text-amber-800",
-  Approved: "bg-blue-100 text-blue-800",
-  Processed: "bg-green-100 text-green-800",
-};
-
-export function PaymentStatusBadge({ status, className }: { status: PaymentStatus; className?: string }) {
-  return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", paymentStatusStyles[status], className)}>
-      {status}
-    </span>
-  );
-}
-
-export function POStatusBadge({ status, className }: { status: POStatus; className?: string }) {
-  return (
-    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", poStatusStyles[status], className)}>
-      {status}
     </span>
   );
 }

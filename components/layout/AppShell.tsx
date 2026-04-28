@@ -12,9 +12,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-theme-bg">
         <Sidebar />
-        <main className="ml-60 min-h-screen">{children}</main>
+        {/*
+          margin-left follows --sidebar-width CSS variable, which the Sidebar
+          updates on collapse/expand and which the media query zeros on mobile.
+          The transition-[margin] keeps it smooth.
+        */}
+        <main
+          className="min-h-screen transition-[margin-left] duration-300 pb-16 md:pb-0"
+          style={{ marginLeft: "var(--sidebar-width)" }}
+        >
+          {children}
+        </main>
       </div>
     </ToastProvider>
   );

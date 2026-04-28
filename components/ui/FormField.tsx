@@ -12,14 +12,21 @@ interface FormFieldProps {
 export function FormField({ label, error, required, hint, children, className }: FormFieldProps) {
   return (
     <div className={cn("space-y-1", className)}>
-      <label className="block text-xs font-medium text-slate-600">
+      <label
+        className="block text-xs font-medium uppercase tracking-widest"
+        style={{ color: "var(--text-muted)" }}
+      >
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {required && <span className="ml-0.5" style={{ color: "var(--accent-coral)" }}>*</span>}
       </label>
       {children}
-      {hint && !error && <p className="text-xs text-slate-400">{hint}</p>}
+      {hint && !error && (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {hint}
+        </p>
+      )}
       {error && (
-        <p className="text-xs text-red-600" role="alert">
+        <p className="text-xs" style={{ color: "var(--accent-coral)" }} role="alert">
           {error}
         </p>
       )}
@@ -27,15 +34,22 @@ export function FormField({ label, error, required, hint, children, className }:
   );
 }
 
+/* Shared input/select/textarea class strings — used by form section components.
+   The `di-field` class (in globals.css) applies theme-aware bg/text/border via CSS variables. */
 export const inputClass =
-  "block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 " +
-  "focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 " +
-  "disabled:bg-slate-50 disabled:text-slate-500";
+  "di-field block w-full rounded-xl border px-3 py-2.5 text-sm transition-colors " +
+  "focus:outline-none";
 
-export const selectClass =
-  "block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 " +
-  "focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 bg-white";
+export const inputStyle = {
+  border: "1px solid var(--input-border)",
+  background: "var(--input-bg)",
+  color: "var(--text-primary)",
+} as React.CSSProperties;
+
+export const selectClass = inputClass;
+export const selectStyle = inputStyle;
 
 export const textareaClass =
-  "block w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 " +
-  "focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 resize-y min-h-[80px]";
+  "di-field block w-full rounded-xl border px-3 py-2.5 text-sm transition-colors resize-y min-h-[80px] " +
+  "focus:outline-none";
+export const textareaStyle = inputStyle;

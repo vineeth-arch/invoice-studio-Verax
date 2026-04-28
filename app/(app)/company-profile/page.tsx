@@ -53,18 +53,33 @@ export default function CompanyProfilePage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
         <FormSection title="Business Information">
           <div className="grid grid-cols-2 gap-3">
-            <FormField label="Company Name" required error={errors.companyName?.message} className="col-span-2">
+            <FormField label="Display Brand Name" required error={errors.companyName?.message}>
               <input type="text" className={inputClass} {...register("companyName")} />
             </FormField>
-            <FormField label="Legal Name (optional)">
+            <FormField label="Trade / Business Name">
+              <input type="text" className={inputClass} {...register("tradeName")} />
+            </FormField>
+            <FormField label="Display Brand Name (optional)">
+              <input type="text" className={inputClass} {...register("displayBrandName")} />
+            </FormField>
+            <FormField label="Legal Name">
               <input type="text" className={inputClass} {...register("legalName")} />
+            </FormField>
+            <FormField label="Constitution">
+              <input type="text" className={inputClass} {...register("constitution")} />
             </FormField>
             <FormField label="GSTIN" required error={errors.gstin?.message}>
               <Controller name="gstin" control={control} render={({ field }) => (
                 <GSTINInput value={field.value} onChange={field.onChange} />
               )} />
             </FormField>
-            <FormField label="PAN (optional)">
+            <FormField label="Registration Type">
+              <input type="text" className={inputClass} {...register("registrationType")} />
+            </FormField>
+            <FormField label="GST Registration Valid From">
+              <input type="date" className={inputClass} {...register("gstRegistrationValidFrom")} />
+            </FormField>
+            <FormField label="PAN">
               <input type="text" className={inputClass} maxLength={10} {...register("pan")} />
             </FormField>
           </div>
@@ -83,7 +98,26 @@ export default function CompanyProfilePage() {
             <FormField label="Address Line 2">
               <input type="text" className={inputClass} {...register("address.line2")} />
             </FormField>
+            <FormField label="Floor">
+              <input type="text" className={inputClass} {...register("address.floor")} />
+            </FormField>
+            <FormField label="Shop / Unit">
+              <input type="text" className={inputClass} {...register("address.unit")} />
+            </FormField>
+            <FormField label="Premises / Building">
+              <input type="text" className={inputClass} {...register("address.building")} />
+            </FormField>
+            <FormField label="Road">
+              <input type="text" className={inputClass} {...register("address.road")} />
+            </FormField>
+            <FormField label="Landmark" className="col-span-2">
+              <input type="text" className={inputClass} {...register("address.landmark")} />
+            </FormField>
+            <FormField label="Locality" className="col-span-2">
+              <input type="text" className={inputClass} {...register("address.locality")} />
+            </FormField>
             <FormField label="City" required><input type="text" className={inputClass} {...register("address.city")} /></FormField>
+            <FormField label="District"><input type="text" className={inputClass} {...register("address.district")} /></FormField>
             <FormField label="State" required><input type="text" className={inputClass} {...register("address.state")} /></FormField>
             <FormField label="State Code" required>
               <input type="text" className={inputClass} maxLength={2} placeholder="e.g. 27" {...register("address.stateCode")} />
@@ -105,10 +139,19 @@ export default function CompanyProfilePage() {
             <FormField label="Bank Name"><input type="text" className={inputClass} {...register("bankDetails.bankName")} /></FormField>
             <FormField label="Account Holder Name"><input type="text" className={inputClass} {...register("bankDetails.accountName")} /></FormField>
             <FormField label="Account Number"><input type="text" className={inputClass} {...register("bankDetails.accountNumber")} /></FormField>
+            <FormField label="Branch Name"><input type="text" className={inputClass} {...register("bankDetails.branchName")} /></FormField>
             <FormField label="IFSC Code"><input type="text" className={inputClass} {...register("bankDetails.ifscCode")} /></FormField>
+            <FormField label="MICR Code"><input type="text" className={inputClass} {...register("bankDetails.micrCode")} /></FormField>
+            <FormField label="Account Opening Date"><input type="date" className={inputClass} {...register("bankDetails.accountOpeningDate")} /></FormField>
             <FormField label="UPI ID"><input type="text" className={inputClass} {...register("bankDetails.upiId")} /></FormField>
             <FormField label="Payment Link"><input type="url" className={inputClass} {...register("bankDetails.paymentLink")} /></FormField>
+            <FormField label="Branch / Short Name">
+              <input type="text" className={inputClass} {...register("bankDetails.branch")} />
+            </FormField>
           </div>
+          <FormField label="Branch Address">
+            <textarea className={textareaClass} {...register("bankDetails.branchAddress")} />
+          </FormField>
           <FormField label="Payment QR Code">
             <Controller name="bankDetails.upiQrImageBase64" control={control} render={({ field }) => (
               <FileUpload value={field.value} onChange={field.onChange} label="Upload UPI QR code" />

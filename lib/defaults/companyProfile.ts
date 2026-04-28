@@ -1,0 +1,124 @@
+import type { BusinessProfile } from "@/lib/types/company";
+
+const DEFAULT_PROFILE_ID = "design-innsaeit-default-profile";
+
+export function getDefaultCompanyProfile(): BusinessProfile {
+  return {
+    id: DEFAULT_PROFILE_ID,
+    companyName: "Design Innsaeit",
+    legalName: "VINEETH V NAIR",
+    tradeName: "DESIGN INNSAEIT",
+    displayBrandName: "Design Innsaeit",
+    constitution: "Proprietorship",
+    gstin: "27AREPN3227F1ZY",
+    registrationType: "Regular",
+    gstRegistrationValidFrom: "2026-01-14",
+    pan: "AREPN3227F",
+    address: {
+      line1: "LOWER GROUND FLOOR, SHOP NO -1021, EAZE ZONE MALL",
+      line2: "Goregaon Mulund Link Road, near Radisson Hotel Mumbai Goregaon, Udyog Nagar, Goregaon (W)",
+      floor: "LOWER GROUND FLOOR",
+      unit: "SHOP NO -1021",
+      building: "EAZE ZONE MALL",
+      road: "Goregaon Mulund Link Road",
+      landmark: "near Radisson Hotel Mumbai Goregaon",
+      locality: "Udyog Nagar, Goregaon (W)",
+      city: "Mumbai",
+      district: "Mumbai Suburban",
+      state: "Maharashtra",
+      stateCode: "27",
+      pincode: "400062",
+      country: "India",
+    },
+    contact: {
+      email: "vineeth@designinnsaeit.com",
+      phone: "+91-8655482753",
+    },
+    bankDetails: {
+      accountName: "DESIGN INNSAEIT",
+      accountNumber: "44882657226",
+      bankName: "State Bank of India",
+      branch: "GOREGAON (WEST) MUMBAI",
+      branchName: "GOREGAON (WEST) MUMBAI",
+      branchAddress: "MUMBAI 9, JAWAHARNAGAR S V ROAD\nGOREGAON (W) MUMBAI, MAHARASHTRA",
+      ifscCode: "SBIN0001266",
+      micrCode: "400002030",
+      accountOpeningDate: "2026-02-02",
+    },
+    defaultSignatoryName: "VINEETH V NAIR",
+    defaultInvoicePrefix: "INV",
+    defaultPOPrefix: "PO",
+    updatedAt: "2026-04-28T00:00:00.000Z",
+  };
+}
+
+export function mergeCompanyProfileWithDefaults(
+  savedProfile: Partial<BusinessProfile> | null | undefined
+): BusinessProfile {
+  const defaults = getDefaultCompanyProfile();
+  const saved = savedProfile ?? {};
+
+  return {
+    ...defaults,
+    ...saved,
+    id: saved.id ?? defaults.id,
+    companyName: saved.companyName ?? defaults.companyName,
+    legalName: saved.legalName ?? defaults.legalName,
+    tradeName: saved.tradeName ?? defaults.tradeName,
+    displayBrandName: saved.displayBrandName ?? defaults.displayBrandName,
+    constitution: saved.constitution ?? defaults.constitution,
+    gstin: saved.gstin ?? defaults.gstin,
+    registrationType: saved.registrationType ?? defaults.registrationType,
+    gstRegistrationValidFrom: saved.gstRegistrationValidFrom ?? defaults.gstRegistrationValidFrom,
+    pan: saved.pan ?? defaults.pan,
+    address: {
+      ...defaults.address,
+      ...(saved.address ?? {}),
+      line1: saved.address?.line1 ?? defaults.address.line1,
+      line2: saved.address?.line2 ?? defaults.address.line2,
+      floor: saved.address?.floor ?? defaults.address.floor,
+      unit: saved.address?.unit ?? defaults.address.unit,
+      building: saved.address?.building ?? defaults.address.building,
+      road: saved.address?.road ?? defaults.address.road,
+      landmark: saved.address?.landmark ?? defaults.address.landmark,
+      locality: saved.address?.locality ?? defaults.address.locality,
+      district: saved.address?.district ?? defaults.address.district,
+      city: saved.address?.city ?? defaults.address.city,
+      state: saved.address?.state ?? defaults.address.state,
+      stateCode: saved.address?.stateCode ?? defaults.address.stateCode,
+      pincode: saved.address?.pincode ?? defaults.address.pincode,
+      country: saved.address?.country ?? defaults.address.country,
+    },
+    contact: {
+      ...defaults.contact,
+      ...(saved.contact ?? {}),
+      email: saved.contact?.email ?? defaults.contact.email,
+      phone: saved.contact?.phone ?? defaults.contact.phone,
+      website: saved.contact?.website ?? defaults.contact.website,
+    },
+    logoImageBase64: saved.logoImageBase64 ?? defaults.logoImageBase64,
+    bankDetails: {
+      ...defaults.bankDetails,
+      ...(saved.bankDetails ?? {}),
+      accountName: saved.bankDetails?.accountName ?? defaults.bankDetails?.accountName,
+      accountNumber: saved.bankDetails?.accountNumber ?? defaults.bankDetails?.accountNumber,
+      bankName: saved.bankDetails?.bankName ?? defaults.bankDetails?.bankName,
+      branch: saved.bankDetails?.branch ?? defaults.bankDetails?.branch,
+      branchName: saved.bankDetails?.branchName ?? defaults.bankDetails?.branchName,
+      branchAddress: saved.bankDetails?.branchAddress ?? defaults.bankDetails?.branchAddress,
+      ifscCode: saved.bankDetails?.ifscCode ?? defaults.bankDetails?.ifscCode,
+      micrCode: saved.bankDetails?.micrCode ?? defaults.bankDetails?.micrCode,
+      accountOpeningDate: saved.bankDetails?.accountOpeningDate ?? defaults.bankDetails?.accountOpeningDate,
+      upiId: saved.bankDetails?.upiId ?? defaults.bankDetails?.upiId,
+      paymentLink: saved.bankDetails?.paymentLink ?? defaults.bankDetails?.paymentLink,
+      upiQrImageBase64: saved.bankDetails?.upiQrImageBase64 ?? defaults.bankDetails?.upiQrImageBase64,
+    },
+    defaultSignatoryName: saved.defaultSignatoryName ?? defaults.defaultSignatoryName,
+    defaultSignatureImageBase64: saved.defaultSignatureImageBase64 ?? defaults.defaultSignatureImageBase64,
+    defaultTermsAndConditions: saved.defaultTermsAndConditions ?? defaults.defaultTermsAndConditions,
+    defaultDeclaration: saved.defaultDeclaration ?? defaults.defaultDeclaration,
+    defaultInvoicePrefix: saved.defaultInvoicePrefix ?? defaults.defaultInvoicePrefix,
+    defaultPOPrefix: saved.defaultPOPrefix ?? defaults.defaultPOPrefix,
+    updatedAt: saved.updatedAt ?? defaults.updatedAt,
+  };
+}

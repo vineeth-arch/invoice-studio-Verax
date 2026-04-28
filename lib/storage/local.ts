@@ -6,6 +6,7 @@ import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import type { BusinessProfile } from "@/lib/types/company";
 import type { SavedClient } from "@/lib/types/client";
 import type { DocumentTemplateSettings } from "@/lib/types/settings";
+import { getDefaultCompanyProfile, mergeCompanyProfileWithDefaults } from "@/lib/defaults/companyProfile";
 import { STORAGE_KEYS } from "./keys";
 import { getFinancialYear } from "@/lib/utils/numbering";
 
@@ -112,16 +113,28 @@ export function replacePurchaseOrders(purchaseOrders: PurchaseOrder[]): SaveResu
 // ─── Company Profile ────────────────────────────────────
 
 export function getCompanyProfile(): BusinessProfile | null {
-  return safeGet<BusinessProfile | null>(STORAGE_KEYS.COMPANY_PROFILE, null);
+  const stored = safeGet<BusinessProfile | null>(STORAGE_KEYS.COMPANY_PROFILE, null);
+  const merged = mergeCompanyProfileWithDefaults(stored);
+
+  if (!stored) {
+    safeSet(STORAGE_KEYS.COMPANY_PROFILE, merged);
+    return merged;
+  }
+
+  if (JSON.stringify(stored) !== JSON.stringify(merged)) {
+    safeSet(STORAGE_KEYS.COMPANY_PROFILE, merged);
+  }
+
+  return merged;
 }
 
 export function saveCompanyProfile(profile: BusinessProfile): SaveResult {
   const now = new Date().toISOString();
-  return safeSet(STORAGE_KEYS.COMPANY_PROFILE, { ...profile, updatedAt: now });
+  return safeSet(STORAGE_KEYS.COMPANY_PROFILE, mergeCompanyProfileWithDefaults({ ...profile, updatedAt: now }));
 }
 
 export function replaceCompanyProfile(profile: BusinessProfile | null): SaveResult {
-  return safeSet(STORAGE_KEYS.COMPANY_PROFILE, profile);
+  return safeSet(STORAGE_KEYS.COMPANY_PROFILE, profile ? mergeCompanyProfileWithDefaults(profile) : getDefaultCompanyProfile());
 }
 
 // ─── Saved Clients ─────────────────────────────────────

@@ -4,7 +4,12 @@ export interface BusinessProfile {
   id: string;
   companyName: string;
   legalName?: string;
+  tradeName?: string;
+  displayBrandName?: string;
+  constitution?: string;
   gstin: string;
+  registrationType?: string;
+  gstRegistrationValidFrom?: string;
   pan?: string;
   address: Address;
   contact: ContactInfo;

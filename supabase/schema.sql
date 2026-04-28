@@ -14,7 +14,12 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   company_name text,
   legal_name text,
+  trade_name text,
+  display_brand_name text,
+  constitution text,
   gstin text,
+  registration_type text,
+  gst_registration_valid_from date,
   pan text,
   email text,
   phone text,
@@ -26,6 +31,12 @@ create table if not exists public.profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table if exists public.profiles add column if not exists trade_name text;
+alter table if exists public.profiles add column if not exists display_brand_name text;
+alter table if exists public.profiles add column if not exists constitution text;
+alter table if exists public.profiles add column if not exists registration_type text;
+alter table if exists public.profiles add column if not exists gst_registration_valid_from date;
 
 create table if not exists public.clients (
   id uuid primary key default gen_random_uuid(),

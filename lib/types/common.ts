@@ -5,6 +5,13 @@ export type DocumentStatus = "DRAFT" | "FINAL" | "PAID" | "CANCELLED";
 export interface Address {
   line1: string;
   line2?: string;
+  floor?: string;
+  unit?: string;
+  building?: string;
+  road?: string;
+  landmark?: string;
+  locality?: string;
+  district?: string;
   city: string;
   state: string;
   stateCode: string;
@@ -23,7 +30,11 @@ export interface BankDetails {
   accountNumber?: string;
   bankName?: string;
   branch?: string;
+  branchName?: string;
+  branchAddress?: string;
   ifscCode?: string;
+  micrCode?: string;
+  accountOpeningDate?: string;
   upiId?: string;
   paymentLink?: string;
   upiQrImageBase64?: string;

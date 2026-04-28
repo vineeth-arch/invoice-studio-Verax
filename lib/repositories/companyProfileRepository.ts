@@ -1,5 +1,6 @@
 "use client";
 
+import { mergeCompanyProfileWithDefaults } from "@/lib/defaults/companyProfile";
 import type { BusinessProfile } from "@/lib/types/company";
 import type { Database, Json } from "@/lib/supabase/types";
 import * as local from "@/lib/storage/local";
@@ -12,7 +13,12 @@ function toCloudProfile(profile: BusinessProfile, userId: string): Database["pub
     id: userId,
     company_name: profile.companyName,
     legal_name: profile.legalName ?? null,
+    trade_name: profile.tradeName ?? null,
+    display_brand_name: profile.displayBrandName ?? null,
+    constitution: profile.constitution ?? null,
     gstin: profile.gstin,
+    registration_type: profile.registrationType ?? null,
+    gst_registration_valid_from: profile.gstRegistrationValidFrom ?? null,
     pan: profile.pan ?? null,
     email: profile.contact.email ?? null,
     phone: profile.contact.phone ?? null,
@@ -25,11 +31,16 @@ function toCloudProfile(profile: BusinessProfile, userId: string): Database["pub
 }
 
 function fromCloudProfile(row: ProfileRow, localProfile: BusinessProfile | null): BusinessProfile {
-  return {
+  return mergeCompanyProfileWithDefaults({
     id: row.id,
-    companyName: row.company_name ?? "",
+    companyName: row.company_name ?? undefined,
     legalName: row.legal_name ?? undefined,
-    gstin: row.gstin ?? "",
+    tradeName: row.trade_name ?? undefined,
+    displayBrandName: row.display_brand_name ?? undefined,
+    constitution: row.constitution ?? undefined,
+    gstin: row.gstin ?? undefined,
+    registrationType: row.registration_type ?? undefined,
+    gstRegistrationValidFrom: row.gst_registration_valid_from ?? undefined,
     pan: row.pan ?? undefined,
     address: (row.address as unknown as BusinessProfile["address"]) ?? localProfile?.address ?? {
       line1: "",
@@ -53,7 +64,7 @@ function fromCloudProfile(row: ProfileRow, localProfile: BusinessProfile | null)
     defaultInvoicePrefix: localProfile?.defaultInvoicePrefix,
     defaultPOPrefix: localProfile?.defaultPOPrefix,
     updatedAt: row.updated_at,
-  };
+  });
 }
 
 export const companyProfileRepository = {
@@ -73,6 +84,9 @@ export const companyProfileRepository = {
 
       if (error) throw error;
       if (!data) {
+        if (localProfile) {
+          await cloud.client.from("profiles").upsert(toCloudProfile(localProfile, cloud.userId));
+        }
         return { success: true, data: localProfile, source: "local" };
       }
 
@@ -90,25 +104,26 @@ export const companyProfileRepository = {
   },
 
   async save(profile: BusinessProfile): Promise<RepositoryResult<{ profile: BusinessProfile }>> {
-    const localResult = local.saveCompanyProfile(profile);
+    const mergedProfile = mergeCompanyProfileWithDefaults(profile);
+    const localResult = local.saveCompanyProfile(mergedProfile);
     if (!localResult.success) {
       return { success: false, error: localResult.error };
     }
 
     const cloud = await getCloudContext();
     if (!cloud) {
-      return { success: true, data: { profile }, source: "local", cloudSynced: false };
+      return { success: true, data: { profile: mergedProfile }, source: "local", cloudSynced: false };
     }
 
     try {
-      const payload = toCloudProfile(profile, cloud.userId);
+      const payload = toCloudProfile(mergedProfile, cloud.userId);
       const { error } = await cloud.client.from("profiles").upsert(payload);
       if (error) throw error;
-      return { success: true, data: { profile }, source: "cloud", cloudSynced: true };
+      return { success: true, data: { profile: mergedProfile }, source: "cloud", cloudSynced: true };
     } catch (error) {
       return {
         success: true,
-        data: { profile },
+        data: { profile: mergedProfile },
         source: "local",
         cloudSynced: false,
         error: toRepositoryError(error, "Saved locally, but cloud sync failed for company profile."),

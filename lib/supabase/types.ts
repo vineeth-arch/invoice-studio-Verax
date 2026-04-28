@@ -14,7 +14,12 @@ export interface Database {
           id: string;
           company_name: string | null;
           legal_name: string | null;
+          trade_name: string | null;
+          display_brand_name: string | null;
+          constitution: string | null;
           gstin: string | null;
+          registration_type: string | null;
+          gst_registration_valid_from: string | null;
           pan: string | null;
           email: string | null;
           phone: string | null;
@@ -30,7 +35,12 @@ export interface Database {
           id: string;
           company_name?: string | null;
           legal_name?: string | null;
+          trade_name?: string | null;
+          display_brand_name?: string | null;
+          constitution?: string | null;
           gstin?: string | null;
+          registration_type?: string | null;
+          gst_registration_valid_from?: string | null;
           pan?: string | null;
           email?: string | null;
           phone?: string | null;
@@ -46,7 +56,12 @@ export interface Database {
           id?: string;
           company_name?: string | null;
           legal_name?: string | null;
+          trade_name?: string | null;
+          display_brand_name?: string | null;
+          constitution?: string | null;
           gstin?: string | null;
+          registration_type?: string | null;
+          gst_registration_valid_from?: string | null;
           pan?: string | null;
           email?: string | null;
           phone?: string | null;

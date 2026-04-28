@@ -1,130 +1,331 @@
-import type { PurchaseOrder } from "@/lib/types/purchase-order";
+import type { PurchaseOrder, PODeliveryInfo } from "@/lib/types/purchase-order";
+import { DesignInnsaeitDocumentShell } from "@/components/document/DesignInnsaeitDocumentShell";
 import { formatCurrencyINR, formatDate, formatNumber } from "@/lib/utils/formatting";
+
+const BRAND_PURPLE = "#2828b0";
+const BRAND_TEAL = "#00e5cc";
+const TEAL_DARK = "#0e9b8a";
+
+const PO_SECTION_LABEL_STYLE: React.CSSProperties = {
+  fontSize: "8px",
+  fontWeight: 600,
+  letterSpacing: "0.8px",
+  textTransform: "uppercase",
+  color: TEAL_DARK,
+  borderBottom: `1.5px solid ${BRAND_TEAL}`,
+  paddingBottom: "3px",
+  marginBottom: "6px",
+};
 
 interface POPreviewProps {
   po: Partial<PurchaseOrder>;
 }
 
-function Line({ label, value }: { label: string; value?: string | number | null }) {
+function DocLine({ label, value }: { label: string; value?: string | number | null }) {
   if (!value && value !== 0) return null;
   return (
-    <div className="flex gap-1 text-[10px]">
-      <span className="text-gray-500 shrink-0">{label}:</span>
-      <span className="font-medium">{value}</span>
+    <div style={{ display: "flex", gap: "4px", fontSize: "9.5px", marginBottom: "2px" }}>
+      <span style={{ color: "#6b7280", flexShrink: 0 }}>{label}:</span>
+      <span style={{ fontWeight: 500, color: "#111827" }}>{value}</span>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status?: string }) {
+  if (!status) return null;
+  const map: Record<string, { bg: string; color: string; label: string }> = {
+    DRAFT: { bg: "#fef3c7", color: "#92400e", label: "Draft" },
+    FINAL: { bg: "#d1fae5", color: "#065f46", label: "Final" },
+    PAID: { bg: "#dbeafe", color: "#1e40af", label: "Paid" },
+    CANCELLED: { bg: "#fee2e2", color: "#991b1b", label: "Cancelled" },
+  };
+  const s = map[status] ?? { bg: "#f0fdfa", color: TEAL_DARK, label: status };
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        backgroundColor: s.bg,
+        color: s.color,
+        fontSize: "8px",
+        fontWeight: 600,
+        padding: "2px 7px",
+        borderRadius: "10px",
+        letterSpacing: "0.5px",
+        textTransform: "uppercase",
+      }}
+    >
+      {s.label}
+    </span>
+  );
+}
+
+function addrLine(addr?: { line1?: string; line2?: string; city?: string; state?: string; pincode?: string }) {
+  if (!addr) return null;
+  const parts = [
+    addr.line1,
+    addr.line2,
+    [addr.city, addr.state].filter(Boolean).join(", "),
+    addr.pincode,
+  ].filter(Boolean);
+  return parts;
+}
+
+function hasDeliveryData(
+  delivery: Partial<PODeliveryInfo> | undefined,
+  projectName?: string,
+  department?: string
+): boolean {
+  if (!delivery && !projectName && !department) return false;
+  const addr = delivery?.address;
+  const hasAddr = !!(addr?.line1 || addr?.city);
+  return (
+    hasAddr ||
+    !!(delivery?.instructions) ||
+    !!(delivery?.contactPerson) ||
+    !!(projectName) ||
+    !!(department)
   );
 }
 
 export function POPreview({ po }: POPreviewProps) {
   const { buyer, vendor, delivery, lineItems = [], totals, commercialTerms } = po;
 
+  const showDelivery = hasDeliveryData(delivery, po.projectName, po.department);
+  const statusBadge = po.status ? <StatusBadge status={po.status} /> : undefined;
+
   return (
-    <div className="text-[11px] leading-relaxed text-gray-900" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
-      {/* ── Header ── */}
-      <div className="flex items-start justify-between mb-4 pb-3 border-b-2 border-gray-800">
-        <div className="flex items-start gap-3">
-          {buyer?.logoImageBase64 && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={buyer.logoImageBase64} alt="Logo" className="h-14 w-auto object-contain" />
+    <DesignInnsaeitDocumentShell
+      title="Purchase Order"
+      subtitle="Procurement / Vendor Confirmation"
+      statusBadge={statusBadge}
+    >
+      {/* ── Section 2: PO Details + Buyer + Vendor ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1fr",
+          gap: "16px",
+          marginBottom: "16px",
+        }}
+      >
+        {/* PO Details */}
+        <div>
+          <div style={PO_SECTION_LABEL_STYLE}>PO Details</div>
+          <DocLine label="PO No." value={po.poNumber} />
+          <DocLine label="PO Date" value={formatDate(po.poDate)} />
+          <DocLine label="Expected Delivery" value={formatDate(po.expectedDeliveryDate)} />
+          <DocLine label="Quotation Ref." value={po.quotationReference} />
+          {po.quotationDate && (
+            <DocLine label="Quotation Date" value={formatDate(po.quotationDate)} />
           )}
-          <div>
-            <div className="text-base font-bold text-gray-900">{buyer?.name || "Buyer Company"}</div>
-            {buyer?.address && (
-              <div className="text-gray-600 text-[10px]">
-                <div>{buyer.address.line1}{buyer.address.line2 ? `, ${buyer.address.line2}` : ""}</div>
-                <div>{buyer.address.city}, {buyer.address.state} - {buyer.address.pincode}</div>
-              </div>
-            )}
-            <div className="mt-0.5 text-[10px] text-gray-600 space-y-0.5">
-              {buyer?.gstin && <div><span className="font-semibold">GSTIN:</span> {buyer.gstin}</div>}
-              {buyer?.contact?.email && <div>{buyer.contact.email}</div>}
-              {buyer?.contact?.phone && <div>{buyer.contact.phone}</div>}
+          {/* TODO: add dedicated serviceReference field to PurchaseOrder type for future use */}
+          <DocLine label="Project" value={po.projectName} />
+          <DocLine label="Department" value={po.department} />
+          <DocLine label="Internal Req. No." value={po.internalRequisitionNumber} />
+        </div>
+
+        {/* Buyer */}
+        <div>
+          <div style={PO_SECTION_LABEL_STYLE}>Buyer</div>
+          <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#111827", marginBottom: "3px" }}>
+            {buyer?.name || "Design Innsaeit"}
+          </div>
+          {buyer?.address && (
+            <div style={{ fontSize: "9.5px", color: "#374151", lineHeight: 1.5 }}>
+              {addrLine(buyer.address)?.map((l, i) => (
+                <div key={i}>{l}</div>
+              ))}
             </div>
+          )}
+          <div style={{ marginTop: "4px" }}>
+            {buyer?.gstin && <DocLine label="GSTIN" value={buyer.gstin} />}
+            <DocLine label="State Code" value={buyer?.stateCode} />
+            <DocLine label="Email" value={buyer?.contact?.email} />
+            <DocLine label="Phone" value={buyer?.contact?.phone} />
           </div>
         </div>
 
-        <div className="text-right">
-          <div className="text-xl font-bold text-gray-900 tracking-wide">PURCHASE ORDER</div>
-          <div className="mt-1.5 space-y-0.5 text-[10px]">
-            <Line label="PO No." value={po.poNumber} />
-            <Line label="PO Date" value={formatDate(po.poDate)} />
-            <Line label="Delivery Date" value={formatDate(po.expectedDeliveryDate)} />
-            <Line label="Payment Terms" value={po.paymentTerms} />
-            <Line label="Vendor Code" value={vendor?.vendorCode} />
-            <Line label="Quotation Ref." value={po.quotationReference} />
+        {/* Vendor */}
+        <div>
+          <div style={PO_SECTION_LABEL_STYLE}>Vendor / Supplier</div>
+          <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#111827", marginBottom: "3px" }}>
+            {vendor?.name || "—"}
           </div>
-        </div>
-      </div>
-
-      {/* ── Vendor + Delivery ── */}
-      <div className="grid grid-cols-2 gap-4 mb-4 text-[10px]">
-        <div className="bg-gray-50 rounded p-2">
-          <div className="font-semibold text-gray-700 mb-1 uppercase text-[9px] tracking-wider">Vendor / Supplier</div>
-          <div className="font-bold text-gray-900">{vendor?.name}</div>
           {vendor?.address && (
-            <div className="text-gray-600">
-              <div>{vendor.address.line1}{vendor.address.line2 ? `, ${vendor.address.line2}` : ""}</div>
-              <div>{vendor.address.city}, {vendor.address.state} - {vendor.address.pincode}</div>
+            <div style={{ fontSize: "9.5px", color: "#374151", lineHeight: 1.5 }}>
+              {addrLine(vendor.address)?.map((l, i) => (
+                <div key={i}>{l}</div>
+              ))}
             </div>
           )}
-          {vendor?.gstin && <div><span className="font-semibold">GSTIN:</span> {vendor.gstin}</div>}
-          {vendor?.contactPerson && <div><span className="font-semibold">Contact:</span> {vendor.contactPerson}</div>}
-          {vendor?.contact?.email && <div>{vendor.contact.email}</div>}
-          {vendor?.contact?.phone && <div>{vendor.contact.phone}</div>}
-        </div>
-
-        <div className="bg-gray-50 rounded p-2">
-          <div className="font-semibold text-gray-700 mb-1 uppercase text-[9px] tracking-wider">Deliver To</div>
-          {delivery?.address && (
-            <div className="text-gray-600">
-              <div>{delivery.address.line1}{delivery.address.line2 ? `, ${delivery.address.line2}` : ""}</div>
-              <div>{delivery.address.city}, {delivery.address.state} - {delivery.address.pincode}</div>
-            </div>
-          )}
-          {delivery?.contactPerson && <div><span className="font-semibold">Contact:</span> {delivery.contactPerson}</div>}
-          {delivery?.contactPhone && <div>{delivery.contactPhone}</div>}
-          {delivery?.instructions && <div className="text-gray-500 mt-0.5 italic">{delivery.instructions}</div>}
+          <div style={{ marginTop: "4px" }}>
+            {vendor?.gstin && <DocLine label="GSTIN" value={vendor.gstin} />}
+            <DocLine label="State" value={vendor?.address?.state} />
+            <DocLine label="State Code" value={vendor?.address?.stateCode} />
+            {vendor?.vendorCode && <DocLine label="Vendor Code" value={vendor.vendorCode} />}
+            {vendor?.contactPerson && <DocLine label="Contact" value={vendor.contactPerson} />}
+            <DocLine label="Email" value={vendor?.contact?.email} />
+            <DocLine label="Phone" value={vendor?.contact?.phone} />
+          </div>
         </div>
       </div>
 
-      {/* ── Line Items Table ── */}
-      <div className="mb-3 overflow-x-auto">
-        <table className="w-full border-collapse text-[9.5px]">
+      {/* ── Section 3: Delivery / Service Details (conditional) ── */}
+      {showDelivery && (
+        <div
+          style={{
+            backgroundColor: "#f0fdfa",
+            border: `1px solid ${BRAND_TEAL}55`,
+            borderRadius: "4px",
+            padding: "8px 12px",
+            marginBottom: "14px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "8px",
+              fontWeight: 600,
+              letterSpacing: "0.8px",
+              textTransform: "uppercase",
+              color: TEAL_DARK,
+              marginBottom: "6px",
+            }}
+          >
+            Delivery / Service Details
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "16px",
+              fontSize: "9.5px",
+            }}
+          >
+            <div>
+              {(po.projectName || po.department) && (
+                <div style={{ marginBottom: "4px" }}>
+                  {po.projectName && (
+                    <DocLine label="Project / Service" value={po.projectName} />
+                  )}
+                  {po.department && (
+                    <DocLine label="Department" value={po.department} />
+                  )}
+                </div>
+              )}
+              {delivery?.address?.line1 && (
+                <>
+                  <div style={{ fontWeight: 600, color: "#374151", marginBottom: "2px" }}>Delivery / Service Location</div>
+                  <div style={{ color: "#374151", lineHeight: 1.5 }}>
+                    {addrLine(delivery.address)?.map((l, i) => (
+                      <div key={i}>{l}</div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <div>
+              {delivery?.contactPerson && (
+                <DocLine label="Contact" value={delivery.contactPerson} />
+              )}
+              {delivery?.contactPhone && (
+                <DocLine label="Phone" value={delivery.contactPhone} />
+              )}
+              {po.expectedDeliveryDate && (
+                <DocLine label="Expected By" value={formatDate(po.expectedDeliveryDate)} />
+              )}
+              {delivery?.modeOfDispatch && (
+                <DocLine label="Mode" value={delivery.modeOfDispatch} />
+              )}
+              {delivery?.freightTerms && (
+                <DocLine label="Freight Terms" value={delivery.freightTerms} />
+              )}
+              {delivery?.instructions && (
+                <div style={{ marginTop: "4px", color: "#6b7280", fontStyle: "italic", fontSize: "9px" }}>
+                  {delivery.instructions}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Section 4: PO Item Table ── */}
+      <div style={{ marginBottom: "14px" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: "9px",
+            tableLayout: "fixed",
+          }}
+        >
+          <colgroup>
+            <col style={{ width: "22px" }} />
+            <col />
+            <col style={{ width: "38px" }} />
+            <col style={{ width: "34px" }} />
+            <col style={{ width: "46px" }} />
+            <col style={{ width: "52px" }} />
+            <col style={{ width: "30px" }} />
+            <col style={{ width: "46px" }} />
+            <col style={{ width: "52px" }} />
+          </colgroup>
           <thead>
-            <tr className="bg-gray-800 text-white">
-              <th className="px-1.5 py-1.5 text-center w-6">#</th>
-              <th className="px-1.5 py-1.5 text-left">Description / HSN</th>
-              <th className="px-1.5 py-1.5 text-right w-12">Qty</th>
-              <th className="px-1.5 py-1.5 text-center w-10">Unit</th>
-              <th className="px-1.5 py-1.5 text-right w-16">Rate</th>
-              <th className="px-1.5 py-1.5 text-right w-14">Disc%</th>
-              <th className="px-1.5 py-1.5 text-right w-18">Taxable</th>
-              <th className="px-1.5 py-1.5 text-right w-10">GST%</th>
-              <th className="px-1.5 py-1.5 text-right w-16">Tax Amt</th>
-              <th className="px-1.5 py-1.5 text-right w-18">Total</th>
+            <tr style={{ backgroundColor: BRAND_TEAL, color: "#0a2e2a" }}>
+              <th style={{ padding: "5px 4px", textAlign: "center" }}>#</th>
+              <th style={{ padding: "5px 4px", textAlign: "left" }}>Item / Service Description</th>
+              <th style={{ padding: "5px 4px", textAlign: "center" }}>HSN / SAC</th>
+              <th style={{ padding: "5px 4px", textAlign: "right" }}>Qty</th>
+              <th style={{ padding: "5px 4px", textAlign: "right" }}>Rate</th>
+              <th style={{ padding: "5px 4px", textAlign: "right" }}>Taxable Value</th>
+              <th style={{ padding: "5px 4px", textAlign: "center" }}>GST%</th>
+              <th style={{ padding: "5px 4px", textAlign: "right" }}>Tax Amount</th>
+              <th style={{ padding: "5px 4px", textAlign: "right" }}>Total</th>
             </tr>
           </thead>
           <tbody>
             {lineItems.length === 0 ? (
               <tr>
-                <td colSpan={10} className="text-center py-6 text-gray-400 italic">No line items yet.</td>
+                <td
+                  colSpan={9}
+                  style={{ textAlign: "center", padding: "20px 0", color: "#9ca3af", fontStyle: "italic", fontSize: "9px" }}
+                >
+                  No line items yet.
+                </td>
               </tr>
             ) : (
               lineItems.map((item, idx) => (
-                <tr key={item.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="px-1.5 py-1 text-center text-gray-500">{idx + 1}</td>
-                  <td className="px-1.5 py-1">
-                    <div className="font-medium">{item.description}</div>
-                    {item.hsnSac && <div className="text-gray-400 text-[8.5px]">HSN/SAC: {item.hsnSac}</div>}
+                <tr
+                  key={item.id}
+                  style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f0fdfa" }}
+                >
+                  <td style={{ padding: "4px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
+                    {idx + 1}
                   </td>
-                  <td className="px-1.5 py-1 text-right">{formatNumber(item.quantity, 2)}</td>
-                  <td className="px-1.5 py-1 text-center">{item.unit}</td>
-                  <td className="px-1.5 py-1 text-right">{formatNumber(item.rate, 2)}</td>
-                  <td className="px-1.5 py-1 text-right">{formatNumber(item.discountPercent, 1)}%</td>
-                  <td className="px-1.5 py-1 text-right">{formatNumber(item.taxableValue, 2)}</td>
-                  <td className="px-1.5 py-1 text-right">{item.gstRate}%</td>
-                  <td className="px-1.5 py-1 text-right">{formatNumber(item.taxAmount, 2)}</td>
-                  <td className="px-1.5 py-1 text-right font-medium">{formatNumber(item.lineTotal, 2)}</td>
+                  <td style={{ padding: "4px", borderBottom: "1px solid #e5e7eb", wordBreak: "break-word" }}>
+                    <div style={{ fontWeight: 500, color: "#111827" }}>{item.description}</div>
+                  </td>
+                  <td style={{ padding: "4px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
+                    {item.hsnSac || "—"}
+                  </td>
+                  <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
+                    {formatNumber(item.quantity, 2)}
+                  </td>
+                  <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
+                    {formatNumber(item.rate, 2)}
+                  </td>
+                  <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
+                    {formatNumber(item.taxableValue, 2)}
+                  </td>
+                  <td style={{ padding: "4px", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>
+                    {item.gstRate}%
+                  </td>
+                  <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
+                    {formatNumber(item.taxAmount, 2)}
+                  </td>
+                  <td style={{ padding: "4px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid #e5e7eb" }}>
+                    {formatNumber(item.lineTotal, 2)}
+                  </td>
                 </tr>
               ))
             )}
@@ -132,73 +333,157 @@ export function POPreview({ po }: POPreviewProps) {
         </table>
       </div>
 
-      {/* ── Totals ── */}
+      {/* ── Section 5: Totals ── */}
       {totals && (
-        <div className="print-keep-together">
-          <div className="flex justify-end mb-3">
-            <div className="w-56 border border-gray-200 rounded overflow-hidden">
+        <div className="print-keep-together" style={{ marginBottom: "14px" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ width: "220px", border: "1px solid #e5e7eb", borderRadius: "4px", overflow: "hidden" }}>
               {(
                 [
-                  ["Subtotal", totals.subtotal],
-                  ...(totals.totalDiscount > 0 ? [["(-) Discount", totals.totalDiscount]] : []),
-                  ["Taxable Value", totals.totalTaxableValue],
+                  ["Taxable Value (Subtotal)", totals.totalTaxableValue],
                   ...(totals.totalTax > 0 ? [["GST / Tax", totals.totalTax]] : []),
                   ...(totals.otherCharges > 0 ? [["Other Charges", totals.otherCharges]] : []),
                   ...(totals.roundOff !== 0 ? [["Round Off", totals.roundOff]] : []),
                 ] as [string, number][]
               ).map(([label, value]) => (
-                  <div key={label} className="flex justify-between px-3 py-1 border-b border-gray-100 text-[10px]">
-                    <span className="text-gray-600">{label}</span>
-                    <span>{formatNumber(value, 2)}</span>
-                  </div>
-                ))}
-              <div className="flex justify-between px-3 py-2 bg-gray-800 text-white">
-                <span className="font-bold text-[11px]">Grand Total</span>
-                <span className="font-bold text-[11px]">{formatCurrencyINR(totals.grandTotal)}</span>
+                <div
+                  key={label}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "4px 10px",
+                    borderBottom: "1px solid #f3f4f6",
+                    fontSize: "9.5px",
+                  }}
+                >
+                  <span style={{ color: "#6b7280" }}>{label}</span>
+                  <span style={{ color: "#111827" }}>{formatNumber(value, 2)}</span>
+                </div>
+              ))}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  padding: "7px 10px",
+                  backgroundColor: BRAND_PURPLE,
+                  color: "#ffffff",
+                }}
+              >
+                <span style={{ fontWeight: 700, fontSize: "10.5px" }}>Grand Total</span>
+                <span style={{ fontWeight: 700, fontSize: "10.5px" }}>
+                  {formatCurrencyINR(totals.grandTotal)}
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-100 rounded px-3 py-2 mb-3 text-[10px]">
-            <span className="font-semibold text-gray-700">Amount in Words: </span>
-            <span className="text-gray-900 italic">{totals.amountInWords}</span>
+          {totals.amountInWords && (
+            <div
+              style={{
+                backgroundColor: "#f0fdfa",
+                border: `1px solid ${BRAND_TEAL}55`,
+                borderRadius: "4px",
+                padding: "6px 10px",
+                marginTop: "8px",
+                fontSize: "9.5px",
+              }}
+            >
+              <span style={{ fontWeight: 600, color: TEAL_DARK }}>Amount in Words: </span>
+              <span style={{ color: "#374151", fontStyle: "italic" }}>{totals.amountInWords}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Section 6: Terms / Notes ── */}
+      {(po.paymentTerms || po.deliveryTerms || commercialTerms?.notes || commercialTerms?.termsAndConditions || commercialTerms?.warrantyTerms) && (
+        <div className="print-keep-together" style={{ marginBottom: "14px" }}>
+          <div style={PO_SECTION_LABEL_STYLE}>Terms &amp; Notes</div>
+          <div style={{ fontSize: "9px", color: "#374151", lineHeight: 1.6 }}>
+            {po.paymentTerms && (
+              <div><span style={{ fontWeight: 600 }}>Payment Terms: </span>{po.paymentTerms}</div>
+            )}
+            {po.deliveryTerms && (
+              <div><span style={{ fontWeight: 600 }}>Delivery Terms: </span>{po.deliveryTerms}</div>
+            )}
+            {commercialTerms?.notes && (
+              <div><span style={{ fontWeight: 600 }}>Notes: </span>{commercialTerms.notes}</div>
+            )}
+            {commercialTerms?.warrantyTerms && (
+              <div><span style={{ fontWeight: 600 }}>Warranty: </span>{commercialTerms.warrantyTerms}</div>
+            )}
+            {commercialTerms?.inspectionTerms && (
+              <div><span style={{ fontWeight: 600 }}>Inspection: </span>{commercialTerms.inspectionTerms}</div>
+            )}
+            {commercialTerms?.returnPolicy && (
+              <div><span style={{ fontWeight: 600 }}>Return Policy: </span>{commercialTerms.returnPolicy}</div>
+            )}
+            {commercialTerms?.cancellationPolicy && (
+              <div><span style={{ fontWeight: 600 }}>Cancellation: </span>{commercialTerms.cancellationPolicy}</div>
+            )}
+            {commercialTerms?.termsAndConditions && (
+              <div><span style={{ fontWeight: 600 }}>T&amp;C: </span>{commercialTerms.termsAndConditions}</div>
+            )}
           </div>
         </div>
       )}
 
-      {/* ── Commercial Terms + Signature ── */}
-      <div className="print-keep-together text-[10px] space-y-2">
-        {commercialTerms?.notes && <div><span className="font-semibold">Notes: </span>{commercialTerms.notes}</div>}
-        {po.paymentTerms && <div><span className="font-semibold">Payment Terms: </span>{po.paymentTerms}</div>}
-        {po.deliveryTerms && <div><span className="font-semibold">Delivery Terms: </span>{po.deliveryTerms}</div>}
-        {commercialTerms?.warrantyTerms && <div><span className="font-semibold">Warranty: </span>{commercialTerms.warrantyTerms}</div>}
-        {commercialTerms?.termsAndConditions && <div><span className="font-semibold">T&C: </span>{commercialTerms.termsAndConditions}</div>}
-
-        <div className="flex justify-between mt-6 pt-4 border-t border-gray-200">
-          {po.preparedBy && (
-            <div className="text-center">
-              {po.preparedBySignature?.signatureImageBase64 && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={po.preparedBySignature.signatureImageBase64} alt="Sig" className="h-8 w-auto mx-auto mb-1" />
-              )}
-              <div className="border-t border-gray-300 pt-1 text-[10px]">
-                <div className="font-semibold">{po.preparedBy}</div>
-                <div className="text-gray-500">Prepared By</div>
-              </div>
-            </div>
-          )}
-          <div className="text-center">
-            {po.approvedBySignature?.signatureImageBase64 && (
+      {/* ── Section 7: Signature Blocks ── */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: "16px",
+          paddingTop: "12px",
+          borderTop: `1px solid ${BRAND_TEAL}55`,
+        }}
+      >
+        {po.preparedBy && (
+          <div style={{ textAlign: "center", fontSize: "9.5px", minWidth: "130px" }}>
+            {po.preparedBySignature?.signatureImageBase64 && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={po.approvedBySignature.signatureImageBase64} alt="Sig" className="h-8 w-auto mx-auto mb-1" />
+              <img
+                src={po.preparedBySignature.signatureImageBase64}
+                alt="Signature"
+                crossOrigin="anonymous"
+                style={{ height: "32px", width: "auto", objectFit: "contain", marginBottom: "4px" }}
+              />
             )}
-            <div className="border-t border-gray-300 pt-1 text-[10px]">
-              <div className="font-semibold">{po.approvedBy || "Authorized Signatory"}</div>
-              <div className="text-gray-500">{buyer?.name}</div>
+            <div
+              style={{
+                borderTop: `1px solid ${BRAND_TEAL}`,
+                paddingTop: "4px",
+              }}
+            >
+              <div style={{ fontWeight: 600, color: "#111827" }}>{po.preparedBy}</div>
+              <div style={{ color: "#6b7280", fontSize: "9px" }}>Prepared By</div>
             </div>
+          </div>
+        )}
+
+        <div style={{ textAlign: "center", fontSize: "9.5px", minWidth: "130px" }}>
+          {po.approvedBySignature?.signatureImageBase64 && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={po.approvedBySignature.signatureImageBase64}
+              alt="Signature"
+              crossOrigin="anonymous"
+              style={{ height: "32px", width: "auto", objectFit: "contain", marginBottom: "4px" }}
+            />
+          )}
+          <div
+            style={{
+              borderTop: `1px solid ${BRAND_TEAL}`,
+              paddingTop: "4px",
+            }}
+          >
+            <div style={{ fontWeight: 600, color: "#111827" }}>
+              {po.approvedBy || "Authorized Signatory"}
+            </div>
+            <div style={{ color: "#6b7280", fontSize: "9px" }}>{buyer?.name}</div>
           </div>
         </div>
       </div>
-    </div>
+    </DesignInnsaeitDocumentShell>
   );
 }

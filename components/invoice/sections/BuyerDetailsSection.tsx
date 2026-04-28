@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
@@ -8,7 +8,6 @@ import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { GSTINInput } from "@/components/ui/GSTINInput";
 import { Button } from "@/components/ui/Button";
-import { useSavedClients } from "@/lib/hooks/useSavedClients";
 import type { SavedClient } from "@/lib/types/client";
 
 interface Props {
@@ -28,13 +27,21 @@ export function BuyerDetailsSection({
   onSaveClient,
   savingClient,
 }: Props) {
-  const { clients, loading } = useSavedClients();
+  const [savedClients, setSavedClients] = useState<SavedClient[]>([]);
   const [selectedClientId, setSelectedClientId] = useState("");
-  const hasClients = clients.length > 0;
-  const placeholder = useMemo(() => {
-    if (loading) return "Loading saved clients...";
-    return hasClients ? "Select a saved client..." : "No saved clients — add one in Clients";
-  }, [hasClients, loading]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("di_clients");
+      const parsed: SavedClient[] = raw ? JSON.parse(raw) : [];
+      console.log("[Invoice BuyerDetailsSection] di_clients on mount:", parsed);
+      setSavedClients(Array.isArray(parsed) ? parsed : []);
+    } catch (err) {
+      console.error("[Invoice BuyerDetailsSection] Failed to parse di_clients", err);
+    }
+  }, []);
+
+  const hasClients = savedClients.length > 0;
 
   return (
     <FormSection title="Buyer Details">
@@ -43,7 +50,7 @@ export function BuyerDetailsSection({
           <select
             className={inputClass}
             value={selectedClientId}
-            disabled={!hasClients || loading}
+            disabled={!hasClients}
             onChange={(e) => {
               const nextValue = e.target.value;
               setSelectedClientId(nextValue);
@@ -51,12 +58,14 @@ export function BuyerDetailsSection({
                 onSelectSavedClient(null);
                 return;
               }
-              onSelectSavedClient(clients.find((client) => client.id === nextValue) ?? null);
+              onSelectSavedClient(savedClients.find((c) => c.id === nextValue) ?? null);
             }}
           >
-            <option value="">{placeholder}</option>
+            <option value="">
+              {hasClients ? "Select a saved client..." : "No saved clients — add one in Clients"}
+            </option>
             {hasClients && <option value="__clear__">Clear selection</option>}
-            {clients.map((client) => (
+            {savedClients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.name}{client.gstin ? ` • ${client.gstin}` : ""}
               </option>

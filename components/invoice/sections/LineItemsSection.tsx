@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFieldArray, useWatch, type Control, type FieldErrors, type UseFormSetValue } from "react-hook-form";
 import { v4 as uuidv4 } from "uuid";
 import Link from "next/link";
@@ -16,7 +16,6 @@ import { formatNumber } from "@/lib/utils/formatting";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import { Modal } from "@/components/ui/Modal";
-import { useServices } from "@/lib/hooks/useServices";
 
 interface Props {
   control: Control<InvoiceFormValues>;
@@ -237,8 +236,19 @@ function LineItemCard({
 export function LineItemsSection({ control, setValue, errors }: Props) {
   const { fields, append, remove } = useFieldArray({ control, name: "lineItems" });
   const gstMode = useWatch({ control, name: "gstMode" }) as GSTMode;
-  const { services, loading } = useServices();
+  const [services, setServices] = useState<SavedService[]>([]);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("di_services");
+      const parsed: SavedService[] = raw ? JSON.parse(raw) : [];
+      console.log("[Invoice LineItemsSection] di_services on mount:", parsed);
+      setServices(Array.isArray(parsed) ? parsed : []);
+    } catch (err) {
+      console.error("[Invoice LineItemsSection] Failed to parse di_services", err);
+    }
+  }, []);
 
   const addRow = () => {
     append({
@@ -341,7 +351,7 @@ export function LineItemsSection({ control, setValue, errors }: Props) {
           variant="secondary"
           size="sm"
           onClick={() => setCatalogueOpen(true)}
-          disabled={services.length === 0 || loading}
+          disabled={services.length === 0}
           title={services.length === 0 ? "No saved services — add one in Services" : "Add a saved service"}
         >
           Add from catalogue

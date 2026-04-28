@@ -68,6 +68,10 @@ export function deleteInvoice(id: string): SaveResult {
   return safeSet(STORAGE_KEYS.INVOICES, invoices);
 }
 
+export function replaceInvoices(invoices: Invoice[]): SaveResult {
+  return safeSet(STORAGE_KEYS.INVOICES, invoices);
+}
+
 // ─── Purchase Orders ────────────────────────────────────
 
 export function getPurchaseOrders(): PurchaseOrder[] {
@@ -101,6 +105,10 @@ export function deletePurchaseOrder(id: string): SaveResult {
   return safeSet(STORAGE_KEYS.PURCHASE_ORDERS, orders);
 }
 
+export function replacePurchaseOrders(purchaseOrders: PurchaseOrder[]): SaveResult {
+  return safeSet(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+}
+
 // ─── Company Profile ────────────────────────────────────
 
 export function getCompanyProfile(): BusinessProfile | null {
@@ -110,6 +118,10 @@ export function getCompanyProfile(): BusinessProfile | null {
 export function saveCompanyProfile(profile: BusinessProfile): SaveResult {
   const now = new Date().toISOString();
   return safeSet(STORAGE_KEYS.COMPANY_PROFILE, { ...profile, updatedAt: now });
+}
+
+export function replaceCompanyProfile(profile: BusinessProfile | null): SaveResult {
+  return safeSet(STORAGE_KEYS.COMPANY_PROFILE, profile);
 }
 
 // ─── Saved Clients ─────────────────────────────────────
@@ -154,6 +166,10 @@ export function saveBuyerAsClient(buyer: Invoice["buyer"] | undefined | null): S
   });
 }
 
+export function replaceSavedClients(clients: SavedClient[]): SaveResult {
+  return safeSet(STORAGE_KEYS.SAVED_CLIENTS, clients);
+}
+
 // ─── Settings ───────────────────────────────────────────
 
 const DEFAULT_SETTINGS: DocumentTemplateSettings = {
@@ -191,6 +207,10 @@ export function getSettings(): DocumentTemplateSettings {
 export function saveSettings(settings: DocumentTemplateSettings): SaveResult {
   const now = new Date().toISOString();
   return safeSet(STORAGE_KEYS.SETTINGS, { ...settings, updatedAt: now });
+}
+
+export function replaceSettings(settings: DocumentTemplateSettings): SaveResult {
+  return safeSet(STORAGE_KEYS.SETTINGS, settings);
 }
 
 export function incrementInvoiceSequence(): void {

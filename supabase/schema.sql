@@ -89,12 +89,29 @@ create table if not exists public.purchase_orders (
   unique (user_id, po_number)
 );
 
+create table if not exists public.services (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  description text not null,
+  sac_code text,
+  unit text,
+  default_rate numeric not null default 0,
+  default_gst_percent numeric not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.settings (
   user_id uuid primary key references auth.users(id) on delete cascade,
   data jsonb not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create index if not exists clients_user_id_idx on public.clients(user_id);
+create index if not exists invoices_user_id_idx on public.invoices(user_id);
+create index if not exists purchase_orders_user_id_idx on public.purchase_orders(user_id);
+create index if not exists services_user_id_idx on public.services(user_id);
 
 create table if not exists public.document_numbering (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -127,6 +144,12 @@ before update on public.purchase_orders
 for each row
 execute function public.set_updated_at();
 
+drop trigger if exists set_services_updated_at on public.services;
+create trigger set_services_updated_at
+before update on public.services
+for each row
+execute function public.set_updated_at();
+
 drop trigger if exists set_settings_updated_at on public.settings;
 create trigger set_settings_updated_at
 before update on public.settings
@@ -143,8 +166,14 @@ alter table public.profiles enable row level security;
 alter table public.clients enable row level security;
 alter table public.invoices enable row level security;
 alter table public.purchase_orders enable row level security;
+alter table public.services enable row level security;
 alter table public.settings enable row level security;
 alter table public.document_numbering enable row level security;
+
+grant select, insert, update, delete on table public.clients to authenticated;
+grant select, insert, update, delete on table public.invoices to authenticated;
+grant select, insert, update, delete on table public.purchase_orders to authenticated;
+grant select, insert, update, delete on table public.services to authenticated;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
@@ -243,6 +272,31 @@ with check (auth.uid() = user_id);
 drop policy if exists "purchase_orders_delete_own" on public.purchase_orders;
 create policy "purchase_orders_delete_own"
 on public.purchase_orders
+for delete
+using (auth.uid() = user_id);
+
+drop policy if exists "services_select_own" on public.services;
+create policy "services_select_own"
+on public.services
+for select
+using (auth.uid() = user_id);
+
+drop policy if exists "services_insert_own" on public.services;
+create policy "services_insert_own"
+on public.services
+for insert
+with check (auth.uid() = user_id);
+
+drop policy if exists "services_update_own" on public.services;
+create policy "services_update_own"
+on public.services
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "services_delete_own" on public.services;
+create policy "services_delete_own"
+on public.services
 for delete
 using (auth.uid() = user_id);
 

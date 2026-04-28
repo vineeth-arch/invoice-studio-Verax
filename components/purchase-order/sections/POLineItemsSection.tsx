@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useFieldArray, useWatch, type Control, type UseFormSetValue, type FieldErrors } from "react-hook-form";
 import { v4 as uuidv4 } from "uuid";
 import { Plus, Trash2 } from "lucide-react";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import { Modal } from "@/components/ui/Modal";
 import Link from "next/link";
+import { useServices } from "@/lib/hooks/useServices";
 
 interface Props {
   control: Control<POFormValues>;
@@ -93,21 +94,8 @@ function POLineItemRow({ index, control, setValue, onRemove }: {
 
 export function POLineItemsSection({ control, setValue, errors }: Props) {
   const { fields, append, remove } = useFieldArray({ control, name: "lineItems" });
-  const [services, setServices] = useState<SavedService[]>([]);
+  const { services, loading } = useServices();
   const [catalogueOpen, setCatalogueOpen] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = window.localStorage.getItem("di_services");
-      const parsed = raw ? JSON.parse(raw) : [];
-      console.log("[PO LineItemsSection] di_services on mount:", parsed);
-      setServices(Array.isArray(parsed) ? parsed : []);
-    } catch (error) {
-      console.error("[PO LineItemsSection] Failed to parse di_services", error);
-      setServices([]);
-    }
-  }, []);
 
   const addService = (service: SavedService) => {
     append({
@@ -172,7 +160,7 @@ export function POLineItemsSection({ control, setValue, errors }: Props) {
           variant="secondary"
           size="sm"
           onClick={() => setCatalogueOpen(true)}
-          disabled={services.length === 0}
+          disabled={services.length === 0 || loading}
           title={services.length === 0 ? "No saved services — add one in Services" : "Add a saved service"}
         >
           Add from catalogue

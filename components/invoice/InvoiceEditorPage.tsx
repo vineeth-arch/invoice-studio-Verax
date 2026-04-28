@@ -26,7 +26,7 @@ interface InvoiceEditorPageProps {
   invoiceId?: string;
 }
 
-const SPLIT_RATIO_KEY = "di_split_ratio";
+const SPLIT_RATIO_KEY = "invoice_split_ratio";
 const DEFAULT_SPLIT_RATIO = 0.5;
 const MIN_FORM_WIDTH = 380;
 const MIN_PREVIEW_WIDTH = 320;

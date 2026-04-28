@@ -222,6 +222,42 @@ export interface Database {
         };
         Relationships: [];
       };
+      services: {
+        Row: {
+          id: string;
+          user_id: string;
+          description: string;
+          sac_code: string | null;
+          unit: string | null;
+          default_rate: number;
+          default_gst_percent: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          description: string;
+          sac_code?: string | null;
+          unit?: string | null;
+          default_rate?: number;
+          default_gst_percent?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          description?: string;
+          sac_code?: string | null;
+          unit?: string | null;
+          default_rate?: number;
+          default_gst_percent?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       settings: {
         Row: {
           user_id: string;

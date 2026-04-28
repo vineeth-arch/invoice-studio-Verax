@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
@@ -8,6 +8,7 @@ import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { GSTINInput } from "@/components/ui/GSTINInput";
 import { FileUpload } from "@/components/ui/FileUpload";
+import { useSavedClients } from "@/lib/hooks/useSavedClients";
 import type { SavedClient } from "@/lib/types/client";
 
 interface Props {
@@ -18,23 +19,13 @@ interface Props {
 }
 
 export function POBuyerSection({ control, register, errors, onSelectSavedClient }: Props) {
-  const [savedClients, setSavedClients] = useState<SavedClient[]>([]);
+  const { clients, loading } = useSavedClients();
   const [selectedClientId, setSelectedClientId] = useState("");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = window.localStorage.getItem("di_clients");
-      const parsed = raw ? JSON.parse(raw) : [];
-      console.log("[PO BuyerSection] di_clients on mount:", parsed);
-      setSavedClients(Array.isArray(parsed) ? parsed : []);
-    } catch (error) {
-      console.error("[PO BuyerSection] Failed to parse di_clients", error);
-      setSavedClients([]);
-    }
-  }, []);
-
-  const hasClients = savedClients.length > 0;
+  const hasClients = clients.length > 0;
+  const placeholder = useMemo(() => {
+    if (loading) return "Loading saved clients...";
+    return hasClients ? "Select a saved client..." : "No saved clients — add one in Clients";
+  }, [hasClients, loading]);
 
   return (
     <FormSection title="Buyer Details">
@@ -43,7 +34,7 @@ export function POBuyerSection({ control, register, errors, onSelectSavedClient 
           <select
             className={inputClass}
             value={selectedClientId}
-            disabled={!hasClients}
+            disabled={!hasClients || loading}
             onChange={(e) => {
               const nextValue = e.target.value;
               setSelectedClientId(nextValue);
@@ -51,14 +42,12 @@ export function POBuyerSection({ control, register, errors, onSelectSavedClient 
                 onSelectSavedClient(null);
                 return;
               }
-              onSelectSavedClient(savedClients.find((client) => client.id === nextValue) ?? null);
+              onSelectSavedClient(clients.find((client) => client.id === nextValue) ?? null);
             }}
           >
-            <option value="">
-              {hasClients ? "Select a saved client..." : "No saved clients — add one in Clients"}
-            </option>
+            <option value="">{placeholder}</option>
             {hasClients && <option value="__clear__">Clear selection</option>}
-            {savedClients.map((client) => (
+            {clients.map((client) => (
               <option key={client.id} value={client.id}>
                 {client.name}{client.gstin ? ` • ${client.gstin}` : ""}
               </option>

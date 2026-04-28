@@ -138,6 +138,43 @@ export const invoicesRepository = {
     }
   },
 
+  async getByShareToken(shareToken: string): Promise<RepositoryResult<Invoice | null>> {
+    const localInvoice = local.getInvoiceByShareToken(shareToken);
+    const cloud = await getCloudContext();
+    if (!cloud) {
+      return { success: true, data: localInvoice, source: "local" };
+    }
+
+    try {
+      const { data, error } = await cloud.client
+        .from("invoices")
+        .select("*")
+        .eq("user_id", cloud.userId)
+        .order("updated_at", { ascending: false });
+
+      if (error) throw error;
+
+      const invoiceRow = (data ?? []).find((row) => {
+        const fullData = row.full_data as unknown as Partial<Invoice> | null;
+        return fullData?.shareToken === shareToken;
+      });
+
+      if (!invoiceRow) {
+        return { success: true, data: localInvoice, source: "local" };
+      }
+
+      const invoice = fromCloudInvoice(invoiceRow, local.getInvoice(invoiceRow.id));
+      return { success: true, data: invoice, source: "cloud" };
+    } catch (error) {
+      return {
+        success: true,
+        data: localInvoice,
+        source: "local",
+        error: toRepositoryError(error, "Unable to load shared invoice from cloud."),
+      };
+    }
+  },
+
   async save(invoice: Invoice): Promise<RepositoryResult<{ id: string }>> {
     const localResult = local.saveInvoice(invoice);
     if (!localResult.success) {

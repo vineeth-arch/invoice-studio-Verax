@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { A4PreviewWrapper } from "@/components/document/A4PreviewWrapper";
 import { PDFExportButton } from "@/components/document/PDFExportButton";
 import { PrintButton } from "@/components/document/PrintButton";
+import { Button } from "@/components/ui/Button";
 import { POForm } from "./POForm";
 import { POPreview } from "./POPreview";
 import { useInvoices } from "@/lib/hooks/useInvoices";
@@ -13,7 +14,9 @@ import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { useToast } from "@/lib/hooks/useToast";
 import { documentNumberingRepository } from "@/lib/repositories/documentNumberingRepository";
+import { saveInvoiceConversionDraft } from "@/lib/storage/local";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
+import type { Invoice } from "@/lib/types/invoice";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { calculatePOLineItem, calculatePOTotals } from "@/lib/utils/calculations";
 
@@ -29,7 +32,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
   const [activeTab, setActiveTab] = useState<"form" | "preview">("form");
 
   const { invoices } = useInvoices();
-  const { purchaseOrders, savePurchaseOrder, getPurchaseOrder } = usePurchaseOrders();
+  const { purchaseOrders, loading: purchaseOrdersLoading, savePurchaseOrder, getPurchaseOrder } = usePurchaseOrders();
   const { profile } = useCompanyProfile();
   const { settings } = useSettings();
   const { addToast } = useToast();
@@ -69,7 +72,73 @@ export function POEditorPage({ poId }: POEditorPageProps) {
     }
   }, [existingPO, poId, savePurchaseOrder, addToast, router]);
 
+  const handleConvertToInvoice = useCallback(async () => {
+    if (!existingPO) return;
+
+    const invoiceDraft: Partial<Invoice> = {
+      invoiceType: "TAX_INVOICE",
+      invoiceDate: new Date().toISOString().slice(0, 10),
+      poReference: existingPO.poNumber,
+      buyer: {
+        name: existingPO.buyer.name,
+        billingAddress: {
+          ...existingPO.buyer.address,
+          country: existingPO.buyer.address.country ?? "India",
+        },
+        gstin: existingPO.buyer.gstin,
+        contact: {
+          email: existingPO.buyer.contact?.email ?? "",
+          phone: existingPO.buyer.contact?.phone ?? "",
+        },
+        placeOfSupply: existingPO.buyer.address.state,
+        placeOfSupplyCode: existingPO.buyer.stateCode || existingPO.buyer.address.stateCode,
+      },
+      lineItems: existingPO.lineItems.map((item) => ({
+        id: item.id,
+        description: item.description,
+        hsnSac: item.hsnSac ?? "",
+        quantity: item.quantity,
+        unit: item.unit,
+        rate: item.rate,
+        discountPercent: item.discountPercent,
+        gstRate: item.gstRate,
+        gross: 0,
+        discountAmount: 0,
+        taxableValue: 0,
+        cgst: 0,
+        sgst: 0,
+        igst: 0,
+        lineTotal: 0,
+      })),
+    };
+
+    const draftResult = saveInvoiceConversionDraft(invoiceDraft);
+    if (!draftResult.success) {
+      addToast(draftResult.error ?? "Failed to prepare invoice draft.", "error");
+      return;
+    }
+
+    const shouldMarkProcessed = window.confirm("Mark this PO as Processed?");
+    if (shouldMarkProcessed && existingPO.poStatus !== "Processed") {
+      const result = await savePurchaseOrder({ ...existingPO, poStatus: "Processed" });
+      if (!result.success) {
+        addToast(result.error ?? "Failed to update PO status.", "error");
+        return;
+      }
+    }
+
+    router.push("/invoice/new");
+  }, [addToast, existingPO, router, savePurchaseOrder]);
+
   const pdfFilename = `PO-${previewPO.poNumber ?? "draft"}-${previewPO.vendor?.name ?? "vendor"}`;
+
+  if (poId && purchaseOrdersLoading) {
+    return <div className="flex h-screen items-center justify-center text-sm text-slate-500">Loading purchase order...</div>;
+  }
+
+  if (poId && !existingPO) {
+    return <div className="flex h-screen items-center justify-center text-sm text-slate-500">Purchase order not found.</div>;
+  }
 
   return (
     <div className="flex flex-col h-screen">
@@ -81,6 +150,11 @@ export function POEditorPage({ poId }: POEditorPageProps) {
           <p className="text-xs text-slate-500">Fill the form on the left, preview on the right</p>
         </div>
         <div className="flex items-center gap-2">
+          {existingPO && (
+            <Button variant="outline" onClick={handleConvertToInvoice}>
+              Convert to Invoice
+            </Button>
+          )}
           <PDFExportButton previewRef={previewRef} filename={pdfFilename} />
           <PrintButton contentRef={previewRef} />
         </div>

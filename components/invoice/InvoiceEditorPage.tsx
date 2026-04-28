@@ -1,10 +1,13 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect } from "react";
+import { v4 as uuidv4 } from "uuid";
 import { useRouter } from "next/navigation";
 import { A4PreviewWrapper } from "@/components/document/A4PreviewWrapper";
 import { PDFExportButton } from "@/components/document/PDFExportButton";
 import { PrintButton } from "@/components/document/PrintButton";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
 import { InvoiceForm } from "./InvoiceForm";
 import { InvoicePreview } from "./InvoicePreview";
 import { useInvoices } from "@/lib/hooks/useInvoices";
@@ -13,6 +16,7 @@ import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { useToast } from "@/lib/hooks/useToast";
 import { documentNumberingRepository } from "@/lib/repositories/documentNumberingRepository";
+import { clearInvoiceConversionDraft, getInvoiceConversionDraft } from "@/lib/storage/local";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import type { Invoice } from "@/lib/types/invoice";
 import type { GSTMode } from "@/lib/types/common";
@@ -32,18 +36,25 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const splitPaneRef = useRef<HTMLDivElement>(null);
   const [previewInvoice, setPreviewInvoice] = useState<Partial<Invoice>>({});
+  const [conversionDraft, setConversionDraft] = useState<Partial<Invoice> | null>(null);
+  const [draftReady, setDraftReady] = useState(Boolean(invoiceId));
   const [isSaving, setIsSaving] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isShareActionLoading, setIsShareActionLoading] = useState(false);
+  const [shareToken, setShareToken] = useState("");
+  const [shareUrl, setShareUrl] = useState("");
   const [activeTab, setActiveTab] = useState<"form" | "preview">("form");
   const [splitRatio, setSplitRatio] = useState(DEFAULT_SPLIT_RATIO);
   const [isDesktop, setIsDesktop] = useState(false);
 
-  const { invoices, saveInvoice, getInvoice } = useInvoices();
+  const { invoices, loading: invoicesLoading, saveInvoice, getInvoice } = useInvoices();
   const { purchaseOrders } = usePurchaseOrders();
   const { profile } = useCompanyProfile();
   const { settings } = useSettings();
   const { addToast } = useToast();
 
   const existingInvoice = invoiceId ? getInvoice(invoiceId) : undefined;
+  const initialInvoice = existingInvoice ?? conversionDraft ?? undefined;
   const allDocs = [...invoices, ...purchaseOrders];
 
   useEffect(() => {
@@ -62,6 +73,22 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
     return () => mediaQuery.removeEventListener("change", updateDesktopState);
   }, []);
 
+  useEffect(() => {
+    if (invoiceId || typeof window === "undefined") {
+      setDraftReady(true);
+      return;
+    }
+
+    const draft = getInvoiceConversionDraft();
+    setConversionDraft(draft);
+    clearInvoiceConversionDraft();
+    setDraftReady(true);
+  }, [invoiceId]);
+
+  useEffect(() => {
+    setShareToken(existingInvoice?.shareToken ?? "");
+  }, [existingInvoice?.shareToken]);
+
   const handleSave = useCallback(async (values: InvoiceFormValues, status: "DRAFT" | "FINAL") => {
     setIsSaving(true);
     try {
@@ -74,6 +101,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
       const totals = calculateInvoiceTotals(items, Number(values.cess) || 0, Number(values.otherCharges) || 0);
 
       const invoice = {
+        ...existingInvoice,
         ...(values as unknown as Partial<Invoice>),
         id: existingInvoice?.id ?? invoiceId,
         lineItems: items,
@@ -81,6 +109,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
         cess: Number(values.cess) || 0,
         otherCharges: Number(values.otherCharges) || 0,
         status,
+        shareToken: existingInvoice?.shareToken,
       } as Partial<Invoice>;
 
       const result = await saveInvoice(invoice);
@@ -99,6 +128,75 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
       setIsSaving(false);
     }
   }, [existingInvoice, invoiceId, saveInvoice, addToast, router]);
+
+  const copyToClipboard = useCallback(async (url: string) => {
+    if (typeof window === "undefined") return false;
+
+    try {
+      await window.navigator.clipboard.writeText(url);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const buildShareUrl = useCallback((token: string) => {
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin}/share/${token}`;
+  }, []);
+
+  const handleShare = useCallback(async () => {
+    if (!existingInvoice) return;
+
+    setIsShareActionLoading(true);
+    try {
+      let token = existingInvoice.shareToken || shareToken;
+      if (!token) {
+        token = uuidv4();
+        const result = await saveInvoice({ ...existingInvoice, shareToken: token });
+        if (!result.success) {
+          addToast(result.error ?? "Failed to create share link.", "error");
+          return;
+        }
+      }
+
+      setShareToken(token);
+      const url = buildShareUrl(token);
+      setShareUrl(url);
+      setIsShareModalOpen(true);
+
+      const copied = await copyToClipboard(url);
+      addToast(copied ? "Link copied" : "Share link ready to copy.", copied ? "success" : "info");
+    } finally {
+      setIsShareActionLoading(false);
+    }
+  }, [addToast, buildShareUrl, copyToClipboard, existingInvoice, saveInvoice, shareToken]);
+
+  const handleCopyShareLink = useCallback(async () => {
+    if (!shareUrl) return;
+    const copied = await copyToClipboard(shareUrl);
+    addToast(copied ? "Link copied" : "Copy failed. Please copy the link manually.", copied ? "success" : "error");
+  }, [addToast, copyToClipboard, shareUrl]);
+
+  const handleRevokeShareLink = useCallback(async () => {
+    if (!existingInvoice || !shareToken) return;
+
+    setIsShareActionLoading(true);
+    try {
+      const result = await saveInvoice({ ...existingInvoice, shareToken: undefined });
+      if (!result.success) {
+        addToast(result.error ?? "Failed to revoke share link.", "error");
+        return;
+      }
+
+      setShareToken("");
+      setShareUrl("");
+      setIsShareModalOpen(false);
+      addToast("Share link revoked.", "success");
+    } finally {
+      setIsShareActionLoading(false);
+    }
+  }, [addToast, existingInvoice, saveInvoice, shareToken]);
 
   const startSplitDrag = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!isDesktop) return;
@@ -135,6 +233,15 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   }, [isDesktop, splitRatio]);
 
   const pdfFilename = `INV-${previewInvoice.invoiceNumber ?? "draft"}-${previewInvoice.buyer?.name ?? "client"}`;
+  const canShare = existingInvoice?.status === "FINAL";
+
+  if (!draftReady || (invoiceId && invoicesLoading)) {
+    return <div className="flex h-screen items-center justify-center text-sm text-slate-500">Loading invoice editor...</div>;
+  }
+
+  if (invoiceId && !existingInvoice) {
+    return <div className="flex h-screen items-center justify-center text-sm text-slate-500">Invoice not found.</div>;
+  }
 
   return (
     <div className="flex h-screen flex-col">
@@ -146,6 +253,11 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
           <p className="text-xs text-slate-500">Fill the form on the left, preview on the right</p>
         </div>
         <div className="flex items-center gap-2">
+          {canShare && (
+            <Button variant="outline" onClick={handleShare} loading={isShareActionLoading}>
+              Share
+            </Button>
+          )}
           <PDFExportButton previewRef={previewRef} filename={pdfFilename} />
           <PrintButton contentRef={previewRef} />
         </div>
@@ -173,7 +285,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
         >
           <div className="space-y-3 p-4">
             <InvoiceForm
-              initialValues={existingInvoice ?? undefined}
+              initialValues={initialInvoice}
               settings={settings}
               companyProfile={profile}
               existingDocs={allDocs}
@@ -203,6 +315,42 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
           </A4PreviewWrapper>
         </div>
       </div>
+
+      <Modal
+        open={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        title="Invoice sharing"
+        actions={(
+          <>
+            {shareToken && (
+              <Button variant="destructive" onClick={handleRevokeShareLink} loading={isShareActionLoading}>
+                Revoke share link
+              </Button>
+            )}
+            <Button variant="outline" onClick={handleCopyShareLink}>
+              Copy link
+            </Button>
+            <Button onClick={() => setIsShareModalOpen(false)}>
+              Close
+            </Button>
+          </>
+        )}
+      >
+        <div className="space-y-3">
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Local storage mode: this share link works only on this same browser and device until Supabase-backed sharing is connected.
+          </p>
+          <div>
+            <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Share URL</div>
+            <div className="break-all rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {shareUrl || "Share link will appear here."}
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">
+            Invoice settings: revoking the link clears the share token and immediately invalidates the current URL.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

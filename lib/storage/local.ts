@@ -47,6 +47,10 @@ export function getInvoice(id: string): Invoice | null {
   return getInvoices().find((inv) => inv.id === id) ?? null;
 }
 
+export function getInvoiceByShareToken(shareToken: string): Invoice | null {
+  return getInvoices().find((invoice) => invoice.shareToken === shareToken) ?? null;
+}
+
 export function saveInvoice(invoice: Partial<Invoice> & { id?: string }): SaveResult & { id?: string } {
   const invoices = getInvoices();
   const now = new Date().toISOString();
@@ -72,6 +76,18 @@ export function deleteInvoice(id: string): SaveResult {
 
 export function replaceInvoices(invoices: Invoice[]): SaveResult {
   return safeSet(STORAGE_KEYS.INVOICES, invoices);
+}
+
+export function getInvoiceConversionDraft(): Partial<Invoice> | null {
+  return safeGet<Partial<Invoice> | null>(STORAGE_KEYS.INVOICE_CONVERSION_DRAFT, null);
+}
+
+export function saveInvoiceConversionDraft(invoice: Partial<Invoice>): SaveResult {
+  return safeSet(STORAGE_KEYS.INVOICE_CONVERSION_DRAFT, invoice);
+}
+
+export function clearInvoiceConversionDraft(): SaveResult {
+  return safeSet(STORAGE_KEYS.INVOICE_CONVERSION_DRAFT, null);
 }
 
 // ─── Purchase Orders ────────────────────────────────────

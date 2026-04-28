@@ -96,6 +96,7 @@ export interface Invoice {
   otherCharges: number;
   paymentDetails?: BankDetails;
   paymentStatus: PaymentStatus;
+  shareToken?: string;
   notes?: string;
   termsAndConditions?: string;
   declaration?: string;

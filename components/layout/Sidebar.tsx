@@ -11,6 +11,7 @@ import {
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { AuthStatusCard } from "@/components/auth/AuthStatusCard";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -57,6 +58,7 @@ export function Sidebar() {
       </nav>
 
       <div className="px-4 py-4 border-t border-slate-700">
+        <AuthStatusCard />
         <p className="text-xs text-slate-500">GST Invoice Generator</p>
         <p className="text-xs text-slate-600">India • INR</p>
       </div>

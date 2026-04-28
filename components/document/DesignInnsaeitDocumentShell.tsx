@@ -93,10 +93,13 @@ export function DesignInnsaeitDocumentShell({
 
       {/* ── White Document Body ── */}
       <div
+        className="di-document-shell-body"
         style={{
           flex: 1,
           backgroundColor: "#ffffff",
           padding: "24px 32px",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         {children}

@@ -38,6 +38,7 @@ body {
   .a4-print-area {
     width: 210mm !important;
     min-height: 297mm !important;
+    height: auto !important;
     transform: none !important;
     box-shadow: none !important;
     margin: 0 !important;

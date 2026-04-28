@@ -58,13 +58,12 @@ function StatusBadge({ status }: { status?: string }) {
 
 function addrLine(addr?: { line1?: string; line2?: string; city?: string; state?: string; pincode?: string }) {
   if (!addr) return null;
-  const parts = [
+  return [
     addr.line1,
     addr.line2,
     [addr.city, addr.state].filter(Boolean).join(", "),
     addr.pincode,
   ].filter(Boolean);
-  return parts;
 }
 
 function hasShippingDiff(
@@ -76,14 +75,9 @@ function hasShippingDiff(
   const sa = shipping.address;
   const ba = buyer?.billingAddress;
   if (!ba) return true;
-  return (
-    sa.line1 !== ba.line1 ||
-    sa.city !== ba.city ||
-    sa.pincode !== ba.pincode
-  );
+  return sa.line1 !== ba.line1 || sa.city !== ba.city || sa.pincode !== ba.pincode;
 }
 
-// Default Design Innsaeit bank details — shown when paymentDetails is absent
 const DI_BANK = {
   accountName: "DESIGN INNSAEIT",
   bankName: "State Bank of India",
@@ -114,23 +108,12 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const isCGST = gstMode === "CGST_SGST";
   const isIGST = gstMode === "IGST";
   const showTax = gstMode !== "NO_TAX";
-
   const showServiceLocation = hasShippingDiff(shipping, buyer);
-
-  // Reuse poReference as service/project reference
-  // TODO: add dedicated serviceReference field to Invoice type for future use
   const serviceRef = invoice.poReference;
-
   const bank = paymentDetails?.bankName || paymentDetails?.accountNumber ? paymentDetails : null;
-
   const statusBadge = invoice.status ? <StatusBadge status={invoice.status} /> : undefined;
 
-  // Column count for colSpan calculations
-  const colCount =
-    6 + // #, description, qty, rate, taxable, gst%
-    (isCGST ? 2 : 0) +
-    (isIGST ? 1 : 0) +
-    1; // total
+  const colCount = 6 + (isCGST ? 2 : 0) + (isIGST ? 1 : 0) + 1;
 
   return (
     <DesignInnsaeitDocumentShell
@@ -138,410 +121,357 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       subtitle="Design Consultancy / Creative Services"
       statusBadge={statusBadge}
     >
-      {/* ── Section 2: Invoice details + From + Bill To ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr",
-          gap: "16px",
-          marginBottom: "16px",
-        }}
-      >
-        {/* Invoice Details */}
+      <div style={{ display: "flex", minHeight: "100%", flexDirection: "column" }}>
         <div>
-          <div style={SECTION_LABEL_STYLE}>Invoice Details</div>
-          <DocLine label="Invoice No." value={invoice.invoiceNumber} />
-          <DocLine label="Date" value={formatDate(invoice.invoiceDate)} />
-          <DocLine label="Due Date" value={formatDate(invoice.dueDate)} />
-          <DocLine label="Supplier GSTIN" value={supplier?.gstin} />
-          <DocLine label="State Code" value={supplier?.stateCode} />
-          <DocLine label="Place of Supply" value={buyer?.placeOfSupply} />
-          <DocLine
-            label="Reverse Charge"
-            value={invoice.reverseCharge ? "Yes" : "No"}
-          />
-          {invoice.ewayBillNumber && (
-            <DocLine label="E-Way Bill" value={invoice.ewayBillNumber} />
-          )}
-          {invoice.irnNumber && (
-            <DocLine label="IRN" value={invoice.irnNumber} />
-          )}
-        </div>
-
-        {/* From */}
-        <div>
-          <div style={SECTION_LABEL_STYLE}>From</div>
-          <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#111827", marginBottom: "3px" }}>
-            {supplier?.name || "Design Innsaeit"}
-          </div>
-          {supplier?.address && (
-            <div style={{ fontSize: "9.5px", color: "#374151", lineHeight: 1.5 }}>
-              {addrLine(supplier.address)?.map((l, i) => (
-                <div key={i}>{l}</div>
-              ))}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr 1fr",
+              gap: "16px",
+              marginBottom: "16px",
+            }}
+          >
+            <div>
+              <div style={SECTION_LABEL_STYLE}>Invoice Details</div>
+              <DocLine label="Invoice No." value={invoice.invoiceNumber} />
+              <DocLine label="Date" value={formatDate(invoice.invoiceDate)} />
+              <DocLine label="Due Date" value={formatDate(invoice.dueDate)} />
+              <DocLine label="Supplier GSTIN" value={supplier?.gstin} />
+              <DocLine label="State Code" value={supplier?.stateCode} />
+              <DocLine label="Place of Supply" value={buyer?.placeOfSupply} />
+              <DocLine label="Reverse Charge" value={invoice.reverseCharge ? "Yes" : "No"} />
+              {invoice.ewayBillNumber && <DocLine label="E-Way Bill" value={invoice.ewayBillNumber} />}
+              {invoice.irnNumber && <DocLine label="IRN" value={invoice.irnNumber} />}
             </div>
-          )}
-          <div style={{ marginTop: "4px" }}>
-            <DocLine label="GSTIN" value={supplier?.gstin} />
-            {supplier?.pan && <DocLine label="PAN" value={supplier.pan} />}
-            <DocLine label="State Code" value={supplier?.stateCode} />
-            <DocLine label="Email" value={supplier?.contact?.email} />
-            <DocLine label="Phone" value={supplier?.contact?.phone} />
-          </div>
-        </div>
 
-        {/* Bill To */}
-        <div>
-          <div style={SECTION_LABEL_STYLE}>Bill To / Recipient</div>
-          <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#111827", marginBottom: "3px" }}>
-            {buyer?.name || "—"}
-          </div>
-          {buyer?.billingAddress && (
-            <div style={{ fontSize: "9.5px", color: "#374151", lineHeight: 1.5 }}>
-              {addrLine(buyer.billingAddress)?.map((l, i) => (
-                <div key={i}>{l}</div>
-              ))}
-            </div>
-          )}
-          <div style={{ marginTop: "4px" }}>
-            {buyer?.gstin && <DocLine label="GSTIN" value={buyer.gstin} />}
-            <DocLine label="State" value={buyer?.billingAddress?.state} />
-            <DocLine label="State Code" value={buyer?.billingAddress?.stateCode} />
-            <DocLine label="Place of Supply" value={buyer?.placeOfSupply} />
-            {buyer?.contact?.email && <DocLine label="Email" value={buyer.contact.email} />}
-            {buyer?.contact?.phone && <DocLine label="Phone" value={buyer.contact.phone} />}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Section 3: Service / Project Reference ── */}
-      {serviceRef && (
-        <div
-          style={{
-            backgroundColor: "#f5f3ff",
-            border: `1px solid ${BRAND_PURPLE}22`,
-            borderRadius: "4px",
-            padding: "7px 12px",
-            marginBottom: "14px",
-            display: "flex",
-            gap: "8px",
-            alignItems: "center",
-            fontSize: "9.5px",
-          }}
-        >
-          <span style={{ fontWeight: 600, color: BRAND_PURPLE }}>Service / Project Reference:</span>
-          <span style={{ color: "#374151" }}>{serviceRef}</span>
-        </div>
-      )}
-
-      {/* ── Section 3b: Service Location / Delivered To ── */}
-      {showServiceLocation && (
-        <div
-          style={{
-            backgroundColor: "#f0fdf4",
-            border: "1px solid #bbf7d0",
-            borderRadius: "4px",
-            padding: "7px 12px",
-            marginBottom: "14px",
-            fontSize: "9.5px",
-          }}
-        >
-          <div style={{ fontWeight: 600, color: "#065f46", marginBottom: "3px" }}>
-            Service Location / Delivered To
-          </div>
-          <div style={{ fontWeight: 600, color: "#111827" }}>{shipping?.name}</div>
-          {shipping?.address && (
-            <div style={{ color: "#374151", lineHeight: 1.5 }}>
-              {addrLine(shipping.address)?.map((l, i) => (
-                <div key={i}>{l}</div>
-              ))}
-            </div>
-          )}
-          {shipping?.contactPerson && (
-            <div style={{ color: "#6b7280" }}>Contact: {shipping.contactPerson}</div>
-          )}
-          {shipping?.contactPhone && (
-            <div style={{ color: "#6b7280" }}>{shipping.contactPhone}</div>
-          )}
-        </div>
-      )}
-
-      {/* ── Section 4: Line Items Table ── */}
-      <div style={{ marginBottom: "14px" }}>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: "9px",
-            tableLayout: "fixed",
-          }}
-        >
-          <colgroup>
-            <col style={{ width: "22px" }} />
-            <col />
-            <col style={{ width: "34px" }} />
-            <col style={{ width: "34px" }} />
-            <col style={{ width: "46px" }} />
-            <col style={{ width: "52px" }} />
-            <col style={{ width: "30px" }} />
-            {isCGST && <col style={{ width: "42px" }} />}
-            {isCGST && <col style={{ width: "42px" }} />}
-            {isIGST && <col style={{ width: "46px" }} />}
-            <col style={{ width: "52px" }} />
-          </colgroup>
-          <thead>
-            <tr style={{ backgroundColor: BRAND_PURPLE, color: "#ffffff" }}>
-              <th style={{ padding: "5px 4px", textAlign: "center" }}>#</th>
-              <th style={{ padding: "5px 4px", textAlign: "left" }}>Description of Service</th>
-              <th style={{ padding: "5px 4px", textAlign: "center" }}>SAC</th>
-              <th style={{ padding: "5px 4px", textAlign: "right" }}>Qty</th>
-              <th style={{ padding: "5px 4px", textAlign: "right" }}>Rate</th>
-              <th style={{ padding: "5px 4px", textAlign: "right" }}>Taxable</th>
-              <th style={{ padding: "5px 4px", textAlign: "center" }}>GST%</th>
-              {isCGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>CGST</th>}
-              {isCGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>SGST</th>}
-              {isIGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>IGST</th>}
-              <th style={{ padding: "5px 4px", textAlign: "right" }}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lineItems.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={colCount}
-                  style={{ textAlign: "center", padding: "20px 0", color: "#9ca3af", fontStyle: "italic", fontSize: "9px" }}
-                >
-                  No line items yet.
-                </td>
-              </tr>
-            ) : (
-              lineItems.map((item, idx) => (
-                <tr
-                  key={item.id}
-                  style={{ backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f5f3ff" }}
-                >
-                  <td style={{ padding: "4px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
-                    {idx + 1}
-                  </td>
-                  <td style={{ padding: "4px", borderBottom: "1px solid #e5e7eb", wordBreak: "break-word" }}>
-                    <div style={{ fontWeight: 500, color: "#111827" }}>{item.description}</div>
-                  </td>
-                  <td style={{ padding: "4px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
-                    {item.hsnSac || "—"}
-                  </td>
-                  <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
-                    {formatNumber(item.quantity, 2)}
-                  </td>
-                  <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
-                    {formatNumber(item.rate, 2)}
-                  </td>
-                  <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
-                    {formatNumber(item.taxableValue, 2)}
-                  </td>
-                  <td style={{ padding: "4px", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>
-                    {item.gstRate}%
-                  </td>
-                  {isCGST && (
-                    <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
-                      {formatNumber(item.cgst, 2)}
-                    </td>
-                  )}
-                  {isCGST && (
-                    <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
-                      {formatNumber(item.sgst, 2)}
-                    </td>
-                  )}
-                  {isIGST && (
-                    <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
-                      {formatNumber(item.igst, 2)}
-                    </td>
-                  )}
-                  <td style={{ padding: "4px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid #e5e7eb" }}>
-                    {formatNumber(item.lineTotal, 2)}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* ── Section 5: Totals ── */}
-      {totals && (
-        <div className="print-keep-together" style={{ marginBottom: "14px" }}>
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <div style={{ width: "220px", border: "1px solid #e5e7eb", borderRadius: "4px", overflow: "hidden" }}>
-              {(
-                [
-                  ["Taxable Value", totals.totalTaxableValue],
-                  ...(showTax && isCGST && totals.totalCGST > 0 ? [["CGST", totals.totalCGST]] : []),
-                  ...(showTax && isCGST && totals.totalSGST > 0 ? [["SGST / UTGST", totals.totalSGST]] : []),
-                  ...(showTax && isIGST && totals.totalIGST > 0 ? [["IGST", totals.totalIGST]] : []),
-                  ...(totals.cess > 0 ? [["Cess", totals.cess]] : []),
-                  ...(totals.otherCharges > 0 ? [["Other Charges", totals.otherCharges]] : []),
-                  ...(totals.roundOff !== 0 ? [["Round Off", totals.roundOff]] : []),
-                ] as [string, number][]
-              ).map(([label, value]) => (
-                <div
-                  key={label}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "4px 10px",
-                    borderBottom: "1px solid #f3f4f6",
-                    fontSize: "9.5px",
-                  }}
-                >
-                  <span style={{ color: "#6b7280" }}>{label}</span>
-                  <span style={{ color: "#111827" }}>{formatNumber(value, 2)}</span>
+            <div>
+              <div style={SECTION_LABEL_STYLE}>From</div>
+              <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#111827", marginBottom: "3px" }}>
+                {supplier?.name || "Design Innsaeit"}
+              </div>
+              {supplier?.address && (
+                <div style={{ fontSize: "9.5px", color: "#374151", lineHeight: 1.5 }}>
+                  {addrLine(supplier.address)?.map((line, index) => (
+                    <div key={index}>{line}</div>
+                  ))}
                 </div>
-              ))}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "7px 10px",
-                  backgroundColor: BRAND_PURPLE,
-                  color: "#ffffff",
-                }}
-              >
-                <span style={{ fontWeight: 700, fontSize: "10.5px" }}>Grand Total</span>
-                <span style={{ fontWeight: 700, fontSize: "10.5px" }}>
-                  {formatCurrencyINR(totals.grandTotal)}
-                </span>
+              )}
+              <div style={{ marginTop: "4px" }}>
+                <DocLine label="GSTIN" value={supplier?.gstin} />
+                {supplier?.pan && <DocLine label="PAN" value={supplier.pan} />}
+                <DocLine label="State Code" value={supplier?.stateCode} />
+                <DocLine label="Email" value={supplier?.contact?.email} />
+                <DocLine label="Phone" value={supplier?.contact?.phone} />
+              </div>
+            </div>
+
+            <div>
+              <div style={SECTION_LABEL_STYLE}>Bill To / Recipient</div>
+              <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#111827", marginBottom: "3px" }}>
+                {buyer?.name || "—"}
+              </div>
+              {buyer?.billingAddress && (
+                <div style={{ fontSize: "9.5px", color: "#374151", lineHeight: 1.5 }}>
+                  {addrLine(buyer.billingAddress)?.map((line, index) => (
+                    <div key={index}>{line}</div>
+                  ))}
+                </div>
+              )}
+              <div style={{ marginTop: "4px" }}>
+                {buyer?.gstin && <DocLine label="GSTIN" value={buyer.gstin} />}
+                <DocLine label="State" value={buyer?.billingAddress?.state} />
+                <DocLine label="State Code" value={buyer?.billingAddress?.stateCode} />
+                <DocLine label="Place of Supply" value={buyer?.placeOfSupply} />
+                {buyer?.contact?.email && <DocLine label="Email" value={buyer.contact.email} />}
+                {buyer?.contact?.phone && <DocLine label="Phone" value={buyer.contact.phone} />}
               </div>
             </div>
           </div>
 
-          {totals.amountInWords && (
+          {serviceRef && (
             <div
               style={{
                 backgroundColor: "#f5f3ff",
-                border: `1px solid ${BRAND_PURPLE}33`,
+                border: `1px solid ${BRAND_PURPLE}22`,
                 borderRadius: "4px",
-                padding: "6px 10px",
-                marginTop: "8px",
+                padding: "7px 12px",
+                marginBottom: "14px",
+                display: "flex",
+                gap: "8px",
+                alignItems: "center",
                 fontSize: "9.5px",
               }}
             >
-              <span style={{ fontWeight: 600, color: BRAND_PURPLE }}>Amount in Words: </span>
-              <span style={{ color: "#374151", fontStyle: "italic" }}>{totals.amountInWords}</span>
+              <span style={{ fontWeight: 600, color: BRAND_PURPLE }}>Service / Project Reference:</span>
+              <span style={{ color: "#374151" }}>{serviceRef}</span>
+            </div>
+          )}
+
+          {showServiceLocation && (
+            <div
+              style={{
+                backgroundColor: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                borderRadius: "4px",
+                padding: "7px 12px",
+                marginBottom: "14px",
+                fontSize: "9.5px",
+              }}
+            >
+              <div style={{ fontWeight: 600, color: "#065f46", marginBottom: "3px" }}>Service Location / Delivered To</div>
+              <div style={{ fontWeight: 600, color: "#111827" }}>{shipping?.name}</div>
+              {shipping?.address && (
+                <div style={{ color: "#374151", lineHeight: 1.5 }}>
+                  {addrLine(shipping.address)?.map((line, index) => (
+                    <div key={index}>{line}</div>
+                  ))}
+                </div>
+              )}
+              {shipping?.contactPerson && <div style={{ color: "#6b7280" }}>Contact: {shipping.contactPerson}</div>}
+              {shipping?.contactPhone && <div style={{ color: "#6b7280" }}>{shipping.contactPhone}</div>}
+            </div>
+          )}
+
+          <div style={{ marginBottom: "14px" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "9px",
+                tableLayout: "fixed",
+              }}
+            >
+              <colgroup>
+                <col style={{ width: "22px" }} />
+                <col />
+                <col style={{ width: "34px" }} />
+                <col style={{ width: "34px" }} />
+                <col style={{ width: "46px" }} />
+                <col style={{ width: "52px" }} />
+                <col style={{ width: "30px" }} />
+                {isCGST && <col style={{ width: "42px" }} />}
+                {isCGST && <col style={{ width: "42px" }} />}
+                {isIGST && <col style={{ width: "46px" }} />}
+                <col style={{ width: "52px" }} />
+              </colgroup>
+              <thead>
+                <tr style={{ backgroundColor: BRAND_PURPLE, color: "#ffffff" }}>
+                  <th style={{ padding: "5px 4px", textAlign: "center" }}>#</th>
+                  <th style={{ padding: "5px 4px", textAlign: "left" }}>Description of Service</th>
+                  <th style={{ padding: "5px 4px", textAlign: "center" }}>SAC</th>
+                  <th style={{ padding: "5px 4px", textAlign: "right" }}>Qty</th>
+                  <th style={{ padding: "5px 4px", textAlign: "right" }}>Rate</th>
+                  <th style={{ padding: "5px 4px", textAlign: "right" }}>Taxable</th>
+                  <th style={{ padding: "5px 4px", textAlign: "center" }}>GST%</th>
+                  {isCGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>CGST</th>}
+                  {isCGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>SGST</th>}
+                  {isIGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>IGST</th>}
+                  <th style={{ padding: "5px 4px", textAlign: "right" }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lineItems.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={colCount}
+                      style={{ textAlign: "center", padding: "20px 0", color: "#9ca3af", fontStyle: "italic", fontSize: "9px" }}
+                    >
+                      No line items yet.
+                    </td>
+                  </tr>
+                ) : (
+                  lineItems.map((item, index) => (
+                    <tr key={item.id} style={{ backgroundColor: index % 2 === 0 ? "#ffffff" : "#f5f3ff" }}>
+                      <td style={{ padding: "4px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{index + 1}</td>
+                      <td style={{ padding: "4px", borderBottom: "1px solid #e5e7eb", wordBreak: "break-word" }}>
+                        <div style={{ fontWeight: 500, color: "#111827" }}>{item.description}</div>
+                      </td>
+                      <td style={{ padding: "4px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{item.hsnSac || "—"}</td>
+                      <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.quantity, 2)}</td>
+                      <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.rate, 2)}</td>
+                      <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.taxableValue, 2)}</td>
+                      <td style={{ padding: "4px", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>{item.gstRate}%</td>
+                      {isCGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.cgst, 2)}</td>}
+                      {isCGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.sgst, 2)}</td>}
+                      {isIGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.igst, 2)}</td>}
+                      <td style={{ padding: "4px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.lineTotal, 2)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totals && (
+            <div className="print-keep-together" style={{ marginBottom: "14px" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div style={{ width: "220px", border: "1px solid #e5e7eb", borderRadius: "4px", overflow: "hidden" }}>
+                  {(
+                    [
+                      ["Taxable Value", totals.totalTaxableValue],
+                      ...(showTax && isCGST && totals.totalCGST > 0 ? [["CGST", totals.totalCGST]] : []),
+                      ...(showTax && isCGST && totals.totalSGST > 0 ? [["SGST / UTGST", totals.totalSGST]] : []),
+                      ...(showTax && isIGST && totals.totalIGST > 0 ? [["IGST", totals.totalIGST]] : []),
+                      ...(totals.cess > 0 ? [["Cess", totals.cess]] : []),
+                      ...(totals.otherCharges > 0 ? [["Other Charges", totals.otherCharges]] : []),
+                      ...(totals.roundOff !== 0 ? [["Round Off", totals.roundOff]] : []),
+                    ] as [string, number][]
+                  ).map(([label, value]) => (
+                    <div
+                      key={label}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        padding: "4px 10px",
+                        borderBottom: "1px solid #f3f4f6",
+                        fontSize: "9.5px",
+                      }}
+                    >
+                      <span style={{ color: "#6b7280" }}>{label}</span>
+                      <span style={{ color: "#111827" }}>{formatNumber(value, 2)}</span>
+                    </div>
+                  ))}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "7px 10px",
+                      backgroundColor: BRAND_PURPLE,
+                      color: "#ffffff",
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: "10.5px" }}>Grand Total</span>
+                    <span style={{ fontWeight: 700, fontSize: "10.5px" }}>{formatCurrencyINR(totals.grandTotal)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {totals.amountInWords && (
+                <div
+                  style={{
+                    backgroundColor: "#f5f3ff",
+                    border: `1px solid ${BRAND_PURPLE}33`,
+                    borderRadius: "4px",
+                    padding: "6px 10px",
+                    marginTop: "8px",
+                    fontSize: "9.5px",
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: BRAND_PURPLE }}>Amount in Words: </span>
+                  <span style={{ color: "#374151", fontStyle: "italic" }}>{totals.amountInWords}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
 
-      {/* ── Section 6: Bank / Payment Details ── */}
-      <div className="print-keep-together" style={{ marginBottom: "14px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-          <div>
-            <div style={SECTION_LABEL_STYLE}>Bank / Payment Details</div>
-            {(bank ? (
-              <>
-                {bank.accountName && <DocLine label="Account Name" value={bank.accountName} />}
-                {bank.bankName && <DocLine label="Bank" value={bank.bankName} />}
-                {bank.accountNumber && <DocLine label="Account No." value={bank.accountNumber} />}
-                {bank.branch && <DocLine label="Branch" value={bank.branch} />}
-                {bank.ifscCode && <DocLine label="IFSC" value={bank.ifscCode} />}
-                {bank.upiId && <DocLine label="UPI" value={bank.upiId} />}
-              </>
-            ) : (
-              <>
-                <DocLine label="Account Name" value={DI_BANK.accountName} />
-                <DocLine label="Bank" value={DI_BANK.bankName} />
-                <DocLine label="Account No." value={DI_BANK.accountNumber} />
-                <DocLine label="Branch" value={DI_BANK.branch} />
-                <DocLine label="IFSC" value={DI_BANK.ifscCode} />
-                <DocLine label="MICR" value={DI_BANK.micr} />
-              </>
-            ))}
+        <div style={{ marginTop: "auto", paddingTop: "14px" }}>
+          <div className="print-keep-together" style={{ marginBottom: "14px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+              <div>
+                <div style={SECTION_LABEL_STYLE}>Bank / Payment Details</div>
+                {(bank ? (
+                  <>
+                    {bank.accountName && <DocLine label="Account Name" value={bank.accountName} />}
+                    {bank.bankName && <DocLine label="Bank" value={bank.bankName} />}
+                    {bank.accountNumber && <DocLine label="Account No." value={bank.accountNumber} />}
+                    {bank.branch && <DocLine label="Branch" value={bank.branch} />}
+                    {bank.ifscCode && <DocLine label="IFSC" value={bank.ifscCode} />}
+                    {bank.upiId && <DocLine label="UPI" value={bank.upiId} />}
+                  </>
+                ) : (
+                  <>
+                    <DocLine label="Account Name" value={DI_BANK.accountName} />
+                    <DocLine label="Bank" value={DI_BANK.bankName} />
+                    <DocLine label="Account No." value={DI_BANK.accountNumber} />
+                    <DocLine label="Branch" value={DI_BANK.branch} />
+                    <DocLine label="IFSC" value={DI_BANK.ifscCode} />
+                    <DocLine label="MICR" value={DI_BANK.micr} />
+                  </>
+                ))}
+              </div>
+
+              {bank?.upiQrImageBase64 && (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={bank.upiQrImageBase64}
+                    alt="UPI QR"
+                    crossOrigin="anonymous"
+                    style={{ height: "72px", width: "72px", objectFit: "contain" }}
+                  />
+                  <span style={{ fontSize: "8px", color: "#9ca3af", marginTop: "3px" }}>Scan to pay</span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {bank?.upiQrImageBase64 && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={bank.upiQrImageBase64}
-                alt="UPI QR"
-                crossOrigin="anonymous"
-                style={{ height: "72px", width: "72px", objectFit: "contain" }}
-              />
-              <span style={{ fontSize: "8px", color: "#9ca3af", marginTop: "3px" }}>Scan to pay</span>
+          {(invoice.notes || invoice.termsAndConditions || invoice.declaration || !invoice.termsAndConditions) && (
+            <div className="print-keep-together" style={{ marginBottom: "14px" }}>
+              <div style={SECTION_LABEL_STYLE}>Notes &amp; Terms</div>
+              {invoice.notes && (
+                <div style={{ fontSize: "9px", color: "#374151", marginBottom: "4px" }}>
+                  <span style={{ fontWeight: 600 }}>Notes: </span>{invoice.notes}
+                </div>
+              )}
+              <div style={{ fontSize: "9px", color: "#374151" }}>
+                {invoice.termsAndConditions ? (
+                  <div>
+                    <span style={{ fontWeight: 600 }}>Terms: </span>{invoice.termsAndConditions}
+                  </div>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: "14px", lineHeight: 1.6 }}>
+                    {DEFAULT_TERMS.map((term) => (
+                      <li key={term}>{term}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              {invoice.declaration && (
+                <div style={{ fontSize: "9px", color: "#374151", marginTop: "4px" }}>
+                  <span style={{ fontWeight: 600 }}>Declaration: </span>{invoice.declaration}
+                </div>
+              )}
+            </div>
+          )}
+
+          {signature && (
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
+              <div style={{ textAlign: "center", minWidth: "150px", fontSize: "9.5px" }}>
+                {signature.signatureImageBase64 && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={signature.signatureImageBase64}
+                    alt="Signature"
+                    crossOrigin="anonymous"
+                    style={{ height: "36px", width: "auto", objectFit: "contain", marginBottom: "4px" }}
+                  />
+                )}
+                {invoice.irnQrImageBase64 && !signature.signatureImageBase64 && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={invoice.irnQrImageBase64}
+                    alt="IRN QR"
+                    crossOrigin="anonymous"
+                    style={{ height: "52px", width: "52px", objectFit: "contain", marginBottom: "4px" }}
+                  />
+                )}
+                <div
+                  style={{
+                    borderTop: `1px solid ${BRAND_PURPLE}`,
+                    paddingTop: "4px",
+                    marginTop: "2px",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: "#111827" }}>{signature.signatoryName || "Authorized Signatory"}</div>
+                  {signature.designation && <div style={{ color: "#6b7280", fontSize: "9px" }}>{signature.designation}</div>}
+                  <div style={{ color: "#6b7280", fontSize: "9px" }}>{supplier?.name}</div>
+                </div>
+              </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* ── Section 7: Notes / Terms ── */}
-      {(invoice.notes || invoice.termsAndConditions || invoice.declaration || !invoice.termsAndConditions) && (
-        <div className="print-keep-together" style={{ marginBottom: "14px" }}>
-          <div style={SECTION_LABEL_STYLE}>Notes &amp; Terms</div>
-          {invoice.notes && (
-            <div style={{ fontSize: "9px", color: "#374151", marginBottom: "4px" }}>
-              <span style={{ fontWeight: 600 }}>Notes: </span>{invoice.notes}
-            </div>
-          )}
-          <div style={{ fontSize: "9px", color: "#374151" }}>
-            {invoice.termsAndConditions ? (
-              <div>
-                <span style={{ fontWeight: 600 }}>Terms: </span>{invoice.termsAndConditions}
-              </div>
-            ) : (
-              <ul style={{ margin: 0, paddingLeft: "14px", lineHeight: 1.6 }}>
-                {DEFAULT_TERMS.map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-          {invoice.declaration && (
-            <div style={{ fontSize: "9px", color: "#374151", marginTop: "4px" }}>
-              <span style={{ fontWeight: 600 }}>Declaration: </span>{invoice.declaration}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Section 8: Signature ── */}
-      {signature && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
-          <div style={{ textAlign: "center", minWidth: "150px", fontSize: "9.5px" }}>
-            {signature.signatureImageBase64 && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={signature.signatureImageBase64}
-                alt="Signature"
-                crossOrigin="anonymous"
-                style={{ height: "36px", width: "auto", objectFit: "contain", marginBottom: "4px" }}
-              />
-            )}
-            {invoice.irnQrImageBase64 && !signature.signatureImageBase64 && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={invoice.irnQrImageBase64}
-                alt="IRN QR"
-                crossOrigin="anonymous"
-                style={{ height: "52px", width: "52px", objectFit: "contain", marginBottom: "4px" }}
-              />
-            )}
-            <div
-              style={{
-                borderTop: `1px solid ${BRAND_PURPLE}`,
-                paddingTop: "4px",
-                marginTop: "2px",
-              }}
-            >
-              <div style={{ fontWeight: 600, color: "#111827" }}>
-                {signature.signatoryName || "Authorized Signatory"}
-              </div>
-              {signature.designation && (
-                <div style={{ color: "#6b7280", fontSize: "9px" }}>{signature.designation}</div>
-              )}
-              <div style={{ color: "#6b7280", fontSize: "9px" }}>{supplier?.name}</div>
-            </div>
-          </div>
-        </div>
-      )}
     </DesignInnsaeitDocumentShell>
   );
 }

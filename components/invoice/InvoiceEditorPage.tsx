@@ -132,7 +132,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
 
         {/* Preview panel */}
         <div className={`${activeTab === "form" ? "hidden" : "flex"} lg:flex w-full lg:w-1/2 flex-col overflow-y-auto bg-gray-200 p-4`}>
-          <A4PreviewWrapper ref={previewRef}>
+          <A4PreviewWrapper ref={previewRef} noPadding>
             <InvoicePreview invoice={previewInvoice} />
           </A4PreviewWrapper>
         </div>

@@ -1,33 +1,55 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { purchaseOrdersRepository } from "@/lib/repositories/purchaseOrdersRepository";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
-import * as storage from "@/lib/storage/local";
 
 export function usePurchaseOrders() {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
 
-  useEffect(() => {
-    setPurchaseOrders(storage.getPurchaseOrders());
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const result = await purchaseOrdersRepository.list();
+    if (result.success) {
+      setPurchaseOrders(result.data ?? []);
+    }
     setLoading(false);
-  }, []);
-
-  const savePurchaseOrder = useCallback((po: Partial<PurchaseOrder> & { id?: string }) => {
-    const result = storage.savePurchaseOrder(po);
-    if (result.success) setPurchaseOrders(storage.getPurchaseOrders());
     return result;
   }, []);
 
-  const deletePurchaseOrder = useCallback((id: string) => {
-    const result = storage.deletePurchaseOrder(id);
-    if (result.success) setPurchaseOrders(storage.getPurchaseOrders());
+  useEffect(() => {
+    if (authLoading) return;
+    void refresh();
+  }, [authLoading, refresh, user?.id]);
+
+  const savePurchaseOrder = useCallback(async (po: Partial<PurchaseOrder> & { id?: string }) => {
+    const result = await purchaseOrdersRepository.save(po as PurchaseOrder);
+    if (result.success) {
+      await refresh();
+    }
+    return {
+      success: result.success,
+      error: result.error,
+      id: result.data?.id,
+      cloudSynced: result.cloudSynced,
+      source: result.source,
+    };
+  }, []);
+
+  const deletePurchaseOrder = useCallback(async (id: string) => {
+    const result = await purchaseOrdersRepository.delete(id);
+    if (result.success) {
+      await refresh();
+    }
     return result;
   }, []);
 
   const getPurchaseOrder = useCallback((id: string) => {
-    return storage.getPurchaseOrder(id);
-  }, []);
+    return purchaseOrders.find((po) => po.id === id);
+  }, [purchaseOrders]);
 
-  return { purchaseOrders, loading, savePurchaseOrder, deletePurchaseOrder, getPurchaseOrder };
+  return { purchaseOrders, loading, refresh, savePurchaseOrder, deletePurchaseOrder, getPurchaseOrder };
 }

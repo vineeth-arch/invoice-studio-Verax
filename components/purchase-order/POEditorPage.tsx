@@ -12,7 +12,7 @@ import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
 import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { useToast } from "@/lib/hooks/useToast";
-import { incrementPOSequence } from "@/lib/storage/local";
+import { documentNumberingRepository } from "@/lib/repositories/documentNumberingRepository";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { calculatePOLineItem, calculatePOTotals } from "@/lib/utils/calculations";
@@ -54,9 +54,11 @@ export function POEditorPage({ poId }: POEditorPageProps) {
         status,
       } as Partial<PurchaseOrder>;
 
-      const result = savePurchaseOrder(po);
+      const result = await savePurchaseOrder(po);
       if (result.success) {
-        if (!existingPO && !poId) incrementPOSequence();
+        if (!existingPO && !poId) {
+          await documentNumberingRepository.incrementPOSequence();
+        }
         addToast(`Purchase order ${status === "DRAFT" ? "saved as draft" : "finalized"} successfully!`, "success");
         if (result.id && !poId) router.push(`/purchase-order/${result.id}/edit`);
       } else {

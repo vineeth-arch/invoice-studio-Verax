@@ -41,7 +41,7 @@ body {
     transform: none !important;
     box-shadow: none !important;
     margin: 0 !important;
-    padding: 16mm 14mm !important;
+    padding: 0 !important;
   }
 
   .print-keep-together {

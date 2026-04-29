@@ -169,6 +169,10 @@ export function getPurchaseOrder(id: string): PurchaseOrder | null {
   return getPurchaseOrders().find((po) => po.id === id) ?? null;
 }
 
+export function getPurchaseOrderByShareToken(shareToken: string): PurchaseOrder | null {
+  return getPurchaseOrders().find((po) => po.shareToken === shareToken) ?? null;
+}
+
 export function savePurchaseOrder(po: Partial<PurchaseOrder> & { id?: string }): SaveResult & { id?: string } {
   const orders = getPurchaseOrders();
   const now = new Date().toISOString();

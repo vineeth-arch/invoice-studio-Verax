@@ -4,7 +4,7 @@ import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
 import { FormSection } from "@/components/ui/FormSection";
-import { FormField, inputClass } from "@/components/ui/FormField";
+import { FormField, inputClass, selectClass, selectStyle } from "@/components/ui/FormField";
 import { FileUpload } from "@/components/ui/FileUpload";
 
 interface Props {
@@ -16,12 +16,26 @@ interface Props {
 export function POAuthorizationSection({ control, register, errors }: Props) {
   return (
     <FormSection title="Authorization" defaultOpen={false}>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <FormField label="Prepared By">
           <input type="text" className={inputClass} {...register("preparedBy")} />
         </FormField>
         <FormField label="Approved By" required error={errors.approvedBy?.message}>
           <input type="text" className={inputClass} {...register("approvedBy")} />
+        </FormField>
+        <FormField
+          label="PO Status"
+          hint="Set to Approved after internal review so invoice conversion becomes available."
+        >
+          <select
+            className={selectClass}
+            style={selectStyle}
+            {...register("poStatus")}
+          >
+            <option value="Under Approval">Under Approval</option>
+            <option value="Approved">Approved</option>
+            <option value="Processed">Processed</option>
+          </select>
         </FormField>
       </div>
       <div className="grid grid-cols-2 gap-4 mt-3">

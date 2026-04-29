@@ -39,6 +39,7 @@ const NAV_ITEMS = [
 
 const REPORT_ITEMS = [
   { href: "/reports/aging", label: "Aging Report", icon: BarChart3 },
+  { href: "/reports/gstr1", label: "GSTR-1 Export", icon: BarChart3 },
 ];
 
 const MOBILE_NAV = [

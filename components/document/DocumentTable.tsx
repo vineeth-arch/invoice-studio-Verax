@@ -10,6 +10,7 @@ import { Badge, PaymentStatusBadge, POStatusBadge, StatusBadge } from "@/compone
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { formatCurrencyINR, formatDate } from "@/lib/utils/formatting";
 import { getAgingBucket, getDaysOutstanding } from "@/lib/utils/aging";
 import { getDisplayInvoiceNumber } from "@/lib/utils/invoiceTypes";
@@ -51,11 +52,13 @@ function DocMenu({
   onDuplicate,
   onDelete,
   onConvert,
+  onShareWhatsApp,
 }: {
   editHref: string;
   onDuplicate: () => void;
   onDelete: () => void;
   onConvert?: () => void;
+  onShareWhatsApp?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -110,6 +113,18 @@ function DocMenu({
               Convert to Invoice
             </button>
           )}
+          {onShareWhatsApp && (
+            <button
+              onClick={() => { onShareWhatsApp(); setOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-theme-surface-raised"
+              style={{ color: "var(--text-primary)" }}
+            >
+              <span style={{ color: "#25D366" }}>
+                <WhatsAppIcon className="h-3.5 w-3.5" />
+              </span>
+              Share via WhatsApp
+            </button>
+          )}
           <div style={{ borderTop: "1px solid var(--border)" }} className="my-1" />
           <button
             onClick={() => { onDelete(); setOpen(false); }}
@@ -131,15 +146,18 @@ function DocCard({
   onDuplicate,
   onDelete,
   onConvert,
+  onShareWhatsApp,
 }: {
   doc: DocEntry;
   onDuplicate: () => void;
   onDelete: () => void;
   onConvert: () => void;
+  onShareWhatsApp: () => void;
 }) {
   const editHref = `/${doc.type === "invoice" ? "invoice" : "purchase-order"}/${doc.id}/edit`;
   const isInvoice = doc.type === "invoice";
   const canConvert = !isInvoice && doc.status === "FINAL" && doc.poStatus === "Approved";
+  const canShareWhatsApp = isInvoice ? doc.status === "FINAL" : doc.status === "FINAL" && doc.poStatus === "Approved";
 
   return (
     <div
@@ -165,6 +183,7 @@ function DocCard({
           onDuplicate={onDuplicate}
           onDelete={onDelete}
           onConvert={canConvert ? onConvert : undefined}
+          onShareWhatsApp={canShareWhatsApp ? onShareWhatsApp : undefined}
         />
       </div>
 
@@ -211,9 +230,10 @@ interface DocumentTableProps {
   onDelete: (id: string, type: "invoice" | "po") => void;
   onDuplicate: (id: string, type: "invoice" | "po") => void;
   onConvert: (id: string, type: "invoice" | "po") => void;
+  onShareWhatsApp: (id: string, type: "invoice" | "po") => void;
 }
 
-export function DocumentTable({ invoices, purchaseOrders, onDelete, onDuplicate, onConvert }: DocumentTableProps) {
+export function DocumentTable({ invoices, purchaseOrders, onDelete, onDuplicate, onConvert, onShareWhatsApp }: DocumentTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: "invoice" | "po" } | null>(null);
   const [filterType, setFilterType] = useState<"all" | "invoice" | "po">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | DocumentStatus>("all");
@@ -303,6 +323,7 @@ export function DocumentTable({ invoices, purchaseOrders, onDelete, onDuplicate,
               onDuplicate={() => onDuplicate(doc.id, doc.type)}
               onDelete={() => setDeleteTarget({ id: doc.id, type: doc.type })}
               onConvert={() => onConvert(doc.id, doc.type)}
+              onShareWhatsApp={() => onShareWhatsApp(doc.id, doc.type)}
             />
           ))}
         </div>

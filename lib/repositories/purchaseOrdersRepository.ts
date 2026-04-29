@@ -133,6 +133,43 @@ export const purchaseOrdersRepository = {
     }
   },
 
+  async getByShareToken(shareToken: string): Promise<RepositoryResult<PurchaseOrder | null>> {
+    const localPO = local.getPurchaseOrderByShareToken(shareToken);
+    const cloud = await getCloudContext();
+    if (!cloud) {
+      return { success: true, data: localPO, source: "local" };
+    }
+
+    try {
+      const { data, error } = await cloud.client
+        .from("purchase_orders")
+        .select("*")
+        .eq("user_id", cloud.userId)
+        .order("updated_at", { ascending: false });
+
+      if (error) throw error;
+
+      const poRow = (data ?? []).find((row) => {
+        const fullData = row.full_data as unknown as Partial<PurchaseOrder> | null;
+        return fullData?.shareToken === shareToken;
+      });
+
+      if (!poRow) {
+        return { success: true, data: localPO, source: "local" };
+      }
+
+      const purchaseOrder = fromCloudPurchaseOrder(poRow, local.getPurchaseOrder(poRow.id));
+      return { success: true, data: purchaseOrder, source: "cloud" };
+    } catch (error) {
+      return {
+        success: true,
+        data: localPO,
+        source: "local",
+        error: toRepositoryError(error, "Unable to load shared purchase order from cloud."),
+      };
+    }
+  },
+
   async save(po: PurchaseOrder): Promise<RepositoryResult<{ id: string }>> {
     const localResult = local.savePurchaseOrder(po);
     if (!localResult.success) {

@@ -95,6 +95,7 @@ export interface PurchaseOrder {
   preparedBySignature?: SignatureInfo;
   approvedBySignature?: SignatureInfo;
   vendorAcceptanceSignature?: SignatureInfo;
+  shareToken?: string;
   poStatus: POStatus;
   status: DocumentStatus;
   createdAt: string;

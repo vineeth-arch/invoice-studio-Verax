@@ -1,24 +1,34 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
+import { useEmailSettings } from "@/lib/hooks/useEmailSettings";
 import { useSettings } from "@/lib/hooks/useSettings";
 import { useToast } from "@/lib/hooks/useToast";
 import type { DocumentTemplateSettings } from "@/lib/types/settings";
+import type { EmailSettings } from "@/lib/types/email";
 import { FormSection } from "@/components/ui/FormSection";
-import { FormField, inputClass, selectClass } from "@/components/ui/FormField";
+import { FormField, inputClass, selectClass, textareaClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { generateDocumentNumber } from "@/lib/utils/numbering";
 
 export default function SettingsPage() {
   const { settings, loading, saveSettings } = useSettings();
+  const { profile } = useCompanyProfile();
+  const { settings: emailSettings, loading: emailLoading, saveSettings: saveEmailSettings } = useEmailSettings(profile?.companyName);
   const { addToast } = useToast();
+  const [emailForm, setEmailForm] = useState<EmailSettings>({ fromName: "", fromEmail: "", signature: "" });
 
   const { register, handleSubmit, watch, reset, formState: { isSubmitting } } = useForm<DocumentTemplateSettings>();
 
   useEffect(() => {
     if (settings) reset(settings);
   }, [settings, reset]);
+
+  useEffect(() => {
+    setEmailForm(emailSettings);
+  }, [emailSettings]);
 
   const watched = watch();
   const previewInvoice = watched.invoiceNumbering
@@ -34,7 +44,13 @@ export default function SettingsPage() {
     else addToast(result.error ?? "Failed to save settings.", "error");
   };
 
-  if (loading) return <div className="p-8 text-slate-400">Loading...</div>;
+  const handleEmailSubmit = async () => {
+    const result = await saveEmailSettings(emailForm);
+    if (result.success) addToast("Email settings saved!", "success");
+    else addToast(result.error ?? "Failed to save email settings.", "error");
+  };
+
+  if (loading || emailLoading) return <div className="p-8 text-slate-400">Loading...</div>;
 
   return (
     <div className="p-6 max-w-2xl">
@@ -132,6 +148,45 @@ export default function SettingsPage() {
           <Button type="submit" loading={isSubmitting}>Save Settings</Button>
         </div>
       </form>
+
+      <div className="mt-8">
+        <FormSection title="Email Configuration">
+          <div className="space-y-3">
+            <FormField label="From Name">
+              <input
+                type="text"
+                className={inputClass}
+                value={emailForm.fromName}
+                onChange={(event) => setEmailForm((current) => ({ ...current, fromName: event.target.value }))}
+                placeholder={profile?.companyName ?? "Your company name"}
+              />
+            </FormField>
+            <FormField label="From Email" hint="Must be a verified sender in Resend.">
+              <input
+                type="email"
+                className={inputClass}
+                value={emailForm.fromEmail}
+                onChange={(event) => setEmailForm((current) => ({ ...current, fromEmail: event.target.value }))}
+                placeholder="billing@yourcompany.com"
+              />
+            </FormField>
+            <FormField label="Email Signature">
+              <textarea
+                className={textareaClass}
+                rows={5}
+                value={emailForm.signature}
+                onChange={(event) => setEmailForm((current) => ({ ...current, signature: event.target.value }))}
+                placeholder={"Regards,\nAccounts Team"}
+              />
+            </FormField>
+            <div className="flex justify-end">
+              <Button type="button" onClick={() => void handleEmailSubmit()}>
+                Save Email Settings
+              </Button>
+            </div>
+          </div>
+        </FormSection>
+      </div>
     </div>
   );
 }

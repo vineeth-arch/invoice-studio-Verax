@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
+import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
 import { useToast } from "@/lib/hooks/useToast";
 import { DocumentTable } from "@/components/document/DocumentTable";
 import { v4 as uuidv4 } from "uuid";
@@ -11,11 +12,13 @@ import type { Invoice } from "@/lib/types/invoice";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { saveInvoiceConversionDraft } from "@/lib/storage/local";
 import { buildInvoiceDraftFromPurchaseOrder, canConvertPurchaseOrder } from "@/lib/utils/poToInvoice";
+import { buildShareUrl, buildWhatsappMessage, buildWhatsappUrl } from "@/lib/utils/documentSharing";
 
 export default function DocumentsPage() {
   const router = useRouter();
   const { invoices, loading: invLoading, deleteInvoice, saveInvoice } = useInvoices();
   const { purchaseOrders, loading: poLoading, deletePurchaseOrder, savePurchaseOrder } = usePurchaseOrders();
+  const { profile } = useCompanyProfile();
   const { addToast } = useToast();
 
   const handleDelete = useCallback(async (id: string, type: "invoice" | "po") => {
@@ -65,6 +68,53 @@ export default function DocumentsPage() {
     router.push("/invoice/new");
   }, [addToast, purchaseOrders, router, savePurchaseOrder]);
 
+  const handleShareWhatsApp = useCallback(async (id: string, type: "invoice" | "po") => {
+    if (typeof window === "undefined") return;
+
+    const companyName = profile?.companyName ?? "your company";
+
+    if (type === "invoice") {
+      const invoice = invoices.find((entry) => entry.id === id);
+      if (!invoice || invoice.status !== "FINAL") {
+        addToast("Only final invoices can be shared on WhatsApp.", "error");
+        return;
+      }
+
+      const shareToken = invoice.shareToken ?? uuidv4();
+      if (!invoice.shareToken) {
+        const result = await saveInvoice({ ...invoice, shareToken });
+        if (!result.success) {
+          addToast(result.error ?? "Failed to create share link.", "error");
+          return;
+        }
+      }
+
+      const shareUrl = buildShareUrl(window.location.origin, shareToken);
+      const message = buildWhatsappMessage({ type: "invoice", document: invoice }, companyName, shareUrl);
+      window.open(buildWhatsappUrl(message), "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    const purchaseOrder = purchaseOrders.find((entry) => entry.id === id);
+    if (!purchaseOrder || purchaseOrder.status !== "FINAL" || purchaseOrder.poStatus !== "Approved") {
+      addToast("Only approved final purchase orders can be shared on WhatsApp.", "error");
+      return;
+    }
+
+    const shareToken = purchaseOrder.shareToken ?? uuidv4();
+    if (!purchaseOrder.shareToken) {
+      const result = await savePurchaseOrder({ ...purchaseOrder, shareToken });
+      if (!result.success) {
+        addToast(result.error ?? "Failed to create share link.", "error");
+        return;
+      }
+    }
+
+    const shareUrl = buildShareUrl(window.location.origin, shareToken);
+    const message = buildWhatsappMessage({ type: "po", document: purchaseOrder }, companyName, shareUrl);
+    window.open(buildWhatsappUrl(message), "_blank", "noopener,noreferrer");
+  }, [addToast, invoices, profile?.companyName, purchaseOrders, saveInvoice, savePurchaseOrder]);
+
   if (invLoading || poLoading) {
     return (
       <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>
@@ -92,6 +142,7 @@ export default function DocumentsPage() {
         onDelete={handleDelete}
         onDuplicate={handleDuplicate}
         onConvert={handleConvert}
+        onShareWhatsApp={handleShareWhatsApp}
       />
     </div>
   );

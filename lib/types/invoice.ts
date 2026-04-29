@@ -131,6 +131,7 @@ export interface Invoice {
   linkedInvoiceDate?: string;
   creditReason?: string;
   shareToken?: string;
+  lastEmailedAt?: string;
   notes?: string;
   termsAndConditions?: string;
   declaration?: string;

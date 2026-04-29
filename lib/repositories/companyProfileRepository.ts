@@ -27,6 +27,14 @@ function toCloudProfile(profile: BusinessProfile, userId: string): Database["pub
     bank_details: (profile.bankDetails ?? null) as Json | null,
     logo_url: null,
     signature_url: null,
+    default_signatory_name: profile.defaultSignatoryName ?? null,
+    default_terms: profile.defaultTermsAndConditions ?? null,
+    default_declaration: profile.defaultDeclaration ?? null,
+    default_invoice_prefix: profile.defaultInvoicePrefix ?? "INV",
+    default_po_prefix: profile.defaultPOPrefix ?? "PO",
+    logo_base64: profile.logoImageBase64 ?? null,
+    signature_base64: profile.defaultSignatureImageBase64 ?? null,
+    default_notes: profile.defaultNotes ?? null,
   };
 }
 
@@ -56,13 +64,14 @@ function fromCloudProfile(row: ProfileRow, localProfile: BusinessProfile | null)
       website: row.website ?? undefined,
     },
     bankDetails: (row.bank_details as unknown as BusinessProfile["bankDetails"]) ?? undefined,
-    logoImageBase64: localProfile?.logoImageBase64,
-    defaultSignatoryName: localProfile?.defaultSignatoryName,
-    defaultSignatureImageBase64: localProfile?.defaultSignatureImageBase64,
-    defaultTermsAndConditions: localProfile?.defaultTermsAndConditions,
-    defaultDeclaration: localProfile?.defaultDeclaration,
-    defaultInvoicePrefix: localProfile?.defaultInvoicePrefix,
-    defaultPOPrefix: localProfile?.defaultPOPrefix,
+    logoImageBase64: row.logo_base64 ?? localProfile?.logoImageBase64,
+    defaultSignatoryName: row.default_signatory_name ?? localProfile?.defaultSignatoryName,
+    defaultSignatureImageBase64: row.signature_base64 ?? localProfile?.defaultSignatureImageBase64,
+    defaultTermsAndConditions: row.default_terms ?? localProfile?.defaultTermsAndConditions,
+    defaultDeclaration: row.default_declaration ?? localProfile?.defaultDeclaration,
+    defaultNotes: row.default_notes ?? localProfile?.defaultNotes,
+    defaultInvoicePrefix: row.default_invoice_prefix ?? localProfile?.defaultInvoicePrefix,
+    defaultPOPrefix: row.default_po_prefix ?? localProfile?.defaultPOPrefix,
     updatedAt: row.updated_at,
   });
 }

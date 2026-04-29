@@ -28,6 +28,14 @@ export interface Database {
           bank_details: Json | null;
           logo_url: string | null;
           signature_url: string | null;
+          default_signatory_name: string | null;
+          default_terms: string | null;
+          default_declaration: string | null;
+          default_invoice_prefix: string | null;
+          default_po_prefix: string | null;
+          logo_base64: string | null;
+          signature_base64: string | null;
+          default_notes: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -49,6 +57,14 @@ export interface Database {
           bank_details?: Json | null;
           logo_url?: string | null;
           signature_url?: string | null;
+          default_signatory_name?: string | null;
+          default_terms?: string | null;
+          default_declaration?: string | null;
+          default_invoice_prefix?: string | null;
+          default_po_prefix?: string | null;
+          logo_base64?: string | null;
+          signature_base64?: string | null;
+          default_notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -70,6 +86,14 @@ export interface Database {
           bank_details?: Json | null;
           logo_url?: string | null;
           signature_url?: string | null;
+          default_signatory_name?: string | null;
+          default_terms?: string | null;
+          default_declaration?: string | null;
+          default_invoice_prefix?: string | null;
+          default_po_prefix?: string | null;
+          logo_base64?: string | null;
+          signature_base64?: string | null;
+          default_notes?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -131,6 +155,10 @@ export interface Database {
           totals: Json | null;
           notes: string | null;
           terms: string | null;
+          share_token: string | null;
+          logo_image_base64: string | null;
+          irn_qr_image_base64: string | null;
+          signature_image_base64: string | null;
           full_data: Json;
           created_at: string;
           updated_at: string;
@@ -148,6 +176,10 @@ export interface Database {
           totals?: Json | null;
           notes?: string | null;
           terms?: string | null;
+          share_token?: string | null;
+          logo_image_base64?: string | null;
+          irn_qr_image_base64?: string | null;
+          signature_image_base64?: string | null;
           full_data: Json;
           created_at?: string;
           updated_at?: string;
@@ -165,6 +197,10 @@ export interface Database {
           totals?: Json | null;
           notes?: string | null;
           terms?: string | null;
+          share_token?: string | null;
+          logo_image_base64?: string | null;
+          irn_qr_image_base64?: string | null;
+          signature_image_base64?: string | null;
           full_data?: Json;
           created_at?: string;
           updated_at?: string;
@@ -184,6 +220,8 @@ export interface Database {
           totals: Json | null;
           notes: string | null;
           terms: string | null;
+          share_token: string | null;
+          signature_image_base64: string | null;
           full_data: Json;
           created_at: string;
           updated_at: string;
@@ -200,6 +238,8 @@ export interface Database {
           totals?: Json | null;
           notes?: string | null;
           terms?: string | null;
+          share_token?: string | null;
+          signature_image_base64?: string | null;
           full_data: Json;
           created_at?: string;
           updated_at?: string;
@@ -216,6 +256,8 @@ export interface Database {
           totals?: Json | null;
           notes?: string | null;
           terms?: string | null;
+          share_token?: string | null;
+          signature_image_base64?: string | null;
           full_data?: Json;
           created_at?: string;
           updated_at?: string;
@@ -279,6 +321,36 @@ export interface Database {
         };
         Relationships: [];
       };
+      email_settings: {
+        Row: {
+          id: string;
+          user_id: string;
+          from_name: string | null;
+          from_email: string | null;
+          email_signature: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          from_name?: string | null;
+          from_email?: string | null;
+          email_signature?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          from_name?: string | null;
+          from_email?: string | null;
+          email_signature?: string | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
       document_numbering: {
         Row: {
           user_id: string;
@@ -302,7 +374,20 @@ export interface Database {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      get_invoice_by_share_token: {
+        Args: {
+          p_token: string;
+        };
+        Returns: Json;
+      };
+      get_po_by_share_token: {
+        Args: {
+          p_token: string;
+        };
+        Returns: Json;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

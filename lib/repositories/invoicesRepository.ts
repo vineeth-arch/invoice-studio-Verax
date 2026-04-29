@@ -1,6 +1,7 @@
 "use client";
 
 import type { Invoice } from "@/lib/types/invoice";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Database, Json } from "@/lib/supabase/types";
 import * as local from "@/lib/storage/local";
 import { getCloudContext, toRepositoryError, type RepositoryResult } from "./_shared";
@@ -33,11 +34,12 @@ function mergeInvoiceImages(cloudInvoice: Invoice, localInvoice?: Invoice | null
 
   return {
     ...cloudInvoice,
+    shareToken: cloudInvoice.shareToken ?? localInvoice.shareToken,
     supplier: {
       ...cloudInvoice.supplier,
-      logoImageBase64: localInvoice.supplier?.logoImageBase64,
+      logoImageBase64: cloudInvoice.supplier?.logoImageBase64 ?? localInvoice.supplier?.logoImageBase64,
     },
-    irnQrImageBase64: localInvoice.irnQrImageBase64,
+    irnQrImageBase64: cloudInvoice.irnQrImageBase64 ?? localInvoice.irnQrImageBase64,
     paymentDetails: cloudInvoice.paymentDetails
       ? {
           ...cloudInvoice.paymentDetails,
@@ -46,7 +48,7 @@ function mergeInvoiceImages(cloudInvoice: Invoice, localInvoice?: Invoice | null
       : localInvoice.paymentDetails,
     signature: {
       ...cloudInvoice.signature,
-      signatureImageBase64: localInvoice.signature?.signatureImageBase64,
+      signatureImageBase64: cloudInvoice.signature?.signatureImageBase64 ?? localInvoice.signature?.signatureImageBase64,
     },
   };
 }
@@ -66,6 +68,10 @@ function toCloudInvoice(invoice: Invoice, userId: string): Database["public"]["T
     totals: sanitized.totals as unknown as Json,
     notes: sanitized.notes ?? null,
     terms: sanitized.termsAndConditions ?? null,
+    share_token: invoice.shareToken ?? null,
+    logo_image_base64: invoice.supplier.logoImageBase64 ?? null,
+    irn_qr_image_base64: invoice.irnQrImageBase64 ?? null,
+    signature_image_base64: invoice.signature.signatureImageBase64 ?? null,
     full_data: sanitized as unknown as Json,
     created_at: sanitized.createdAt,
     updated_at: sanitized.updatedAt,
@@ -74,7 +80,22 @@ function toCloudInvoice(invoice: Invoice, userId: string): Database["public"]["T
 
 function fromCloudInvoice(row: InvoiceRow, localInvoice?: Invoice | null): Invoice {
   const base = row.full_data as unknown as Invoice;
-  return mergeInvoiceImages({ ...base, id: row.id, updatedAt: row.updated_at, createdAt: row.created_at }, localInvoice);
+  return mergeInvoiceImages({
+    ...base,
+    id: row.id,
+    shareToken: row.share_token ?? base.shareToken,
+    irnQrImageBase64: row.irn_qr_image_base64 ?? base.irnQrImageBase64,
+    supplier: {
+      ...base.supplier,
+      logoImageBase64: row.logo_image_base64 ?? base.supplier?.logoImageBase64,
+    },
+    signature: {
+      ...base.signature,
+      signatureImageBase64: row.signature_image_base64 ?? base.signature?.signatureImageBase64,
+    },
+    updatedAt: row.updated_at,
+    createdAt: row.created_at,
+  }, localInvoice);
 }
 
 export const invoicesRepository = {
@@ -140,30 +161,22 @@ export const invoicesRepository = {
 
   async getByShareToken(shareToken: string): Promise<RepositoryResult<Invoice | null>> {
     const localInvoice = local.getInvoiceByShareToken(shareToken);
-    const cloud = await getCloudContext();
-    if (!cloud) {
+    const client = getSupabaseBrowserClient();
+    if (!client) {
       return { success: true, data: localInvoice, source: "local" };
     }
 
     try {
-      const { data, error } = await cloud.client
-        .from("invoices")
-        .select("*")
-        .eq("user_id", cloud.userId)
-        .order("updated_at", { ascending: false });
-
-      if (error) throw error;
-
-      const invoiceRow = (data ?? []).find((row) => {
-        const fullData = row.full_data as unknown as Partial<Invoice> | null;
-        return fullData?.shareToken === shareToken;
+      const { data, error } = await client.rpc("get_invoice_by_share_token", {
+        p_token: shareToken,
       });
 
-      if (!invoiceRow) {
+      if (error) throw error;
+      if (!data) {
         return { success: true, data: localInvoice, source: "local" };
       }
 
-      const invoice = fromCloudInvoice(invoiceRow, local.getInvoice(invoiceRow.id));
+      const invoice = mergeInvoiceImages(data as unknown as Invoice, localInvoice);
       return { success: true, data: invoice, source: "cloud" };
     } catch (error) {
       return {

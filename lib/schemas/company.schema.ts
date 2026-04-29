@@ -50,6 +50,7 @@ export const companyProfileSchema = z.object({
   defaultSignatureImageBase64: z.string().optional(),
   defaultTermsAndConditions: z.string().optional(),
   defaultDeclaration: z.string().optional(),
+  defaultNotes: z.string().optional(),
   defaultInvoicePrefix: z.string().optional(),
   defaultPOPrefix: z.string().optional(),
 });

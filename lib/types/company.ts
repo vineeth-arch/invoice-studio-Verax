@@ -19,6 +19,7 @@ export interface BusinessProfile {
   defaultSignatureImageBase64?: string;
   defaultTermsAndConditions?: string;
   defaultDeclaration?: string;
+  defaultNotes?: string;
   defaultInvoicePrefix?: string;
   defaultPOPrefix?: string;
   updatedAt: string;

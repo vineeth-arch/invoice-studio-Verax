@@ -279,12 +279,11 @@ Note: This tool assists with document generation and tax formatting. Always veri
 
 ## Logo and Assets
 
-The current template shell tries to load these brand assets from the `public` root:
+The current template shell loads the brand logo from:
 
-1. `public/design-innsaeit-logo-white.png`
-2. `public/design-innsaeit-logo.png`
+1. `public/images/logo.png`
 
-Those files are referenced in code but are not committed in this repository today. You can also upload a logo directly from the Company Profile page, and that uploaded image is embedded into invoice and PO templates through saved profile data.
+This file is committed in the repository. You can also upload a logo directly from the Company Profile page, and that uploaded image is embedded into invoice and PO templates through saved profile data.
 
 ## Contributing
 

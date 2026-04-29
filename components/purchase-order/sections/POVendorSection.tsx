@@ -1,22 +1,66 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
 import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { GSTINInput } from "@/components/ui/GSTINInput";
+import type { SavedClient } from "@/lib/types/client";
 
 interface Props {
   control: Control<POFormValues>;
   register: UseFormRegister<POFormValues>;
   errors: FieldErrors<POFormValues>;
+  onSelectSavedClient: (client: SavedClient | null) => void;
 }
 
-export function POVendorSection({ control, register, errors }: Props) {
+export function POVendorSection({ control, register, errors, onSelectSavedClient }: Props) {
+  const [savedClients, setSavedClients] = useState<SavedClient[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem("di_clients");
+      const parsed = raw ? JSON.parse(raw) : [];
+      setSavedClients(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setSavedClients([]);
+    }
+  }, []);
+  const hasClients = savedClients.length > 0;
+
   return (
     <FormSection title="Buyer / Vendor Details">
       <div className="grid grid-cols-2 gap-3">
+        <FormField label="Select saved client" className="col-span-2">
+          <select
+            className={inputClass}
+            value={selectedClientId}
+            disabled={!hasClients}
+            onChange={(e) => {
+              const nextValue = e.target.value;
+              setSelectedClientId(nextValue);
+              if (!nextValue || nextValue === "__clear__") {
+                onSelectSavedClient(null);
+                return;
+              }
+              onSelectSavedClient(savedClients.find((c) => c.id === nextValue) ?? null);
+            }}
+          >
+            <option value="">
+              {hasClients ? "Select a saved vendor..." : "No saved clients — add one in Clients"}
+            </option>
+            {hasClients && <option value="__clear__">Clear selection</option>}
+            {savedClients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}{c.gstin ? ` • ${c.gstin}` : ""}
+              </option>
+            ))}
+          </select>
+        </FormField>
         <FormField label="Supplier Name" required error={errors.vendor?.name?.message} className="col-span-2">
           <input type="text" className={inputClass} {...register("vendor.name")} />
         </FormField>

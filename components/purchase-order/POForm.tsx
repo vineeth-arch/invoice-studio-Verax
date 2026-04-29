@@ -133,30 +133,28 @@ export function POForm({
 
   const applySavedClient = useCallback((client: SavedClient | null) => {
     if (!client) {
-      setValue("buyer.name", "");
-      setValue("buyer.address.line1", "");
-      setValue("buyer.address.line2", "");
-      setValue("buyer.address.city", "");
-      setValue("buyer.address.state", "");
-      setValue("buyer.address.stateCode", "");
-      setValue("buyer.address.pincode", "");
-      setValue("buyer.stateCode", "");
-      setValue("buyer.gstin", "");
-      setValue("buyer.contact.email", "");
-      setValue("buyer.contact.phone", "");
+      setValue("vendor.name", "");
+      setValue("vendor.address.line1", "");
+      setValue("vendor.address.line2", "");
+      setValue("vendor.address.city", "");
+      setValue("vendor.address.state", "");
+      setValue("vendor.address.stateCode", "");
+      setValue("vendor.address.pincode", "");
+      setValue("vendor.gstin", "");
+      setValue("vendor.contact.email", "");
+      setValue("vendor.contact.phone", "");
       return;
     }
-    setValue("buyer.name", client.name);
-    setValue("buyer.address.line1", client.address1);
-    setValue("buyer.address.line2", client.address2);
-    setValue("buyer.address.city", client.city);
-    setValue("buyer.address.state", client.state);
-    setValue("buyer.address.stateCode", client.stateCode);
-    setValue("buyer.address.pincode", client.pincode);
-    setValue("buyer.stateCode", client.stateCode);
-    setValue("buyer.gstin", client.gstin);
-    setValue("buyer.contact.email", client.email);
-    setValue("buyer.contact.phone", client.phone);
+    setValue("vendor.name", client.name);
+    setValue("vendor.address.line1", client.address1);
+    setValue("vendor.address.line2", client.address2);
+    setValue("vendor.address.city", client.city);
+    setValue("vendor.address.state", client.state);
+    setValue("vendor.address.stateCode", client.stateCode);
+    setValue("vendor.address.pincode", client.pincode);
+    setValue("vendor.gstin", client.gstin);
+    setValue("vendor.contact.email", client.email);
+    setValue("vendor.contact.phone", client.phone);
   }, [setValue]);
 
   return (
@@ -177,7 +175,7 @@ export function POForm({
           }
         }}
       />
-      <POVendorSection control={control} register={register} errors={errors} />
+      <POVendorSection control={control} register={register} errors={errors} onSelectSavedClient={applySavedClient} />
       <PODeliverySection register={register} errors={errors} />
       <POLineItemsSection control={control} setValue={setValue} errors={errors} />
       <POTotalsSection control={control} register={register} />

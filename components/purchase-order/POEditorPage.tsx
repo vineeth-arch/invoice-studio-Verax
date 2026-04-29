@@ -43,6 +43,8 @@ export function POEditorPage({ poId }: POEditorPageProps) {
   const [isConverting, setIsConverting] = useState(false);
   const [splitRatio, setSplitRatio] = useState(DEFAULT_SPLIT_RATIO);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [workingPoId, setWorkingPoId] = useState<string | undefined>(poId);
+  const [autoSaveState, setAutoSaveState] = useState<"idle" | "saved">("idle");
 
   const { invoices } = useInvoices();
   const { purchaseOrders, loading: purchaseOrdersLoading, savePurchaseOrder, getPurchaseOrder } = usePurchaseOrders();
@@ -50,7 +52,11 @@ export function POEditorPage({ poId }: POEditorPageProps) {
   const { settings } = useSettings();
   const { addToast } = useToast();
 
-  const existingPO = poId ? getPurchaseOrder(poId) : undefined;
+  const existingPO = poId
+    ? getPurchaseOrder(poId)
+    : workingPoId
+      ? getPurchaseOrder(workingPoId)
+      : undefined;
   const allDocs = [...invoices, ...purchaseOrders];
 
   useEffect(() => {
@@ -69,9 +75,30 @@ export function POEditorPage({ poId }: POEditorPageProps) {
     return () => mediaQuery.removeEventListener("change", updateDesktopState);
   }, []);
 
-  const handleSave = useCallback(async (values: POFormValues, status: "DRAFT" | "FINAL") => {
-    console.log("Save triggered", status);
+  useEffect(() => {
+    if (poId) {
+      setWorkingPoId(poId);
+    }
+  }, [poId]);
+
+  useEffect(() => {
+    if (autoSaveState !== "saved" || typeof window === "undefined") return;
+
+    const timeoutId = window.setTimeout(() => {
+      setAutoSaveState("idle");
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [autoSaveState]);
+
+  const handleSave = useCallback(async (
+    values: POFormValues,
+    status: "DRAFT" | "FINAL",
+    options?: { silent?: boolean; stayOnPage?: boolean }
+  ) => {
     setIsSaving(true);
+    const draftId = existingPO?.id ?? workingPoId ?? poId ?? uuidv4();
+    const isFirstPersistedSave = !existingPO && !workingPoId && !poId;
     try {
       const items = values.lineItems.map((item) =>
         calculatePOLineItem({ ...item, quantity: Number(item.quantity), rate: Number(item.rate), discountPercent: Number(item.discountPercent), gstRate: Number(item.gstRate) })
@@ -79,7 +106,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
       const totals = calculatePOTotals(items, Number(values.otherCharges) || 0);
       const po = {
         ...(values as unknown as Partial<PurchaseOrder>),
-        id: existingPO?.id ?? poId ?? uuidv4(),
+        id: draftId,
         lineItems: items,
         totals,
         otherCharges: Number(values.otherCharges) || 0,
@@ -91,18 +118,28 @@ export function POEditorPage({ poId }: POEditorPageProps) {
         console.error("[POEditorPage] savePurchaseOrder warning", result.error);
       }
       if (result.success) {
-        if (!existingPO && !poId) await documentNumberingRepository.incrementPOSequence();
-        addToast(`Purchase order ${status === "DRAFT" ? "saved as draft" : "finalized"} successfully!`, "success");
-        if (result.id && !poId) router.push(`/purchase-order/${result.id}/edit`);
+        const savedPoId = result.id ?? po.id;
+        setWorkingPoId(savedPoId);
+        if (isFirstPersistedSave) await documentNumberingRepository.incrementPOSequence();
+        if (!options?.silent) {
+          addToast(`Purchase order ${status === "DRAFT" ? "saved as draft" : "finalized"} successfully!`, "success");
+        }
+        if (!options?.stayOnPage && savedPoId && !poId) router.push(`/purchase-order/${savedPoId}/edit`);
+        return { success: true, id: savedPoId };
       } else {
         console.error("[POEditorPage] savePurchaseOrder failed", result.error);
-        addToast(result.error ?? "Failed to save purchase order.", "error");
+        if (!options?.silent) {
+          addToast(result.error ?? "Failed to save purchase order.", "error");
+        }
       }
     } catch (error) {
       console.error("[POEditorPage] Unexpected save error", error);
-      addToast("Failed to save purchase order.", "error");
+      if (!options?.silent) {
+        addToast("Failed to save purchase order.", "error");
+      }
     } finally { setIsSaving(false); }
-  }, [existingPO, poId, savePurchaseOrder, addToast, router]);
+    return { success: false };
+  }, [existingPO, workingPoId, poId, savePurchaseOrder, addToast, router]);
 
   const handleConvertToInvoice = useCallback(() => {
     if (!existingPO) return;
@@ -186,6 +223,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
   }, [isDesktop, splitRatio]);
 
   const pdfFilename = `PO-${previewPO.poNumber ?? "draft"}-${previewPO.vendor?.name ?? "vendor"}`;
+  const isEditingRoute = Boolean(poId);
 
   if (poId && purchaseOrdersLoading) {
     return (
@@ -210,18 +248,25 @@ export function POEditorPage({ poId }: POEditorPageProps) {
         style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}
       >
         <div>
-          <h1
-            className="font-display font-bold text-[18px] leading-tight"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {existingPO ? `Edit PO — ${existingPO.poNumber}` : "New Purchase Order"}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1
+              className="font-display font-bold text-[18px] leading-tight"
+              style={{ color: "var(--text-primary)" }}
+            >
+              {isEditingRoute && existingPO ? `Edit PO — ${existingPO.poNumber}` : "New Purchase Order"}
+            </h1>
+            {autoSaveState === "saved" && (
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Draft saved
+              </span>
+            )}
+          </div>
           <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
             Fill the form on the left · preview on the right
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {existingPO && (
+          {isEditingRoute && existingPO && (
             <Button variant="outline" onClick={handleConvertToInvoice}>
               Convert to Invoice
             </Button>
@@ -262,6 +307,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
               isSaving={isSaving}
               onPreviewChange={setPreviewPO}
               isNewDocument={!poId}
+              onAutoSaveStateChange={setAutoSaveState}
             />
           </div>
         </div>

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
+  FilePenLine,
   ShoppingCart,
   FolderOpen,
   Building2,
@@ -19,12 +20,14 @@ import {
   Moon,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { DRAFTS_STORAGE_EVENT, getDraftCounts } from "@/lib/utils/drafts";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/invoice/new", label: "New Invoice", icon: FileText },
   { href: "/purchase-order/new", label: "New PO", icon: ShoppingCart },
   { href: "/documents", label: "Documents", icon: FolderOpen },
+  { href: "/drafts", label: "Drafts", icon: FilePenLine },
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/services", label: "Services", icon: BriefcaseBusiness },
   { href: "/company-profile", label: "Company Profile", icon: Building2 },
@@ -57,6 +60,11 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [mounted, setMounted] = useState(false);
+  const [draftCount, setDraftCount] = useState(0);
+
+  const refreshDraftCount = useCallback(() => {
+    setDraftCount(getDraftCounts().total);
+  }, []);
 
   useEffect(() => {
     const storedCollapsed = localStorage.getItem(NAV_COLLAPSED_KEY) === "true";
@@ -69,8 +77,23 @@ export function Sidebar() {
     if (storedCollapsed) {
       document.documentElement.setAttribute("data-sidebar-collapsed", "");
     }
+    refreshDraftCount();
     setMounted(true);
-  }, []);
+  }, [refreshDraftCount]);
+
+  useEffect(() => {
+    refreshDraftCount();
+  }, [pathname, refreshDraftCount]);
+
+  useEffect(() => {
+    const handleStorage = () => refreshDraftCount();
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener(DRAFTS_STORAGE_EVENT, handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener(DRAFTS_STORAGE_EVENT, handleStorage);
+    };
+  }, [refreshDraftCount]);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
@@ -149,6 +172,7 @@ export function Sidebar() {
         <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = isActive(href, pathname);
+            const isDraftsItem = href === "/drafts";
             return (
               <Link
                 key={href}
@@ -174,7 +198,14 @@ export function Sidebar() {
                 )}
                 <Icon className="h-4 w-4 shrink-0" />
                 {!collapsed && (
-                  <span className="text-sm font-medium truncate">{label}</span>
+                  <>
+                    <span className="text-sm font-medium truncate">{label}</span>
+                    {isDraftsItem && draftCount > 0 && (
+                      <span className="ml-auto inline-flex min-w-6 items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                        {draftCount}
+                      </span>
+                    )}
+                  </>
                 )}
                 {/* Tooltip when collapsed */}
                 {collapsed && (
@@ -182,7 +213,7 @@ export function Sidebar() {
                     className="absolute left-[calc(100%+8px)] px-2 py-1 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg"
                     style={{ background: "#111111", color: "#F0EFE9" }}
                   >
-                    {label}
+                    {isDraftsItem && draftCount > 0 ? `${label} [${draftCount}]` : label}
                   </span>
                 )}
               </Link>

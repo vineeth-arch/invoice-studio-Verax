@@ -48,6 +48,8 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   const [activeTab, setActiveTab] = useState<"form" | "preview">("form");
   const [splitRatio, setSplitRatio] = useState(DEFAULT_SPLIT_RATIO);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [workingInvoiceId, setWorkingInvoiceId] = useState<string | undefined>(invoiceId);
+  const [autoSaveState, setAutoSaveState] = useState<"idle" | "saved">("idle");
 
   const { invoices, loading: invoicesLoading, saveInvoice, getInvoice } = useInvoices();
   const { purchaseOrders } = usePurchaseOrders();
@@ -55,7 +57,11 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   const { settings } = useSettings();
   const { addToast } = useToast();
 
-  const existingInvoice = invoiceId ? getInvoice(invoiceId) : undefined;
+  const existingInvoice = invoiceId
+    ? getInvoice(invoiceId)
+    : workingInvoiceId
+      ? getInvoice(workingInvoiceId)
+      : undefined;
   const initialInvoice = existingInvoice ?? conversionDraft ?? undefined;
   const allDocs = [...invoices, ...purchaseOrders];
 
@@ -91,9 +97,30 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
     setShareToken(existingInvoice?.shareToken ?? "");
   }, [existingInvoice?.shareToken]);
 
-  const handleSave = useCallback(async (values: InvoiceFormValues, status: "DRAFT" | "FINAL") => {
-    console.log("Save triggered", status);
+  useEffect(() => {
+    if (invoiceId) {
+      setWorkingInvoiceId(invoiceId);
+    }
+  }, [invoiceId]);
+
+  useEffect(() => {
+    if (autoSaveState !== "saved" || typeof window === "undefined") return;
+
+    const timeoutId = window.setTimeout(() => {
+      setAutoSaveState("idle");
+    }, 3000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [autoSaveState]);
+
+  const handleSave = useCallback(async (
+    values: InvoiceFormValues,
+    status: "DRAFT" | "FINAL",
+    options?: { silent?: boolean; stayOnPage?: boolean }
+  ) => {
     setIsSaving(true);
+    const draftId = existingInvoice?.id ?? workingInvoiceId ?? invoiceId ?? uuidv4();
+    const isFirstPersistedSave = !existingInvoice && !workingInvoiceId && !invoiceId;
     try {
       const items = values.lineItems.map((item) =>
         calculateLineItem(
@@ -107,7 +134,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
       const invoice = {
         ...existingInvoice,
         ...(values as unknown as Partial<Invoice>),
-        id: existingInvoice?.id ?? invoiceId ?? uuidv4(),
+        id: draftId,
         documentType: DOCUMENT_TYPE_FROM_INVOICE_TYPE[values.invoiceType],
         invoiceType: values.invoiceType,
         lineItems: items,
@@ -132,6 +159,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
       if (result.success) {
         const savedInvoiceId = result.id ?? invoice.id;
         const savedInvoice = { ...invoice, id: savedInvoiceId } as Invoice;
+        setWorkingInvoiceId(savedInvoiceId);
 
         if (status === "FINAL" && values.invoiceType === "CREDIT_NOTE" && values.linkedInvoiceId && savedInvoiceId) {
           const creditAmount = Math.abs(savedInvoice.totals?.grandTotal ?? 0);
@@ -164,24 +192,32 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
           }
         }
 
-        if (!existingInvoice && !invoiceId) {
+        if (isFirstPersistedSave) {
           await documentNumberingRepository.incrementInvoiceSequence();
         }
-        addToast(`Invoice ${status === "DRAFT" ? "saved as draft" : "finalized"} successfully!`, "success");
-        if (result.id && !invoiceId) {
-          router.push(`/invoice/${result.id}/edit`);
+        if (!options?.silent) {
+          addToast(`Invoice ${status === "DRAFT" ? "saved as draft" : "finalized"} successfully!`, "success");
         }
+        if (!options?.stayOnPage && savedInvoiceId && !invoiceId) {
+          router.push(`/invoice/${savedInvoiceId}/edit`);
+        }
+        return { success: true, id: savedInvoiceId };
       } else {
         console.error("[InvoiceEditorPage] saveInvoice failed", result.error);
-        addToast(result.error ?? "Failed to save invoice.", "error");
+        if (!options?.silent) {
+          addToast(result.error ?? "Failed to save invoice.", "error");
+        }
       }
     } catch (error) {
       console.error("[InvoiceEditorPage] Unexpected save error", error);
-      addToast("Failed to save invoice.", "error");
+      if (!options?.silent) {
+        addToast("Failed to save invoice.", "error");
+      }
     } finally {
       setIsSaving(false);
     }
-  }, [existingInvoice, invoiceId, saveInvoice, addToast, router, invoices]);
+    return { success: false };
+  }, [existingInvoice, workingInvoiceId, invoiceId, saveInvoice, addToast, router, invoices]);
 
   const copyToClipboard = useCallback(async (url: string) => {
     if (typeof window === "undefined") return false;
@@ -312,8 +348,9 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   }, [isDesktop, splitRatio]);
 
   const pdfFilename = `INV-${previewInvoice.invoiceNumber ?? "draft"}-${previewInvoice.buyer?.name ?? "client"}`;
-  const canShare = existingInvoice?.status === "FINAL";
-  const canConvertToTaxInvoice = existingInvoice ? isProformaInvoice(existingInvoice) : false;
+  const isEditingRoute = Boolean(invoiceId);
+  const canShare = isEditingRoute && existingInvoice?.status === "FINAL";
+  const canConvertToTaxInvoice = isEditingRoute && existingInvoice ? isProformaInvoice(existingInvoice) : false;
 
   if (!draftReady || (invoiceId && invoicesLoading)) {
     return <div className="flex h-screen items-center justify-center text-sm text-slate-500">Loading invoice editor...</div>;
@@ -327,9 +364,16 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
     <div className="flex h-screen flex-col">
       <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3 no-print">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">
-            {existingInvoice ? `Edit Invoice: ${getDisplayInvoiceNumber(existingInvoice)}` : "New Invoice"}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold text-slate-900">
+              {isEditingRoute && existingInvoice ? `Edit Invoice: ${getDisplayInvoiceNumber(existingInvoice)}` : "New Invoice"}
+            </h1>
+            {autoSaveState === "saved" && (
+              <span className="text-xs text-slate-500 transition-opacity duration-300">
+                Draft saved
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-500">Fill the form on the left, preview on the right</p>
         </div>
         <div className="flex items-center gap-2">
@@ -378,6 +422,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
               isSaving={isSaving}
               onPreviewChange={setPreviewInvoice}
               isNewDocument={!invoiceId}
+              onAutoSaveStateChange={setAutoSaveState}
             />
           </div>
         </div>

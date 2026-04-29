@@ -12,6 +12,7 @@ import { LEGACY_STORAGE_KEYS, STORAGE_KEYS } from "./keys";
 import { getFinancialYear } from "@/lib/utils/numbering";
 import { resolveDocumentType, resolveInvoiceType } from "@/lib/utils/invoiceTypes";
 import { withAutoOverdueStatus } from "@/lib/utils/aging";
+import { emitDraftsChangedEvent } from "@/lib/utils/drafts";
 
 type SaveResult = { success: boolean; error?: string };
 
@@ -110,20 +111,26 @@ export function saveInvoice(invoice: Partial<Invoice> & { id?: string }): SaveRe
     const newInvoice = { ...normalizedInvoice, id: invoice.id || uuidv4(), createdAt: now, updatedAt: now } as Invoice;
     invoices.push(newInvoice);
     const result = safeSet(STORAGE_KEYS.INVOICES, invoices);
+    if (result.success) emitDraftsChangedEvent();
     return { ...result, id: newInvoice.id };
   }
 
   const result = safeSet(STORAGE_KEYS.INVOICES, invoices);
+  if (result.success) emitDraftsChangedEvent();
   return { ...result, id: invoices[existingIdx]?.id };
 }
 
 export function deleteInvoice(id: string): SaveResult {
   const invoices = getInvoices().filter((i) => i.id !== id);
-  return safeSet(STORAGE_KEYS.INVOICES, invoices);
+  const result = safeSet(STORAGE_KEYS.INVOICES, invoices);
+  if (result.success) emitDraftsChangedEvent();
+  return result;
 }
 
 export function replaceInvoices(invoices: Invoice[]): SaveResult {
-  return safeSet(STORAGE_KEYS.INVOICES, invoices);
+  const result = safeSet(STORAGE_KEYS.INVOICES, invoices);
+  if (result.success) emitDraftsChangedEvent();
+  return result;
 }
 
 export function getInvoiceConversionDraft(): Partial<Invoice> | null {
@@ -173,20 +180,26 @@ export function savePurchaseOrder(po: Partial<PurchaseOrder> & { id?: string }):
     const newPO = { ...po, id: po.id || uuidv4(), createdAt: now, updatedAt: now } as PurchaseOrder;
     orders.push(newPO);
     const result = safeSet(STORAGE_KEYS.PURCHASE_ORDERS, orders);
+    if (result.success) emitDraftsChangedEvent();
     return { ...result, id: newPO.id };
   }
 
   const result = safeSet(STORAGE_KEYS.PURCHASE_ORDERS, orders);
+  if (result.success) emitDraftsChangedEvent();
   return { ...result, id: orders[existingIdx]?.id };
 }
 
 export function deletePurchaseOrder(id: string): SaveResult {
   const orders = getPurchaseOrders().filter((o) => o.id !== id);
-  return safeSet(STORAGE_KEYS.PURCHASE_ORDERS, orders);
+  const result = safeSet(STORAGE_KEYS.PURCHASE_ORDERS, orders);
+  if (result.success) emitDraftsChangedEvent();
+  return result;
 }
 
 export function replacePurchaseOrders(purchaseOrders: PurchaseOrder[]): SaveResult {
-  return safeSet(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+  const result = safeSet(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+  if (result.success) emitDraftsChangedEvent();
+  return result;
 }
 
 // ─── Company Profile ────────────────────────────────────

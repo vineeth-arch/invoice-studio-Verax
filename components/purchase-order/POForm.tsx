@@ -2,8 +2,9 @@
 
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useEffect, useCallback, useState } from "react";
+import { useMemo, useEffect, useCallback, useState, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
+import Link from "next/link";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
 import { purchaseOrderSchema } from "@/lib/schemas/purchase-order.schema";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
@@ -23,16 +24,22 @@ import { useDocumentNumber } from "@/lib/hooks/useDocumentNumber";
 import type { Invoice } from "@/lib/types/invoice";
 import type { SavedClient } from "@/lib/types/client";
 import { getStoredCompanyProfileForForms } from "@/lib/utils/companyProfileStorage";
+import { hasNonEmptyValue, PO_WIP_SESSION_KEY } from "@/lib/utils/drafts";
 
 interface POFormProps {
   initialValues?: Partial<PurchaseOrder>;
   settings: DocumentTemplateSettings | null;
   companyProfile: BusinessProfile | null;
   existingDocs: Array<Invoice | PurchaseOrder>;
-  onSave: (values: POFormValues, status: "DRAFT" | "FINAL") => Promise<void>;
+  onSave: (
+    values: POFormValues,
+    status: "DRAFT" | "FINAL",
+    options?: { silent?: boolean; stayOnPage?: boolean }
+  ) => Promise<{ success: boolean; id?: string }>;
   isSaving?: boolean;
   onPreviewChange: (po: Partial<PurchaseOrder>) => void;
   isNewDocument?: boolean;
+  onAutoSaveStateChange?: (state: "idle" | "saved") => void;
 }
 
 function buildDefaultValues(settings: DocumentTemplateSettings | null, profile: BusinessProfile | null, suggested: string): Partial<POFormValues> {
@@ -68,10 +75,14 @@ export function POForm({
   isSaving,
   onPreviewChange,
   isNewDocument = false,
+  onAutoSaveStateChange,
 }: POFormProps) {
   const { suggested, isDuplicate } = useDocumentNumber(settings?.poNumbering, existingDocs, initialValues?.id);
   const [useCompanyProfile, setUseCompanyProfile] = useState(true);
   const [storedCompanyProfile, setStoredCompanyProfile] = useState<BusinessProfile | null>(null);
+  const [hasRecoverableDraft, setHasRecoverableDraft] = useState(false);
+  const sessionWriteReadyRef = useRef(false);
+  const autoSaveReadyRef = useRef(false);
 
   const defaultValues = useMemo(
     () => initialValues ? { ...buildDefaultValues(settings, companyProfile, suggested), ...initialValues } : buildDefaultValues(settings, companyProfile, suggested),
@@ -79,7 +90,7 @@ export function POForm({
     []
   );
 
-  const { control, register, handleSubmit, setValue, getValues, formState: { errors } } = useForm<POFormValues>({
+  const { control, register, handleSubmit, setValue, getValues, reset, formState: { errors } } = useForm<POFormValues>({
     resolver: zodResolver(purchaseOrderSchema),
     defaultValues: defaultValues as POFormValues,
     mode: "onBlur",
@@ -133,6 +144,7 @@ export function POForm({
     if (!isNewDocument || typeof window === "undefined") return;
     const storedProfile = getStoredCompanyProfileForForms();
     setStoredCompanyProfile(storedProfile);
+    setHasRecoverableDraft(Boolean(window.sessionStorage.getItem(PO_WIP_SESSION_KEY)));
     if (storedProfile) {
       prefillFromProfile(storedProfile);
     }
@@ -188,8 +200,82 @@ export function POForm({
     void onSave(getValues() as POFormValues, "DRAFT");
   }, [getValues, onSave, setValue]);
 
+  const restoreSessionDraft = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const raw = window.sessionStorage.getItem(PO_WIP_SESSION_KEY);
+      if (!raw) return;
+      const values = JSON.parse(raw) as POFormValues;
+      reset(values);
+      setHasRecoverableDraft(false);
+    } catch {
+      setHasRecoverableDraft(false);
+    }
+  }, [reset]);
+
+  const dismissSessionDraft = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.removeItem(PO_WIP_SESSION_KEY);
+    setHasRecoverableDraft(false);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (!sessionWriteReadyRef.current) {
+      sessionWriteReadyRef.current = true;
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      window.sessionStorage.setItem(PO_WIP_SESSION_KEY, JSON.stringify(getValues()));
+    }, 2000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [formValues, getValues]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!autoSaveReadyRef.current) {
+      autoSaveReadyRef.current = true;
+      return;
+    }
+
+    onAutoSaveStateChange?.("idle");
+    if (!hasNonEmptyValue(formValues.poNumber)) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setValue("status", "DRAFT");
+      void onSave(getValues() as POFormValues, "DRAFT", { silent: true, stayOnPage: true }).then((result) => {
+        if (result.success) {
+          onAutoSaveStateChange?.("saved");
+        }
+      });
+    }, 30000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [formValues, getValues, onAutoSaveStateChange, onSave, setValue]);
+
   return (
     <form className="space-y-3">
+      {isNewDocument && hasRecoverableDraft && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm text-amber-900">
+              You have an unsaved draft from your last session.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button type="button" size="sm" onClick={restoreSessionDraft}>
+                Restore
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={dismissSessionDraft}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <PODetailsSection control={control} register={register} errors={errors} isDuplicate={isDuplicate} />
       <POBuyerSection
         control={control}
@@ -234,12 +320,22 @@ export function POForm({
           loading={isSaving}
           onClick={() => {
             setValue("status", "FINAL");
-            handleSubmit((v) => onSave(v, "FINAL"), handleValidationError)();
+            handleSubmit(async (v) => {
+              const result = await onSave(v, "FINAL");
+              if (result.success && typeof window !== "undefined") {
+                window.sessionStorage.removeItem(PO_WIP_SESSION_KEY);
+              }
+            }, handleValidationError)();
           }}
         >
           Save as Final
         </Button>
       </div>
+      {isNewDocument && hasRecoverableDraft && (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          You can also resume from <Link href="/drafts" className="underline underline-offset-2">Drafts</Link> if the form was already saved there.
+        </p>
+      )}
     </form>
   );
 }

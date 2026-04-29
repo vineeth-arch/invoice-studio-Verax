@@ -2,8 +2,9 @@
 
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useEffect, useCallback, useState } from "react";
+import { useMemo, useEffect, useCallback, useState, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
+import Link from "next/link";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import { invoiceSchema } from "@/lib/schemas/invoice.schema";
 import type { Invoice } from "@/lib/types/invoice";
@@ -28,16 +29,22 @@ import type { SavedClient } from "@/lib/types/client";
 import { resolveInvoiceType } from "@/lib/utils/invoiceTypes";
 import type { InvoiceReferenceOption } from "@/components/ui/InvoiceReferenceCombobox";
 import { getStoredCompanyProfileForForms } from "@/lib/utils/companyProfileStorage";
+import { hasNonEmptyValue, INVOICE_WIP_SESSION_KEY } from "@/lib/utils/drafts";
 
 interface InvoiceFormProps {
   initialValues?: Partial<Invoice>;
   settings: DocumentTemplateSettings | null;
   companyProfile: BusinessProfile | null;
   existingDocs: Array<Invoice | PurchaseOrder>;
-  onSave: (values: InvoiceFormValues, status: "DRAFT" | "FINAL") => Promise<void>;
+  onSave: (
+    values: InvoiceFormValues,
+    status: "DRAFT" | "FINAL",
+    options?: { silent?: boolean; stayOnPage?: boolean }
+  ) => Promise<{ success: boolean; id?: string }>;
   isSaving?: boolean;
   onPreviewChange: (invoice: Partial<Invoice>) => void;
   isNewDocument?: boolean;
+  onAutoSaveStateChange?: (state: "idle" | "saved") => void;
 }
 
 function buildDefaultValues(
@@ -96,6 +103,7 @@ export function InvoiceForm({
   isSaving,
   onPreviewChange,
   isNewDocument = false,
+  onAutoSaveStateChange,
 }: InvoiceFormProps) {
   const { suggested, isDuplicate } = useDocumentNumber(
     settings?.invoiceNumbering,
@@ -107,6 +115,9 @@ export function InvoiceForm({
   const [savingClient, setSavingClient] = useState(false);
   const [useCompanyProfile, setUseCompanyProfile] = useState(true);
   const [storedCompanyProfile, setStoredCompanyProfile] = useState<BusinessProfile | null>(null);
+  const [hasRecoverableDraft, setHasRecoverableDraft] = useState(false);
+  const sessionWriteReadyRef = useRef(false);
+  const autoSaveReadyRef = useRef(false);
 
   const defaultValues = useMemo(
     () => initialValues
@@ -116,7 +127,7 @@ export function InvoiceForm({
     []
   );
 
-  const { control, register, handleSubmit, setValue, watch, getValues, formState: { errors } } = useForm<InvoiceFormValues>({
+  const { control, register, handleSubmit, setValue, watch, getValues, reset, formState: { errors } } = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceSchema),
     defaultValues: defaultValues as InvoiceFormValues,
     mode: "onBlur",
@@ -200,6 +211,7 @@ export function InvoiceForm({
     if (!isNewDocument || typeof window === "undefined") return;
     const storedProfile = getStoredCompanyProfileForForms();
     setStoredCompanyProfile(storedProfile);
+    setHasRecoverableDraft(Boolean(window.sessionStorage.getItem(INVOICE_WIP_SESSION_KEY)));
     if (storedProfile) {
       prefillFromProfile(storedProfile);
     }
@@ -297,8 +309,82 @@ export function InvoiceForm({
     void onSave(getValues() as InvoiceFormValues, "DRAFT");
   }, [getValues, onSave, setValue]);
 
+  const restoreSessionDraft = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const raw = window.sessionStorage.getItem(INVOICE_WIP_SESSION_KEY);
+      if (!raw) return;
+      const values = JSON.parse(raw) as InvoiceFormValues;
+      reset(values);
+      setHasRecoverableDraft(false);
+    } catch {
+      setHasRecoverableDraft(false);
+    }
+  }, [reset]);
+
+  const dismissSessionDraft = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.sessionStorage.removeItem(INVOICE_WIP_SESSION_KEY);
+    setHasRecoverableDraft(false);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (!sessionWriteReadyRef.current) {
+      sessionWriteReadyRef.current = true;
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      window.sessionStorage.setItem(INVOICE_WIP_SESSION_KEY, JSON.stringify(getValues()));
+    }, 2000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [formValues, getValues]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!autoSaveReadyRef.current) {
+      autoSaveReadyRef.current = true;
+      return;
+    }
+
+    onAutoSaveStateChange?.("idle");
+    if (!hasNonEmptyValue(formValues.invoiceNumber)) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setValue("status", "DRAFT");
+      void onSave(getValues() as InvoiceFormValues, "DRAFT", { silent: true, stayOnPage: true }).then((result) => {
+        if (result.success) {
+          onAutoSaveStateChange?.("saved");
+        }
+      });
+    }, 30000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [formValues, getValues, onAutoSaveStateChange, onSave, setValue]);
+
   return (
     <form className="space-y-3">
+      {isNewDocument && hasRecoverableDraft && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm text-amber-900">
+              You have an unsaved draft from your last session.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button type="button" size="sm" onClick={restoreSessionDraft}>
+                Restore
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={dismissSessionDraft}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <InvoiceDetailsSection
         control={control}
         register={register}
@@ -358,12 +444,22 @@ export function InvoiceForm({
           loading={isSaving}
           onClick={() => {
             setValue("status", "FINAL");
-            handleSubmit((v) => onSave(v, "FINAL"), handleValidationError)();
+            handleSubmit(async (v) => {
+              const result = await onSave(v, "FINAL");
+              if (result.success && typeof window !== "undefined") {
+                window.sessionStorage.removeItem(INVOICE_WIP_SESSION_KEY);
+              }
+            }, handleValidationError)();
           }}
         >
           Save as Final
         </Button>
       </div>
+      {isNewDocument && hasRecoverableDraft && (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          You can also resume from <Link href="/drafts" className="underline underline-offset-2">Drafts</Link> if the form was already saved there.
+        </p>
+      )}
     </form>
   );
 }

@@ -33,7 +33,7 @@ export function POVendorSection({ control, register, errors, onSelectSavedClient
   const hasClients = savedClients.length > 0;
 
   return (
-    <FormSection title="Vendor / Buyer Details (BILL TO)">
+    <FormSection title="Buyer / Vendor Details (BILL TO)">
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Select saved client for BILL TO" className="col-span-2">
           <select

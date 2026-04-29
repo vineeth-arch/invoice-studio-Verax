@@ -34,6 +34,7 @@ export function getDefaultCompanyProfile(): BusinessProfile {
       email: "vineeth@designinnsaeit.com",
       phone: "+91-8655482753",
     },
+    logoImageBase64: "/Header%20logo.png",
     bankDetails: {
       accountName: "DESIGN INNSAEIT",
       accountNumber: "44882657226",

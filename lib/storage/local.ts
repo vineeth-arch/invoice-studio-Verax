@@ -8,7 +8,7 @@ import type { SavedClient } from "@/lib/types/client";
 import type { SavedService } from "@/lib/types/service";
 import type { DocumentTemplateSettings } from "@/lib/types/settings";
 import { getDefaultCompanyProfile, mergeCompanyProfileWithDefaults } from "@/lib/defaults/companyProfile";
-import { STORAGE_KEYS } from "./keys";
+import { LEGACY_STORAGE_KEYS, STORAGE_KEYS } from "./keys";
 import { getFinancialYear } from "@/lib/utils/numbering";
 import { resolveDocumentType, resolveInvoiceType } from "@/lib/utils/invoiceTypes";
 import { withAutoOverdueStatus } from "@/lib/utils/aging";
@@ -68,7 +68,16 @@ function removeMany(keys: string[]): SaveResult {
 // ─── Invoices ───────────────────────────────────────────
 
 export function getInvoices(): Invoice[] {
-  return safeGet<Invoice[]>(STORAGE_KEYS.INVOICES, []).map((invoice) =>
+  const currentInvoices = safeGet<Invoice[]>(STORAGE_KEYS.INVOICES, []);
+  const invoices = currentInvoices.length > 0
+    ? currentInvoices
+    : safeGet<Invoice[]>(LEGACY_STORAGE_KEYS.INVOICES, []);
+
+  if (currentInvoices.length === 0 && invoices.length > 0) {
+    safeSet(STORAGE_KEYS.INVOICES, invoices);
+  }
+
+  return invoices.map((invoice) =>
     withAutoOverdueStatus({
       ...invoice,
       documentType: resolveDocumentType(invoice),
@@ -137,7 +146,16 @@ export function clearInvoiceConversionDraft(): SaveResult {
 // ─── Purchase Orders ────────────────────────────────────
 
 export function getPurchaseOrders(): PurchaseOrder[] {
-  return safeGet<PurchaseOrder[]>(STORAGE_KEYS.PURCHASE_ORDERS, []);
+  const currentPOs = safeGet<PurchaseOrder[]>(STORAGE_KEYS.PURCHASE_ORDERS, []);
+  const purchaseOrders = currentPOs.length > 0
+    ? currentPOs
+    : safeGet<PurchaseOrder[]>(LEGACY_STORAGE_KEYS.PURCHASE_ORDERS, []);
+
+  if (currentPOs.length === 0 && purchaseOrders.length > 0) {
+    safeSet(STORAGE_KEYS.PURCHASE_ORDERS, purchaseOrders);
+  }
+
+  return purchaseOrders;
 }
 
 export function getPurchaseOrder(id: string): PurchaseOrder | null {

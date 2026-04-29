@@ -92,6 +92,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   }, [existingInvoice?.shareToken]);
 
   const handleSave = useCallback(async (values: InvoiceFormValues, status: "DRAFT" | "FINAL") => {
+    console.log("Save triggered", status);
     setIsSaving(true);
     try {
       const items = values.lineItems.map((item) =>
@@ -106,7 +107,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
       const invoice = {
         ...existingInvoice,
         ...(values as unknown as Partial<Invoice>),
-        id: existingInvoice?.id ?? invoiceId,
+        id: existingInvoice?.id ?? invoiceId ?? uuidv4(),
         documentType: DOCUMENT_TYPE_FROM_INVOICE_TYPE[values.invoiceType],
         invoiceType: values.invoiceType,
         lineItems: items,
@@ -125,6 +126,9 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
       setPreviewInvoice((current) => ({ ...current, ...invoice, status }));
 
       const result = await saveInvoice(invoice);
+      if (result.error) {
+        console.error("[InvoiceEditorPage] saveInvoice warning", result.error);
+      }
       if (result.success) {
         const savedInvoiceId = result.id ?? invoice.id;
         const savedInvoice = { ...invoice, id: savedInvoiceId } as Invoice;
@@ -168,8 +172,12 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
           router.push(`/invoice/${result.id}/edit`);
         }
       } else {
+        console.error("[InvoiceEditorPage] saveInvoice failed", result.error);
         addToast(result.error ?? "Failed to save invoice.", "error");
       }
+    } catch (error) {
+      console.error("[InvoiceEditorPage] Unexpected save error", error);
+      addToast("Failed to save invoice.", "error");
     } finally {
       setIsSaving(false);
     }

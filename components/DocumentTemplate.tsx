@@ -394,7 +394,7 @@ export function DocumentTemplate({
 
           {/* Column 2 — Bill To */}
           <div style={{ borderRight: "1px solid #e5e7eb", padding: "0 14px" }}>
-            <div style={LABEL_STYLE}>{isPO ? "Vendor" : "Bill To"}</div>
+            <div style={LABEL_STYLE}>Bill To</div>
             <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>
               {billTo.name || "—"}
             </div>

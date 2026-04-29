@@ -87,7 +87,7 @@ export function POForm({
     []
   );
 
-  const { control, register, handleSubmit, setValue, formState: { errors } } = useForm<POFormValues>({
+  const { control, register, handleSubmit, setValue, getValues, formState: { errors } } = useForm<POFormValues>({
     resolver: zodResolver(purchaseOrderSchema),
     defaultValues: defaultValues as POFormValues,
     mode: "onBlur",
@@ -128,6 +128,7 @@ export function POForm({
     setValue("buyer.address", { ...profile.address, country: "India" });
     setValue("buyer.gstin", profile.gstin);
     setValue("buyer.stateCode", profile.address.stateCode);
+    setValue("delivery.address", { ...profile.address, country: "India" });
     setValue("buyer.contact.email", profile.contact.email ?? "");
     setValue("buyer.contact.phone", profile.contact.phone ?? "");
     setValue("approvedBy", profile.defaultSignatoryName ?? "");
@@ -151,6 +152,15 @@ export function POForm({
       prefillFromProfile(storedProfile);
     }
   }, [isNewDocument, prefillFromProfile]);
+
+  useEffect(() => {
+    if (!isNewDocument || !useCompanyProfile) return;
+
+    const profileToUse = storedCompanyProfile ?? companyProfile;
+    if (profileToUse) {
+      prefillFromProfile(profileToUse);
+    }
+  }, [companyProfile, isNewDocument, prefillFromProfile, storedCompanyProfile, useCompanyProfile]);
 
   const applySavedClient = useCallback((client: SavedClient | null) => {
     if (!client) {
@@ -178,7 +188,20 @@ export function POForm({
     setValue("vendor.contact.phone", client.phone);
     setValue("placeOfSupply", client.placeOfSupply);
     setValue("placeOfSupplyCode", client.placeOfSupplyCode);
+    setValue("delivery.address.city", client.city);
+    setValue("delivery.address.state", client.state);
+    setValue("delivery.address.stateCode", client.stateCode);
+    setValue("delivery.address.pincode", client.pincode);
   }, [setValue]);
+
+  const handleValidationError = useCallback((validationErrors: unknown) => {
+    console.error("[POForm] validation blocked save", validationErrors);
+  }, []);
+
+  const triggerDraftSave = useCallback(() => {
+    setValue("status", "DRAFT");
+    void onSave(getValues() as POFormValues, "DRAFT");
+  }, [getValues, onSave, setValue]);
 
   return (
     <form className="space-y-3">
@@ -188,8 +211,8 @@ export function POForm({
         register={register}
         errors={errors}
         showCompanyProfileControls={isNewDocument}
-        hasSavedProfile={isNewDocument && Boolean(storedCompanyProfile)}
-        useCompanyProfile={isNewDocument && Boolean(storedCompanyProfile) ? useCompanyProfile : false}
+        hasSavedProfile={isNewDocument && Boolean(storedCompanyProfile ?? companyProfile)}
+        useCompanyProfile={isNewDocument && Boolean(storedCompanyProfile ?? companyProfile) ? useCompanyProfile : false}
         companyName={storedCompanyProfile?.companyName ?? companyProfile?.companyName}
         onUseCompanyProfileChange={(checked) => {
           setUseCompanyProfile(checked);
@@ -211,10 +234,7 @@ export function POForm({
           type="button"
           variant="secondary"
           loading={isSaving}
-          onClick={() => {
-            setValue("status", "DRAFT");
-            handleSubmit((v) => onSave(v, "DRAFT"))();
-          }}
+          onClick={triggerDraftSave}
         >
           Save Draft
         </Button>
@@ -224,7 +244,7 @@ export function POForm({
           loading={isSaving}
           onClick={() => {
             setValue("status", "FINAL");
-            handleSubmit((v) => onSave(v, "FINAL"))();
+            handleSubmit((v) => onSave(v, "FINAL"), handleValidationError)();
           }}
         >
           Save as Final

@@ -20,6 +20,7 @@ import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
 import type { Invoice } from "@/lib/types/invoice";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { calculatePOLineItem, calculatePOTotals } from "@/lib/utils/calculations";
+import { v4 as uuidv4 } from "uuid";
 
 interface POEditorPageProps {
   poId?: string;
@@ -45,6 +46,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
   const allDocs = [...invoices, ...purchaseOrders];
 
   const handleSave = useCallback(async (values: POFormValues, status: "DRAFT" | "FINAL") => {
+    console.log("Save triggered", status);
     setIsSaving(true);
     try {
       const items = values.lineItems.map((item) =>
@@ -53,7 +55,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
       const totals = calculatePOTotals(items, Number(values.otherCharges) || 0);
       const po = {
         ...(values as unknown as Partial<PurchaseOrder>),
-        id: existingPO?.id ?? poId,
+        id: existingPO?.id ?? poId ?? uuidv4(),
         lineItems: items,
         totals,
         otherCharges: Number(values.otherCharges) || 0,
@@ -61,13 +63,20 @@ export function POEditorPage({ poId }: POEditorPageProps) {
       } as Partial<PurchaseOrder>;
       setPreviewPO((current) => ({ ...current, ...po, status }));
       const result = await savePurchaseOrder(po);
+      if (result.error) {
+        console.error("[POEditorPage] savePurchaseOrder warning", result.error);
+      }
       if (result.success) {
         if (!existingPO && !poId) await documentNumberingRepository.incrementPOSequence();
         addToast(`Purchase order ${status === "DRAFT" ? "saved as draft" : "finalized"} successfully!`, "success");
         if (result.id && !poId) router.push(`/purchase-order/${result.id}/edit`);
       } else {
+        console.error("[POEditorPage] savePurchaseOrder failed", result.error);
         addToast(result.error ?? "Failed to save purchase order.", "error");
       }
+    } catch (error) {
+      console.error("[POEditorPage] Unexpected save error", error);
+      addToast("Failed to save purchase order.", "error");
     } finally { setIsSaving(false); }
   }, [existingPO, poId, savePurchaseOrder, addToast, router]);
 

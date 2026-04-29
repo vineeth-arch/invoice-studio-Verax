@@ -1,6 +1,6 @@
 export const STORAGE_KEYS = {
-  INVOICES: "di_gstin_invoices",
-  PURCHASE_ORDERS: "di_gstin_purchase_orders",
+  INVOICES: "di_invoices",
+  PURCHASE_ORDERS: "di_purchase_orders",
   INVOICE_CONVERSION_DRAFT: "invoice_conversion_draft",
   COMPANY_PROFILE: "di_gstin_company_profile",
   CLIENTS: "di_clients",
@@ -8,4 +8,9 @@ export const STORAGE_KEYS = {
   SERVICES: "di_services",
   SETTINGS: "di_gstin_settings",
   SCHEMA_VERSION: "di_gstin_schema_version",
+} as const;
+
+export const LEGACY_STORAGE_KEYS = {
+  INVOICES: "di_gstin_invoices",
+  PURCHASE_ORDERS: "di_gstin_purchase_orders",
 } as const;

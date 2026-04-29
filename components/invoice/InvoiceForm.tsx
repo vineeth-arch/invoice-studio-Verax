@@ -116,7 +116,7 @@ export function InvoiceForm({
     []
   );
 
-  const { control, register, handleSubmit, setValue, watch, formState: { errors } } = useForm<InvoiceFormValues>({
+  const { control, register, handleSubmit, setValue, watch, getValues, formState: { errors } } = useForm<InvoiceFormValues>({
     resolver: zodResolver(invoiceSchema),
     defaultValues: defaultValues as InvoiceFormValues,
     mode: "onBlur",
@@ -205,6 +205,15 @@ export function InvoiceForm({
     }
   }, [isNewDocument, prefillFromProfile]);
 
+  useEffect(() => {
+    if (!isNewDocument || !useCompanyProfile) return;
+
+    const profileToUse = storedCompanyProfile ?? companyProfile;
+    if (profileToUse) {
+      prefillFromProfile(profileToUse);
+    }
+  }, [companyProfile, isNewDocument, prefillFromProfile, storedCompanyProfile, useCompanyProfile]);
+
   const applySavedClient = useCallback((selected: SavedClient | null) => {
     if (!selected) {
       setValue("buyer.name", "");
@@ -279,6 +288,15 @@ export function InvoiceForm({
     setValue("buyer.placeOfSupplyCode", linkedInvoice.buyer.placeOfSupplyCode);
   }, [existingDocs, setValue]);
 
+  const handleValidationError = useCallback((validationErrors: unknown) => {
+    console.error("[InvoiceForm] validation blocked save", validationErrors);
+  }, []);
+
+  const triggerDraftSave = useCallback(() => {
+    setValue("status", "DRAFT");
+    void onSave(getValues() as InvoiceFormValues, "DRAFT");
+  }, [getValues, onSave, setValue]);
+
   return (
     <form className="space-y-3">
       <InvoiceDetailsSection
@@ -298,8 +316,8 @@ export function InvoiceForm({
         register={register}
         errors={errors}
         showCompanyProfileControls={isNewDocument}
-        hasSavedProfile={isNewDocument && Boolean(storedCompanyProfile)}
-        useCompanyProfile={isNewDocument && Boolean(storedCompanyProfile) ? useCompanyProfile : false}
+        hasSavedProfile={isNewDocument && Boolean(storedCompanyProfile ?? companyProfile)}
+        useCompanyProfile={isNewDocument && Boolean(storedCompanyProfile ?? companyProfile) ? useCompanyProfile : false}
         companyName={storedCompanyProfile?.companyName ?? companyProfile?.companyName}
         onUseCompanyProfileChange={(checked) => {
           setUseCompanyProfile(checked);
@@ -330,10 +348,7 @@ export function InvoiceForm({
           type="button"
           variant="secondary"
           loading={isSaving}
-          onClick={() => {
-            setValue("status", "DRAFT");
-            handleSubmit((v) => onSave(v, "DRAFT"))();
-          }}
+          onClick={triggerDraftSave}
         >
           Save Draft
         </Button>
@@ -343,7 +358,7 @@ export function InvoiceForm({
           loading={isSaving}
           onClick={() => {
             setValue("status", "FINAL");
-            handleSubmit((v) => onSave(v, "FINAL"))();
+            handleSubmit((v) => onSave(v, "FINAL"), handleValidationError)();
           }}
         >
           Save as Final

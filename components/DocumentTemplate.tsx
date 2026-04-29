@@ -307,17 +307,10 @@ export function DocumentTemplate({
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/design-innsaeit-logo-white.png"
+          src="/images/logo.png"
           alt="Design Innsaeit"
           crossOrigin="anonymous"
           style={{ height: "44px", width: "auto", objectFit: "contain" }}
-          onError={(e) => {
-            const img = e.currentTarget;
-            if (!img.dataset.fallback) {
-              img.dataset.fallback = "1";
-              img.src = "/design-innsaeit-logo.png";
-            }
-          }}
         />
       </div>
 

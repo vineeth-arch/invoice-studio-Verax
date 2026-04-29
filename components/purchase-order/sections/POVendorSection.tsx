@@ -26,13 +26,20 @@ export function POVendorSection({ control, register, watch, setValue, errors, on
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const raw = window.localStorage.getItem("di_clients");
-      const parsed = raw ? JSON.parse(raw) : [];
-      setSavedClients(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setSavedClients([]);
-    }
+
+    const loadClients = () => {
+      try {
+        const raw = window.localStorage.getItem("di_clients");
+        const parsed = raw ? JSON.parse(raw) : [];
+        setSavedClients(Array.isArray(parsed) ? parsed : []);
+      } catch {
+        setSavedClients([]);
+      }
+    };
+
+    loadClients();
+    window.addEventListener("storage", loadClients);
+    return () => window.removeEventListener("storage", loadClients);
   }, []);
   const hasClients = savedClients.length > 0;
 

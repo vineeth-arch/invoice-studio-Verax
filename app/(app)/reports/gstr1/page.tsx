@@ -155,10 +155,13 @@ export default function GSTR1ReportPage() {
 
     filteredInvoices.forEach((invoice) => {
       const number = getDisplayInvoiceNumber(invoice);
-      if (!invoice.buyer?.gstin?.trim() && classifyInvoice(invoice) !== "Export Invoices") {
+      const buyerGstin = invoice.buyer?.gstin?.trim() ?? "";
+      const hasPartialGstin = buyerGstin.length > 0 && buyerGstin.length < 15;
+
+      if (hasPartialGstin) {
         items.push({
           id: `gstin-${invoice.id}`,
-          message: `${number} is missing buyer GSTIN and will not appear in the B2B export.`,
+          message: `${number}: Buyer GSTIN appears incomplete (${buyerGstin.length}/15 chars).`,
         });
       }
 

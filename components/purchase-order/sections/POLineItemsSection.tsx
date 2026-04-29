@@ -172,14 +172,20 @@ export function POLineItemsSection({ control, setValue, errors }: Props) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    try {
-      const raw = window.localStorage.getItem("di_services");
-      const parsed = raw ? JSON.parse(raw) : [];
-      setServices(Array.isArray(parsed) ? parsed : []);
-    } catch (error) {
-      console.error("[PO LineItemsSection] Failed to parse di_services", error);
-      setServices([]);
-    }
+    const loadServices = () => {
+      try {
+        const raw = window.localStorage.getItem("di_services");
+        const parsed = raw ? JSON.parse(raw) : [];
+        setServices(Array.isArray(parsed) ? parsed : []);
+      } catch (error) {
+        console.error("[PO LineItemsSection] Failed to parse di_services", error);
+        setServices([]);
+      }
+    };
+
+    loadServices();
+    window.addEventListener("storage", loadServices);
+    return () => window.removeEventListener("storage", loadServices);
   }, []);
 
   const addRow = () => {

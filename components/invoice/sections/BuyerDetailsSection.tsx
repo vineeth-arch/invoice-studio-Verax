@@ -41,15 +41,20 @@ export function BuyerDetailsSection({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    try {
-      const raw = window.localStorage.getItem("di_clients");
-      const parsed = raw ? JSON.parse(raw) : [];
-      console.log("[Invoice BuyerDetailsSection] di_clients on mount:", parsed);
-      setSavedClients(Array.isArray(parsed) ? parsed : []);
-    } catch (error) {
-      console.error("[Invoice BuyerDetailsSection] Failed to parse di_clients", error);
-      setSavedClients([]);
-    }
+    const loadClients = () => {
+      try {
+        const raw = window.localStorage.getItem("di_clients");
+        const parsed = raw ? JSON.parse(raw) : [];
+        setSavedClients(Array.isArray(parsed) ? parsed : []);
+      } catch (error) {
+        console.error("[Invoice BuyerDetailsSection] Failed to parse di_clients", error);
+        setSavedClients([]);
+      }
+    };
+
+    loadClients();
+    window.addEventListener("storage", loadClients);
+    return () => window.removeEventListener("storage", loadClients);
   }, []);
 
   const hasClients = savedClients.length > 0;

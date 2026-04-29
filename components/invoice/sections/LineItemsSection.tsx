@@ -234,15 +234,20 @@ export function LineItemsSection({ control, setValue, errors, isProforma, isCred
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    try {
-      const raw = window.localStorage.getItem("di_services");
-      const parsed = raw ? JSON.parse(raw) : [];
-      console.log("[Invoice LineItemsSection] di_services on mount:", parsed);
-      setServices(Array.isArray(parsed) ? parsed : []);
-    } catch (error) {
-      console.error("[Invoice LineItemsSection] Failed to parse di_services", error);
-      setServices([]);
-    }
+    const loadServices = () => {
+      try {
+        const raw = window.localStorage.getItem("di_services");
+        const parsed = raw ? JSON.parse(raw) : [];
+        setServices(Array.isArray(parsed) ? parsed : []);
+      } catch (error) {
+        console.error("[Invoice LineItemsSection] Failed to parse di_services", error);
+        setServices([]);
+      }
+    };
+
+    loadServices();
+    window.addEventListener("storage", loadServices);
+    return () => window.removeEventListener("storage", loadServices);
   }, []);
 
   const addRow = () => {

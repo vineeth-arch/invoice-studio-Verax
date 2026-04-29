@@ -14,6 +14,7 @@ interface Props {
   control: Control<InvoiceFormValues>;
   register: UseFormRegister<InvoiceFormValues>;
   errors: FieldErrors<InvoiceFormValues>;
+  isProforma: boolean;
   onSelectSavedClient: (client: SavedClient | null) => void;
   onSaveClient: () => void;
   savingClient?: boolean;
@@ -23,6 +24,7 @@ export function BuyerDetailsSection({
   control,
   register,
   errors,
+  isProforma,
   onSelectSavedClient,
   onSaveClient,
   savingClient,
@@ -31,13 +33,16 @@ export function BuyerDetailsSection({
   const [selectedClientId, setSelectedClientId] = useState("");
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     try {
-      const raw = localStorage.getItem("di_clients");
-      const parsed: SavedClient[] = raw ? JSON.parse(raw) : [];
+      const raw = window.localStorage.getItem("di_clients");
+      const parsed = raw ? JSON.parse(raw) : [];
       console.log("[Invoice BuyerDetailsSection] di_clients on mount:", parsed);
       setSavedClients(Array.isArray(parsed) ? parsed : []);
-    } catch (err) {
-      console.error("[Invoice BuyerDetailsSection] Failed to parse di_clients", err);
+    } catch (error) {
+      console.error("[Invoice BuyerDetailsSection] Failed to parse di_clients", error);
+      setSavedClients([]);
     }
   }, []);
 
@@ -58,7 +63,7 @@ export function BuyerDetailsSection({
                 onSelectSavedClient(null);
                 return;
               }
-              onSelectSavedClient(savedClients.find((c) => c.id === nextValue) ?? null);
+              onSelectSavedClient(savedClients.find((client) => client.id === nextValue) ?? null);
             }}
           >
             <option value="">
@@ -101,11 +106,13 @@ export function BuyerDetailsSection({
           <input type="text" className={inputClass} maxLength={6} {...register("buyer.billingAddress.pincode")} />
         </FormField>
 
-        <FormField label="Buyer GSTIN (optional)" hint="Leave blank for unregistered buyers" className="col-span-2">
-          <Controller name="buyer.gstin" control={control} render={({ field }) => (
-            <GSTINInput value={field.value ?? ""} onChange={field.onChange} optional />
-          )} />
-        </FormField>
+        {!isProforma && (
+          <FormField label="Buyer GSTIN (optional)" hint="Leave blank for unregistered buyers" className="col-span-2">
+            <Controller name="buyer.gstin" control={control} render={({ field }) => (
+              <GSTINInput value={field.value ?? ""} onChange={field.onChange} optional />
+            )} />
+          </FormField>
+        )}
 
         <FormField label="Place of Supply" required error={errors.buyer?.placeOfSupply?.message}>
           <input type="text" className={inputClass} placeholder="State name" {...register("buyer.placeOfSupply")} />

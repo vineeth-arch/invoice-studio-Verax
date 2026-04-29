@@ -12,6 +12,7 @@ import {
   Users,
   BriefcaseBusiness,
   Settings,
+  BarChart3,
   ChevronLeft,
   ChevronRight,
   Sun,
@@ -28,6 +29,10 @@ const NAV_ITEMS = [
   { href: "/services", label: "Services", icon: BriefcaseBusiness },
   { href: "/company-profile", label: "Company Profile", icon: Building2 },
   { href: "/settings", label: "Settings", icon: Settings },
+];
+
+const REPORT_ITEMS = [
+  { href: "/reports/aging", label: "Aging Report", icon: BarChart3 },
 ];
 
 const MOBILE_NAV = [
@@ -172,6 +177,49 @@ export function Sidebar() {
                   <span className="text-sm font-medium truncate">{label}</span>
                 )}
                 {/* Tooltip when collapsed */}
+                {collapsed && (
+                  <span
+                    className="absolute left-[calc(100%+8px)] px-2 py-1 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg"
+                    style={{ background: "#111111", color: "#F0EFE9" }}
+                  >
+                    {label}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+
+          {!collapsed && (
+            <div className="px-3 pt-5 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--sidebar-text-muted)" }}>
+              Reports
+            </div>
+          )}
+          {REPORT_ITEMS.map(({ href, label, icon: Icon }) => {
+            const active = isActive(href, pathname);
+            return (
+              <Link
+                key={href}
+                href={href}
+                title={collapsed ? label : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-xl transition-all duration-150 relative group",
+                  collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5",
+                )}
+                style={{
+                  background: active ? "var(--sidebar-active-bg)" : undefined,
+                  color: active ? "var(--accent-yellow)" : "var(--sidebar-text-muted)",
+                }}
+                onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.color = "var(--sidebar-text)"; }}
+                onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.color = "var(--sidebar-text-muted)"; }}
+              >
+                {active && (
+                  <span
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full"
+                    style={{ background: "var(--accent-yellow)" }}
+                  />
+                )}
+                <Icon className="h-4 w-4 shrink-0" />
+                {!collapsed && <span className="text-sm font-medium truncate">{label}</span>}
                 {collapsed && (
                   <span
                     className="absolute left-[calc(100%+8px)] px-2 py-1 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg"

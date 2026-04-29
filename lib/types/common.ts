@@ -3,6 +3,7 @@ export type GSTMode = "CGST_SGST" | "IGST" | "NO_TAX" | "CUSTOM";
 export type DocumentStatus = "DRAFT" | "FINAL" | "PAID" | "CANCELLED";
 export type PaymentStatus = "Unpaid" | "Partial" | "Paid" | "Overdue";
 export type POStatus = "Under Approval" | "Approved" | "Processed";
+export type PaymentMode = "Cash" | "NEFT" | "RTGS" | "UPI" | "Cheque";
 
 export interface Address {
   line1: string;

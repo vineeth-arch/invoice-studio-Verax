@@ -12,16 +12,17 @@ import { formatCurrencyINR, formatNumber } from "@/lib/utils/formatting";
 interface Props {
   control: Control<InvoiceFormValues>;
   register: UseFormRegister<InvoiceFormValues>;
+  isProforma: boolean;
 }
 
-export function TotalsSummarySection({ control, register }: Props) {
-  const lineItems = useWatch({ control, name: "lineItems" }) ?? [];
+export function TotalsSummarySection({ control, register, isProforma }: Props) {
+  const lineItems = useWatch({ control, name: "lineItems" });
   const gstMode = (useWatch({ control, name: "gstMode" }) ?? "CGST_SGST") as GSTMode;
   const cess = Number(useWatch({ control, name: "cess" })) || 0;
   const otherCharges = Number(useWatch({ control, name: "otherCharges" })) || 0;
 
   const totals = useMemo(() => {
-    const calculated = lineItems.map((item) =>
+    const calculated = (lineItems ?? []).map((item) =>
       calculateLineItem(
         {
           id: item.id ?? "",
@@ -41,12 +42,12 @@ export function TotalsSummarySection({ control, register }: Props) {
 
   const isCGST = gstMode === "CGST_SGST";
   const isIGST = gstMode === "IGST";
-  const showTax = gstMode !== "NO_TAX";
+  const showTax = !isProforma && gstMode !== "NO_TAX";
 
   const rows: [string, number, string?][] = [
     ["Subtotal", totals.subtotal],
     ["(-) Total Discount", totals.totalDiscount],
-    ["Taxable Value", totals.totalTaxableValue],
+    ...(isProforma ? [] : [["Taxable Value", totals.totalTaxableValue] as [string, number]]),
     ...(showTax && isCGST ? [["CGST", totals.totalCGST] as [string, number]] : []),
     ...(showTax && isCGST ? [["SGST/UTGST", totals.totalSGST] as [string, number]] : []),
     ...(showTax && isIGST ? [["IGST", totals.totalIGST] as [string, number]] : []),
@@ -58,9 +59,11 @@ export function TotalsSummarySection({ control, register }: Props) {
   return (
     <FormSection title="Totals & Adjustments">
       <div className="grid grid-cols-2 gap-3 mb-4">
-        <FormField label="Cess (optional)" hint="Additional cess amount">
-          <input type="number" min="0" step="any" className={inputClass} {...register("cess")} />
-        </FormField>
+        {!isProforma && (
+          <FormField label="Cess (optional)" hint="Additional cess amount">
+            <input type="number" min="0" step="any" className={inputClass} {...register("cess")} />
+          </FormField>
+        )}
         <FormField label="Other Charges (optional)" hint="Freight, packaging, etc.">
           <input type="number" min="0" step="any" className={inputClass} {...register("otherCharges")} />
         </FormField>

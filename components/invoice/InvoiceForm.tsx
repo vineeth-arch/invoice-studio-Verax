@@ -25,6 +25,8 @@ import type { DocumentTemplateSettings } from "@/lib/types/settings";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { useToast } from "@/lib/hooks/useToast";
 import type { SavedClient } from "@/lib/types/client";
+import { resolveInvoiceType } from "@/lib/utils/invoiceTypes";
+import type { InvoiceReferenceOption } from "@/components/ui/InvoiceReferenceCombobox";
 
 interface InvoiceFormProps {
   initialValues?: Partial<Invoice>;
@@ -42,7 +44,7 @@ function buildDefaultValues(
   suggested: string
 ): Partial<InvoiceFormValues> {
   return {
-    invoiceType: "TAX_INVOICE",
+    invoiceType: resolveInvoiceType({ documentType: "tax_invoice" }),
     invoiceNumber: suggested,
     invoiceDate: new Date().toISOString().slice(0, 10),
     reverseCharge: false,
@@ -51,6 +53,14 @@ function buildDefaultValues(
     otherCharges: 0,
     status: "DRAFT",
     paymentStatus: "Unpaid",
+    tdsApplicable: false,
+    tdsSection: "194J",
+    tdsRate: 10,
+    tdsAmount: 0,
+    paymentReceivedAmount: 0,
+    tdsDeducted: 0,
+    netReceived: 0,
+    creditNoteRefs: [],
     shipping: { sameAsBilling: true },
     lineItems: [],
     supplier: profile
@@ -118,6 +128,15 @@ export function InvoiceForm({
   });
 
   const formValues = useWatch({ control });
+  const isProforma = (formValues.invoiceType ?? "TAX_INVOICE") === "PROFORMA";
+  const isCreditNote = (formValues.invoiceType ?? "TAX_INVOICE") === "CREDIT_NOTE";
+
+  useEffect(() => {
+    if (!isProforma) return;
+    setValue("gstMode", "NO_TAX");
+    setValue("cess", 0);
+    setValue("reverseCharge", false);
+  }, [isProforma, setValue]);
 
   // Build preview invoice from form values
   const previewInvoice = useMemo<Partial<Invoice>>(() => {
@@ -227,6 +246,34 @@ export function InvoiceForm({
     }
   }, [saveBuyerFromInvoice, formValues.buyer, addToast]);
 
+  const invoiceReferenceOptions = useMemo<InvoiceReferenceOption[]>(
+    () => existingDocs
+      .filter((doc): doc is Invoice => "invoiceNumber" in doc)
+      .filter((doc) => doc.id !== initialValues?.id && doc.status !== "CANCELLED")
+      .map((doc) => ({
+        id: doc.id,
+        invoiceNumber: doc.invoiceNumber,
+        buyerName: doc.buyer.name,
+        amount: doc.totals.grandTotal,
+      })),
+    [existingDocs, initialValues?.id]
+  );
+
+  const handleLinkedInvoiceSelect = useCallback((selectedId: string) => {
+    const linkedInvoice = existingDocs.find((doc): doc is Invoice => "invoiceNumber" in doc && doc.id === selectedId);
+    if (!linkedInvoice) return;
+
+    setValue("linkedInvoiceId", linkedInvoice.id);
+    setValue("linkedInvoiceNumber", linkedInvoice.invoiceNumber);
+    setValue("linkedInvoiceDate", linkedInvoice.invoiceDate);
+    setValue("buyer.name", linkedInvoice.buyer.name);
+    setValue("buyer.billingAddress", linkedInvoice.buyer.billingAddress);
+    setValue("buyer.gstin", linkedInvoice.buyer.gstin ?? "");
+    setValue("buyer.contact", linkedInvoice.buyer.contact ?? {});
+    setValue("buyer.placeOfSupply", linkedInvoice.buyer.placeOfSupply);
+    setValue("buyer.placeOfSupplyCode", linkedInvoice.buyer.placeOfSupplyCode);
+  }, [existingDocs, setValue]);
+
   return (
     <form className="space-y-3">
       {companyProfile && (
@@ -238,21 +285,31 @@ export function InvoiceForm({
       )}
 
       <InvoiceDetailsSection
-        control={control} register={register} errors={errors} isDuplicate={isDuplicate}
+        control={control}
+        register={register}
+        errors={errors}
+        isDuplicate={isDuplicate}
+        isProforma={isProforma}
+        isCreditNote={isCreditNote}
+        invoiceReferenceOptions={invoiceReferenceOptions}
+        linkedInvoiceId={formValues.linkedInvoiceId}
+        linkedInvoiceAmount={invoiceReferenceOptions.find((option) => option.id === formValues.linkedInvoiceId)?.amount}
+        onSelectLinkedInvoice={handleLinkedInvoiceSelect}
       />
       <SupplierDetailsSection control={control} register={register} errors={errors} />
       <BuyerDetailsSection
         control={control}
         register={register}
         errors={errors}
+        isProforma={isProforma}
         onSelectSavedClient={applySavedClient}
         onSaveClient={handleSaveClient}
         savingClient={savingClient}
       />
       <ShippingDetailsSection register={register} watch={watch} setValue={setValue} />
-      <LineItemsSection control={control} setValue={setValue} errors={errors} />
-      <TotalsSummarySection control={control} register={register} />
-      <PaymentDetailsSection control={control} register={register} />
+      <LineItemsSection control={control} setValue={setValue} errors={errors} isProforma={isProforma} isCreditNote={isCreditNote} />
+      <TotalsSummarySection control={control} register={register} isProforma={isProforma} />
+      <PaymentDetailsSection control={control} register={register} setValue={setValue} isProforma={isProforma} />
       <TermsSignatureSection control={control} register={register} errors={errors} />
 
       {/* Status selector */}

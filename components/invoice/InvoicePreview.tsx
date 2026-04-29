@@ -1,6 +1,8 @@
 import type { Invoice } from "@/lib/types/invoice";
 import { DesignInnsaeitDocumentShell } from "@/components/document/DesignInnsaeitDocumentShell";
 import { formatCurrencyINR, formatDate, formatNumber } from "@/lib/utils/formatting";
+import { getDisplayInvoiceNumber, isProformaInvoice, resolveInvoiceType } from "@/lib/utils/invoiceTypes";
+import { getCreditNotesTotal, getEffectiveOutstanding } from "@/lib/utils/invoiceFinancials";
 
 const BRAND_PURPLE = "#2828b0";
 const HEADER_LABEL_STYLE: React.CSSProperties = {
@@ -180,22 +182,27 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     paymentDetails,
   } = invoice;
 
+  const isProforma = isProformaInvoice(invoice);
+  const isCreditNote = resolveInvoiceType(invoice) === "CREDIT_NOTE";
   const isCGST = gstMode === "CGST_SGST";
   const isIGST = gstMode === "IGST";
-  const showTax = gstMode !== "NO_TAX";
+  const showTax = !isProforma && gstMode !== "NO_TAX";
   const showServiceLocation = hasShippingDiff(shipping, buyer);
   const bank = paymentDetails?.bankName || paymentDetails?.accountNumber ? paymentDetails : null;
   const statusBadge = invoice.status ? <StatusBadge status={invoice.status} /> : undefined;
-  const colCount = 6 + (isCGST ? 2 : 0) + (isIGST ? 1 : 0) + 1;
+  const colCount = isProforma ? 7 : 6 + (isCGST ? 2 : 0) + (isIGST ? 1 : 0) + 1;
+  const showTdsSummary = invoice.tdsApplicable && (invoice.tdsAmount ?? 0) > 0;
+  const netPayableAfterTds = (totals?.grandTotal ?? 0) - (invoice.tdsAmount ?? 0);
 
   return (
     <DesignInnsaeitDocumentShell
-      title="Tax Invoice"
+      title={isCreditNote ? "CREDIT NOTE" : isProforma ? "PROFORMA INVOICE" : "Tax Invoice"}
       subtitle="Design Consultancy / Creative Services"
       statusBadge={statusBadge}
     >
       <div
         style={{
+          position: "relative",
           minHeight: "100%",
           minWidth: 0,
           display: "flex",
@@ -203,6 +210,24 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
           justifyContent: "space-between",
         }}
       >
+        {isProforma && (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "42%",
+              transform: "translate(-50%, -50%) rotate(-24deg)",
+              fontSize: "28px",
+              fontWeight: 700,
+              letterSpacing: "2px",
+              color: "rgba(148, 163, 184, 0.2)",
+              pointerEvents: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            PROFORMA - NOT A TAX DOCUMENT
+          </div>
+        )}
         <div style={{ flex: 1 }}>
           <div
             style={{
@@ -229,18 +254,19 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                 label="Bill To"
                 name={buyer?.name}
                 lines={buildAddressLines(buyer?.billingAddress)}
-                gstin={buyer?.gstin}
+                gstin={isProforma ? undefined : buyer?.gstin}
                 showUnregistered
               />
             </div>
 
             <div style={{ padding: "0 14px" }}>
               <div style={HEADER_LABEL_STYLE}>Doc Details</div>
-              <DocMetaRow label="Invoice No." value={invoice.invoiceNumber} />
+              <DocMetaRow label={isProforma ? "Proforma No." : isCreditNote ? "Credit Note No." : "Invoice No."} value={getDisplayInvoiceNumber(invoice)} />
               <DocMetaRow label="Invoice Date" value={formatDate(invoice.invoiceDate)} />
-              <DocMetaRow label="Due Date" value={formatDate(invoice.dueDate)} />
+              <DocMetaRow label={isProforma ? "Valid Until" : "Due Date"} value={formatDate(invoice.dueDate)} />
               <DocMetaRow label="PO Reference" value={invoice.poReference} />
-              <DocMetaRow label="E-Way Bill" value={invoice.ewayBillNumber} />
+              {!isProforma && <DocMetaRow label="E-Way Bill" value={invoice.ewayBillNumber} />}
+              {isCreditNote && <DocMetaRow label="Against Invoice No." value={invoice.linkedInvoiceNumber} />}
 
               {(invoice.projectDescription || buyer?.placeOfSupply) && (
                 <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid #e5e7eb" }}>
@@ -260,6 +286,24 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
               )}
             </div>
           </div>
+
+          {isCreditNote && (
+            <div
+              style={{
+                marginBottom: "14px",
+                borderRadius: "4px",
+                border: "1px solid #fecaca",
+                backgroundColor: "#fef2f2",
+                padding: "8px 12px",
+                fontSize: "9.5px",
+              }}
+            >
+              <div style={{ fontWeight: 600, color: "#991b1b", marginBottom: "3px" }}>
+                Against Invoice No: {invoice.linkedInvoiceNumber || "—"} dated {formatDate(invoice.linkedInvoiceDate)}
+              </div>
+              {invoice.creditReason && <div style={{ color: "#7f1d1d" }}>Reason: {invoice.creditReason}</div>}
+            </div>
+          )}
 
           {showServiceLocation && (
             <div
@@ -298,29 +342,52 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
               <colgroup>
                 <col style={{ width: "22px" }} />
                 <col />
-                <col style={{ width: "34px" }} />
-                <col style={{ width: "34px" }} />
-                <col style={{ width: "46px" }} />
-                <col style={{ width: "52px" }} />
-                <col style={{ width: "30px" }} />
-                {isCGST && <col style={{ width: "42px" }} />}
-                {isCGST && <col style={{ width: "42px" }} />}
-                {isIGST && <col style={{ width: "46px" }} />}
+                {isProforma ? (
+                  <>
+                    <col style={{ width: "34px" }} />
+                    <col style={{ width: "44px" }} />
+                    <col style={{ width: "46px" }} />
+                    <col style={{ width: "42px" }} />
+                    <col style={{ width: "52px" }} />
+                  </>
+                ) : (
+                  <>
+                    <col style={{ width: "34px" }} />
+                    <col style={{ width: "34px" }} />
+                    <col style={{ width: "46px" }} />
+                    <col style={{ width: "52px" }} />
+                    <col style={{ width: "30px" }} />
+                  </>
+                )}
+                {!isProforma && isCGST && <col style={{ width: "42px" }} />}
+                {!isProforma && isCGST && <col style={{ width: "42px" }} />}
+                {!isProforma && isIGST && <col style={{ width: "46px" }} />}
                 <col style={{ width: "52px" }} />
               </colgroup>
               <thead>
                 <tr style={{ backgroundColor: BRAND_PURPLE, color: "#ffffff" }}>
                   <th style={{ padding: "5px 4px", textAlign: "center" }}>#</th>
                   <th style={{ padding: "5px 4px", textAlign: "left" }}>Description of Service</th>
-                  <th style={{ padding: "5px 4px", textAlign: "center" }}>SAC</th>
-                  <th style={{ padding: "5px 4px", textAlign: "right" }}>Qty</th>
-                  <th style={{ padding: "5px 4px", textAlign: "right" }}>Rate</th>
-                  <th style={{ padding: "5px 4px", textAlign: "right" }}>Taxable</th>
-                  <th style={{ padding: "5px 4px", textAlign: "center" }}>GST%</th>
-                  {isCGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>CGST</th>}
-                  {isCGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>SGST</th>}
-                  {isIGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>IGST</th>}
-                  <th style={{ padding: "5px 4px", textAlign: "right" }}>Total</th>
+                  {isProforma ? (
+                    <>
+                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Qty</th>
+                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Unit</th>
+                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Rate</th>
+                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Disc%</th>
+                    </>
+                  ) : (
+                    <>
+                      <th style={{ padding: "5px 4px", textAlign: "center" }}>SAC</th>
+                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Qty</th>
+                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Rate</th>
+                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Taxable</th>
+                      <th style={{ padding: "5px 4px", textAlign: "center" }}>GST%</th>
+                    </>
+                  )}
+                  {!isProforma && isCGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>CGST</th>}
+                  {!isProforma && isCGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>SGST</th>}
+                  {!isProforma && isIGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>IGST</th>}
+                  <th style={{ padding: "5px 4px", textAlign: "right" }}>{isProforma ? "Amount" : "Total"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -340,15 +407,26 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                       <td style={{ padding: "4px", borderBottom: "1px solid #e5e7eb", wordBreak: "break-word" }}>
                         <div style={{ fontWeight: 500, color: "#111827" }}>{item.description}</div>
                       </td>
-                      <td style={{ padding: "4px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{item.hsnSac || "—"}</td>
-                      <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.quantity, 2)}</td>
-                      <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.rate, 2)}</td>
-                      <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.taxableValue, 2)}</td>
-                      <td style={{ padding: "4px", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>{item.gstRate}%</td>
-                      {isCGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.cgst, 2)}</td>}
-                      {isCGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.sgst, 2)}</td>}
-                      {isIGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.igst, 2)}</td>}
-                      <td style={{ padding: "4px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.lineTotal, 2)}</td>
+                      {isProforma ? (
+                        <>
+                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.quantity, 2)}</td>
+                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{item.unit || "—"}</td>
+                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.rate, 2)}</td>
+                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.discountPercent, 2)}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ padding: "4px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{item.hsnSac || "—"}</td>
+                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.quantity, 2)}</td>
+                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.rate, 2)}</td>
+                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.taxableValue, 2)}</td>
+                          <td style={{ padding: "4px", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>{item.gstRate}%</td>
+                        </>
+                      )}
+                      {!isProforma && isCGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.cgst, 2)}</td>}
+                      {!isProforma && isCGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.sgst, 2)}</td>}
+                      {!isProforma && isIGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.igst, 2)}</td>}
+                      <td style={{ padding: "4px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid #e5e7eb" }}>{formatNumber(isProforma ? item.taxableValue : item.lineTotal, 2)}</td>
                     </tr>
                   ))
                 )}
@@ -362,11 +440,11 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                 <div style={{ width: "220px", border: "1px solid #e5e7eb", borderRadius: "4px", overflow: "hidden" }}>
                   {(
                     [
-                      ["Taxable Value", totals.totalTaxableValue],
+                      ...(isProforma ? [["Subtotal", totals.subtotal], ["Discount", totals.totalDiscount]] : [["Taxable Value", totals.totalTaxableValue]]),
                       ...(showTax && isCGST && totals.totalCGST > 0 ? [["CGST", totals.totalCGST]] : []),
                       ...(showTax && isCGST && totals.totalSGST > 0 ? [["SGST / UTGST", totals.totalSGST]] : []),
                       ...(showTax && isIGST && totals.totalIGST > 0 ? [["IGST", totals.totalIGST]] : []),
-                      ...(totals.cess > 0 ? [["Cess", totals.cess]] : []),
+                      ...(!isProforma && totals.cess > 0 ? [["Cess", totals.cess]] : []),
                       ...(totals.otherCharges > 0 ? [["Other Charges", totals.otherCharges]] : []),
                       ...(totals.roundOff !== 0 ? [["Round Off", totals.roundOff]] : []),
                     ] as [string, number][]
@@ -397,6 +475,37 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                     <span style={{ fontWeight: 700, fontSize: "10.5px" }}>Grand Total</span>
                     <span style={{ fontWeight: 700, fontSize: "10.5px" }}>{formatCurrencyINR(totals.grandTotal)}</span>
                   </div>
+                  {showTdsSummary && (
+                    <>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: "4px 10px",
+                          borderTop: "1px solid #f3f4f6",
+                          fontSize: "9.5px",
+                          backgroundColor: "#faf5ff",
+                        }}
+                      >
+                        <span style={{ color: "#6b7280" }}>
+                          TDS Deductible ({invoice.tdsSection || "194J"} @ {formatNumber(invoice.tdsRate ?? 0, 2)}%)
+                        </span>
+                        <span style={{ color: "#7c3aed" }}>-{formatCurrencyINR(invoice.tdsAmount ?? 0)}</span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: "4px 10px",
+                          fontSize: "9.5px",
+                          backgroundColor: "#faf5ff",
+                        }}
+                      >
+                        <span style={{ color: "#6b7280" }}>Net Payable After TDS</span>
+                        <span style={{ color: "#111827", fontWeight: 600 }}>{formatCurrencyINR(netPayableAfterTds)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -491,6 +600,21 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             </div>
           )}
 
+          {isProforma && (
+            <div style={{ fontSize: "9px", color: "#6b7280", marginBottom: "14px" }}>
+              This is a proforma invoice and not a GST tax invoice. No GST liability arises on this document.
+            </div>
+          )}
+
+          {!isCreditNote && (invoice.creditNoteRefs?.length ?? 0) > 0 && (
+            <div className="print-keep-together" style={{ marginBottom: "14px", fontSize: "9px", color: "#374151" }}>
+              <div style={HEADER_LABEL_STYLE}>Credit Notes Issued</div>
+              <div>Credit Notes Issued: {(invoice.creditNoteRefs ?? []).map((ref) => ref.creditNoteNumber).join(", ")}</div>
+              <div>Total Credits: {formatCurrencyINR(getCreditNotesTotal(invoice))}</div>
+              <div>Net Outstanding: {formatCurrencyINR(getEffectiveOutstanding(invoice))}</div>
+            </div>
+          )}
+
           {signature && (
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
               <div style={{ textAlign: "center", minWidth: "150px", fontSize: "9.5px" }}>
@@ -503,7 +627,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                     style={{ height: "36px", width: "auto", objectFit: "contain", marginBottom: "4px" }}
                   />
                 )}
-                {invoice.irnQrImageBase64 && !signature.signatureImageBase64 && (
+                {!isProforma && invoice.irnQrImageBase64 && !signature.signatureImageBase64 && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={invoice.irnQrImageBase64}

@@ -10,6 +10,8 @@ import type { DocumentTemplateSettings } from "@/lib/types/settings";
 import { getDefaultCompanyProfile, mergeCompanyProfileWithDefaults } from "@/lib/defaults/companyProfile";
 import { STORAGE_KEYS } from "./keys";
 import { getFinancialYear } from "@/lib/utils/numbering";
+import { resolveDocumentType, resolveInvoiceType } from "@/lib/utils/invoiceTypes";
+import { withAutoOverdueStatus } from "@/lib/utils/aging";
 
 type SaveResult = { success: boolean; error?: string };
 
@@ -40,7 +42,13 @@ function safeSet(key: string, value: unknown): SaveResult {
 // ─── Invoices ───────────────────────────────────────────
 
 export function getInvoices(): Invoice[] {
-  return safeGet<Invoice[]>(STORAGE_KEYS.INVOICES, []);
+  return safeGet<Invoice[]>(STORAGE_KEYS.INVOICES, []).map((invoice) =>
+    withAutoOverdueStatus({
+      ...invoice,
+      documentType: resolveDocumentType(invoice),
+      invoiceType: resolveInvoiceType(invoice),
+    } as Invoice)
+  );
 }
 
 export function getInvoice(id: string): Invoice | null {
@@ -55,11 +63,16 @@ export function saveInvoice(invoice: Partial<Invoice> & { id?: string }): SaveRe
   const invoices = getInvoices();
   const now = new Date().toISOString();
   const existingIdx = invoice.id ? invoices.findIndex((i) => i.id === invoice.id) : -1;
+  const normalizedInvoice = {
+    ...invoice,
+    documentType: resolveDocumentType(invoice),
+    invoiceType: resolveInvoiceType(invoice),
+  } as Partial<Invoice>;
 
   if (existingIdx >= 0) {
-    invoices[existingIdx] = { ...invoices[existingIdx], ...invoice, updatedAt: now } as Invoice;
+    invoices[existingIdx] = { ...invoices[existingIdx], ...normalizedInvoice, updatedAt: now } as Invoice;
   } else {
-    const newInvoice = { ...invoice, id: invoice.id || uuidv4(), createdAt: now, updatedAt: now } as Invoice;
+    const newInvoice = { ...normalizedInvoice, id: invoice.id || uuidv4(), createdAt: now, updatedAt: now } as Invoice;
     invoices.push(newInvoice);
     const result = safeSet(STORAGE_KEYS.INVOICES, invoices);
     return { ...result, id: newInvoice.id };

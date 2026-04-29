@@ -6,11 +6,13 @@ import { Edit, Copy, Trash2, MoreVertical } from "lucide-react";
 import type { Invoice } from "@/lib/types/invoice";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import type { DocumentStatus } from "@/lib/types/common";
-import { PaymentStatusBadge, POStatusBadge, StatusBadge } from "@/components/ui/Badge";
+import { Badge, PaymentStatusBadge, POStatusBadge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatCurrencyINR, formatDate } from "@/lib/utils/formatting";
+import { getAgingBucket, getDaysOutstanding } from "@/lib/utils/aging";
+import { getDisplayInvoiceNumber } from "@/lib/utils/invoiceTypes";
 
 type DocEntry = {
   id: string;
@@ -22,15 +24,17 @@ type DocEntry = {
   status: DocumentStatus;
   paymentStatus?: Invoice["paymentStatus"];
   poStatus?: PurchaseOrder["poStatus"];
+  overdue90Plus?: boolean;
 };
 
 function toDocEntry(doc: Invoice | PurchaseOrder): DocEntry {
   if ("invoiceNumber" in doc) {
     return {
       id: doc.id, type: "invoice",
-      number: doc.invoiceNumber, partyName: doc.buyer.name,
+      number: getDisplayInvoiceNumber(doc), partyName: doc.buyer.name,
       date: doc.invoiceDate, amount: doc.totals.grandTotal,
       status: doc.status, paymentStatus: doc.paymentStatus,
+      overdue90Plus: getAgingBucket(getDaysOutstanding(doc)) === "90+",
     };
   }
   return {
@@ -172,6 +176,9 @@ function DocCard({
           <StatusBadge status={doc.status} />
           {isInvoice && doc.paymentStatus && (
             <PaymentStatusBadge status={doc.paymentStatus} />
+          )}
+          {isInvoice && doc.overdue90Plus && (
+            <Badge variant="error">Overdue 90+</Badge>
           )}
           {!isInvoice && doc.poStatus && (
             <POStatusBadge status={doc.poStatus} />

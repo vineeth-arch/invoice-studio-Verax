@@ -19,16 +19,16 @@ const contactSchema = z.object({
 const lineItemSchema = z.object({
   id: z.string(),
   description: z.string().min(1, "Description is required"),
-  hsnSac: z.string().min(1, "HSN/SAC is required"),
+  hsnSac: z.string().default(""),
   quantity: z.preprocess(Number, z.number().positive("Quantity must be > 0")),
   unit: z.string().min(1, "Unit is required"),
-  rate: z.preprocess(Number, z.number().min(0, "Rate must be ≥ 0")),
+  rate: z.preprocess(Number, z.number()),
   discountPercent: z.preprocess(Number, z.number().min(0).max(100).default(0)),
   gstRate: z.preprocess(Number, z.number().min(0, "GST Rate must be ≥ 0")),
 });
 
 export const invoiceSchema = z.object({
-  invoiceType: z.enum(["TAX_INVOICE", "BILL_OF_SUPPLY", "EXPORT_INVOICE", "CREDIT_NOTE", "DEBIT_NOTE"]),
+  invoiceType: z.enum(["PROFORMA", "TAX_INVOICE", "BILL_OF_SUPPLY", "EXPORT_INVOICE", "CREDIT_NOTE", "DEBIT_NOTE"]),
   invoiceNumber: z
     .string()
     .min(1, "Invoice number is required")
@@ -87,6 +87,26 @@ export const invoiceSchema = z.object({
     upiQrImageBase64: z.string().optional(),
   }).optional(),
   paymentStatus: z.enum(["Unpaid", "Partial", "Paid", "Overdue"]).default("Unpaid"),
+  tdsApplicable: z.boolean().default(false),
+  tdsSection: z.string().default("194J"),
+  tdsRate: z.preprocess(Number, z.number().min(0).default(10)),
+  tdsAmount: z.preprocess(Number, z.number().min(0).default(0)),
+  paymentReceivedAmount: z.preprocess(Number, z.number().min(0).default(0)),
+  paymentReceivedDate: z.string().optional(),
+  tdsDeducted: z.preprocess(Number, z.number().min(0).default(0)),
+  netReceived: z.preprocess(Number, z.number().min(0).default(0)),
+  paymentMode: z.enum(["Cash", "NEFT", "RTGS", "UPI", "Cheque"]).optional(),
+  transactionReference: z.string().optional(),
+  creditNoteRefs: z.array(z.object({
+    creditNoteId: z.string(),
+    creditNoteNumber: z.string(),
+    creditNoteDate: z.string(),
+    creditAmount: z.preprocess(Number, z.number()),
+  })).default([]),
+  linkedInvoiceId: z.string().optional(),
+  linkedInvoiceNumber: z.string().optional(),
+  linkedInvoiceDate: z.string().optional(),
+  creditReason: z.string().optional(),
 
   notes: z.string().optional(),
   termsAndConditions: z.string().optional(),
@@ -99,6 +119,57 @@ export const invoiceSchema = z.object({
   }),
 
   status: z.enum(["DRAFT", "FINAL", "PAID", "CANCELLED"]).default("DRAFT"),
+}).superRefine((value, ctx) => {
+  if (value.invoiceType === "PROFORMA") return;
+
+  value.lineItems.forEach((item, index) => {
+    if (!item.hsnSac?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["lineItems", index, "hsnSac"],
+        message: "HSN/SAC is required",
+      });
+    }
+  });
+
+  if (value.invoiceType === "CREDIT_NOTE") {
+    if (!value.linkedInvoiceId?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["linkedInvoiceId"],
+        message: "Original invoice reference is required",
+      });
+    }
+
+    if (!value.creditReason?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["creditReason"],
+        message: "Credit reason is required",
+      });
+    }
+
+    value.lineItems.forEach((item, index) => {
+      if ((Number(item.rate) || 0) >= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["lineItems", index, "rate"],
+          message: "Use a negative rate for credited items",
+        });
+      }
+    });
+    return;
+  }
+
+  value.lineItems.forEach((item, index) => {
+    if ((Number(item.rate) || 0) < 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["lineItems", index, "rate"],
+        message: "Rate must be 0 or more",
+      });
+    }
+  });
 });
 
 export type InvoiceFormValues = z.infer<typeof invoiceSchema>;

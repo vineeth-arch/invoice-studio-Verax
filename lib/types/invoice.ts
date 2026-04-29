@@ -1,13 +1,23 @@
-import type { Address, ContactInfo, BankDetails, GSTMode, DocumentStatus, PaymentStatus, SignatureInfo } from "./common";
+import type { Address, ContactInfo, BankDetails, GSTMode, DocumentStatus, PaymentMode, PaymentStatus, SignatureInfo } from "./common";
 
 export type InvoiceType =
+  | "PROFORMA"
   | "TAX_INVOICE"
   | "BILL_OF_SUPPLY"
   | "EXPORT_INVOICE"
   | "CREDIT_NOTE"
   | "DEBIT_NOTE";
 
+export type DocumentType =
+  | "proforma"
+  | "tax_invoice"
+  | "bill_of_supply"
+  | "export_invoice"
+  | "credit_note"
+  | "debit_note";
+
 export const INVOICE_TYPE_LABELS: Record<InvoiceType, string> = {
+  PROFORMA: "Proforma Invoice",
   TAX_INVOICE: "Tax Invoice",
   BILL_OF_SUPPLY: "Bill of Supply",
   EXPORT_INVOICE: "Export Invoice",
@@ -48,6 +58,13 @@ export interface InvoiceTotals {
   amountInWords: string;
 }
 
+export interface CreditNoteReference {
+  creditNoteId: string;
+  creditNoteNumber: string;
+  creditNoteDate: string;
+  creditAmount: number;
+}
+
 export interface SupplierInfo {
   name: string;
   address: Address;
@@ -77,6 +94,7 @@ export interface ShippingInfo {
 
 export interface Invoice {
   id: string;
+  documentType: DocumentType;
   invoiceType: InvoiceType;
   invoiceNumber: string;
   invoiceDate: string;
@@ -97,6 +115,21 @@ export interface Invoice {
   otherCharges: number;
   paymentDetails?: BankDetails;
   paymentStatus: PaymentStatus;
+  tdsApplicable: boolean;
+  tdsSection: string;
+  tdsRate: number;
+  tdsAmount: number;
+  paymentReceivedAmount: number;
+  paymentReceivedDate?: string;
+  tdsDeducted: number;
+  netReceived: number;
+  paymentMode?: PaymentMode;
+  transactionReference?: string;
+  creditNoteRefs: CreditNoteReference[];
+  linkedInvoiceId?: string;
+  linkedInvoiceNumber?: string;
+  linkedInvoiceDate?: string;
+  creditReason?: string;
   shareToken?: string;
   notes?: string;
   termsAndConditions?: string;

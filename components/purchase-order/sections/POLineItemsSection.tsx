@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import { Modal } from "@/components/ui/Modal";
 import Link from "next/link";
+import { HsnSacCombobox } from "@/components/ui/HsnSacCombobox";
 
 interface Props {
   control: Control<POFormValues>;
@@ -50,8 +51,17 @@ function POLineItemRow({ index, control, setValue, onRemove }: {
       <td className="px-1 py-1">
         <input className={iCls} placeholder="Description" defaultValue={item?.description}
           onBlur={(e) => setValue(`lineItems.${index}.description`, e.target.value)} />
-        <input className={cn(iCls, "mt-1 text-[10px]")} placeholder="HSN/SAC"
-          defaultValue={item?.hsnSac} onBlur={(e) => setValue(`lineItems.${index}.hsnSac`, e.target.value ?? "")} />
+        <div className="mt-1">
+          <HsnSacCombobox
+            value={item?.hsnSac ?? ""}
+            className="py-1 pl-8 text-[10px]"
+            onChange={(value) => setValue(`lineItems.${index}.hsnSac`, value)}
+            onSelectCode={(entry) => {
+              setValue(`lineItems.${index}.hsnSac`, entry.code);
+              setValue(`lineItems.${index}.gstRate`, entry.gstRate);
+            }}
+          />
+        </div>
       </td>
       <td className="px-1 py-1 w-16">
         <input className={numCls} type="number" min="0" step="any" defaultValue={item?.quantity}
@@ -97,13 +107,16 @@ export function POLineItemsSection({ control, setValue, errors }: Props) {
   const [catalogueOpen, setCatalogueOpen] = useState(false);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     try {
-      const raw = localStorage.getItem("di_services");
-      const parsed: SavedService[] = raw ? JSON.parse(raw) : [];
+      const raw = window.localStorage.getItem("di_services");
+      const parsed = raw ? JSON.parse(raw) : [];
       console.log("[PO LineItemsSection] di_services on mount:", parsed);
       setServices(Array.isArray(parsed) ? parsed : []);
-    } catch (err) {
-      console.error("[PO LineItemsSection] Failed to parse di_services", err);
+    } catch (error) {
+      console.error("[PO LineItemsSection] Failed to parse di_services", error);
+      setServices([]);
     }
   }, []);
 

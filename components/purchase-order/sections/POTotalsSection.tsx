@@ -14,11 +14,11 @@ interface Props {
 }
 
 export function POTotalsSection({ control, register }: Props) {
-  const lineItems = useWatch({ control, name: "lineItems" }) ?? [];
+  const lineItems = useWatch({ control, name: "lineItems" });
   const otherCharges = Number(useWatch({ control, name: "otherCharges" })) || 0;
 
   const totals = useMemo(() => {
-    const items = lineItems.map((item) =>
+    const items = (lineItems ?? []).map((item) =>
       calculatePOLineItem({
         id: item.id ?? "",
         description: item.description ?? "",

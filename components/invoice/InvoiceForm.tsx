@@ -425,6 +425,8 @@ export function InvoiceForm({
       <SupplierDetailsSection
         control={control}
         register={register}
+        watch={watch}
+        setValue={setValue}
         errors={errors}
         showCompanyProfileControls={isNewDocument}
         hasSavedProfile={isNewDocument && Boolean(storedCompanyProfile ?? companyProfile)}
@@ -440,6 +442,8 @@ export function InvoiceForm({
       <BuyerDetailsSection
         control={control}
         register={register}
+        watch={watch}
+        setValue={setValue}
         errors={errors}
         isProforma={isProforma}
         onSelectSavedClient={applySavedClient}

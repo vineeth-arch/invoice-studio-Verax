@@ -11,14 +11,16 @@ import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass, textareaClass } from "@/components/ui/FormField";
 import { GSTINInput } from "@/components/ui/GSTINInput";
 import { FileUpload } from "@/components/ui/FileUpload";
+import { StateCodeInput } from "@/components/ui/StateCodeInput";
 import { Button } from "@/components/ui/Button";
+import { getCodeByState, getStateByCode } from "@/lib/data/states";
 import { v4 as uuidv4 } from "uuid";
 
 export default function CompanyProfilePage() {
   const { profile, loading, saveProfile } = useCompanyProfile();
   const { addToast } = useToast();
 
-  const { register, control, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<CompanyProfileFormValues>({
+  const { register, control, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } = useForm<CompanyProfileFormValues>({
     resolver: zodResolver(companyProfileSchema),
     defaultValues: {
       companyName: "", gstin: "",
@@ -118,10 +120,23 @@ export default function CompanyProfilePage() {
             </FormField>
             <FormField label="City" required><input type="text" className={inputClass} {...register("address.city")} /></FormField>
             <FormField label="District"><input type="text" className={inputClass} {...register("address.district")} /></FormField>
-            <FormField label="State" required><input type="text" className={inputClass} {...register("address.state")} /></FormField>
-            <FormField label="State Code" required>
-              <input type="text" className={inputClass} maxLength={2} placeholder="e.g. 27" {...register("address.stateCode")} />
-            </FormField>
+            <StateCodeInput
+              stateValue={watch("address.state") ?? ""}
+              stateCodeValue={watch("address.stateCode") ?? ""}
+              onStateChange={(value) => {
+                setValue("address.state", value);
+                const code = getCodeByState(value);
+                if (code) setValue("address.stateCode", code);
+              }}
+              onStateCodeChange={(value) => {
+                setValue("address.stateCode", value);
+                const name = getStateByCode(value);
+                if (name) setValue("address.state", name);
+              }}
+              stateError={errors.address?.state?.message}
+              stateCodeError={errors.address?.stateCode?.message}
+              required
+            />
             <FormField label="Pincode" required><input type="text" className={inputClass} maxLength={6} {...register("address.pincode")} /></FormField>
           </div>
         </FormSection>

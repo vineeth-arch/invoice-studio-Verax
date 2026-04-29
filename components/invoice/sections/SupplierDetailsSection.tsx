@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
+import type { Control, UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { GSTINInput } from "@/components/ui/GSTINInput";
 import { FileUpload } from "@/components/ui/FileUpload";
+import { StateCodeInput } from "@/components/ui/StateCodeInput";
+import { getCodeByState, getStateByCode } from "@/lib/data/states";
 
 interface Props {
   control: Control<InvoiceFormValues>;
   register: UseFormRegister<InvoiceFormValues>;
+  watch: UseFormWatch<InvoiceFormValues>;
+  setValue: UseFormSetValue<InvoiceFormValues>;
   errors: FieldErrors<InvoiceFormValues>;
   showCompanyProfileControls: boolean;
   hasSavedProfile: boolean;
@@ -23,6 +27,8 @@ interface Props {
 export function SupplierDetailsSection({
   control,
   register,
+  watch,
+  setValue,
   errors,
   showCompanyProfileControls,
   hasSavedProfile,
@@ -87,13 +93,27 @@ export function SupplierDetailsSection({
             <input type="text" className={inputClass} {...register("supplier.address.city")} />
           </FormField>
 
-          <FormField label="State" required error={errors.supplier?.address?.state?.message}>
-            <input type="text" className={inputClass} {...register("supplier.address.state")} />
-          </FormField>
-
-          <FormField label="State Code" required error={errors.supplier?.stateCode?.message}>
-            <input type="text" className={inputClass} placeholder="e.g. 27" maxLength={2} {...register("supplier.stateCode")} />
-          </FormField>
+          <StateCodeInput
+            stateValue={watch("supplier.address.state") ?? ""}
+            stateCodeValue={watch("supplier.stateCode") ?? ""}
+            onStateChange={(value) => {
+              setValue("supplier.address.state", value);
+              const code = getCodeByState(value);
+              if (code) {
+                setValue("supplier.stateCode", code);
+                setValue("supplier.address.stateCode", code);
+              }
+            }}
+            onStateCodeChange={(value) => {
+              setValue("supplier.stateCode", value);
+              setValue("supplier.address.stateCode", value);
+              const name = getStateByCode(value);
+              if (name) setValue("supplier.address.state", name);
+            }}
+            stateError={errors.supplier?.address?.state?.message}
+            stateCodeError={errors.supplier?.stateCode?.message}
+            required
+          />
 
           <FormField label="Pincode" required error={errors.supplier?.address?.pincode?.message}>
             <input type="text" className={inputClass} maxLength={6} {...register("supplier.address.pincode")} />

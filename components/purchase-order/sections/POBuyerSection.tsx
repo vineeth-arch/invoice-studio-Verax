@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
+import type { Control, UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
 import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { GSTINInput } from "@/components/ui/GSTINInput";
 import { FileUpload } from "@/components/ui/FileUpload";
+import { StateCodeInput } from "@/components/ui/StateCodeInput";
+import { getCodeByState, getStateByCode } from "@/lib/data/states";
 
 interface Props {
   control: Control<POFormValues>;
   register: UseFormRegister<POFormValues>;
+  watch: UseFormWatch<POFormValues>;
+  setValue: UseFormSetValue<POFormValues>;
   errors: FieldErrors<POFormValues>;
   showCompanyProfileControls: boolean;
   hasSavedProfile: boolean;
@@ -23,6 +27,8 @@ interface Props {
 export function POBuyerSection({
   control,
   register,
+  watch,
+  setValue,
   errors,
   showCompanyProfileControls,
   hasSavedProfile,
@@ -81,8 +87,27 @@ export function POBuyerSection({
             <input type="text" className={inputClass} {...register("buyer.address.line2")} />
           </FormField>
           <FormField label="City" required><input type="text" className={inputClass} {...register("buyer.address.city")} /></FormField>
-          <FormField label="State" required><input type="text" className={inputClass} {...register("buyer.address.state")} /></FormField>
-          <FormField label="State Code" required><input type="text" className={inputClass} maxLength={2} {...register("buyer.stateCode")} /></FormField>
+          <StateCodeInput
+            stateValue={watch("buyer.address.state") ?? ""}
+            stateCodeValue={watch("buyer.stateCode") ?? ""}
+            onStateChange={(value) => {
+              setValue("buyer.address.state", value);
+              const code = getCodeByState(value);
+              if (code) {
+                setValue("buyer.stateCode", code);
+                setValue("buyer.address.stateCode", code);
+              }
+            }}
+            onStateCodeChange={(value) => {
+              setValue("buyer.stateCode", value);
+              setValue("buyer.address.stateCode", value);
+              const name = getStateByCode(value);
+              if (name) setValue("buyer.address.state", name);
+            }}
+            stateError={errors.buyer?.address?.state?.message}
+            stateCodeError={errors.buyer?.stateCode?.message}
+            required
+          />
           <FormField label="Pincode" required><input type="text" className={inputClass} maxLength={6} {...register("buyer.address.pincode")} /></FormField>
           <FormField label="GSTIN" required error={errors.buyer?.gstin?.message} className="col-span-2">
             <Controller name="buyer.gstin" control={control} render={({ field }) => (

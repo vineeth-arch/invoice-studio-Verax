@@ -90,7 +90,7 @@ export function POForm({
     []
   );
 
-  const { control, register, handleSubmit, setValue, getValues, reset, formState: { errors } } = useForm<POFormValues>({
+  const { control, register, handleSubmit, setValue, watch, getValues, reset, formState: { errors } } = useForm<POFormValues>({
     resolver: zodResolver(purchaseOrderSchema),
     defaultValues: defaultValues as POFormValues,
     mode: "onBlur",
@@ -276,10 +276,12 @@ export function POForm({
           </div>
         </div>
       )}
-      <PODetailsSection control={control} register={register} errors={errors} isDuplicate={isDuplicate} />
+      <PODetailsSection control={control} register={register} watch={watch} setValue={setValue} errors={errors} isDuplicate={isDuplicate} />
       <POBuyerSection
         control={control}
         register={register}
+        watch={watch}
+        setValue={setValue}
         errors={errors}
         showCompanyProfileControls={isNewDocument}
         hasSavedProfile={isNewDocument && Boolean(storedCompanyProfile ?? companyProfile)}
@@ -292,9 +294,10 @@ export function POForm({
           }
         }}
       />
-      <POVendorSection control={control} register={register} errors={errors} onSelectSavedClient={applySavedClient} />
+      <POVendorSection control={control} register={register} watch={watch} setValue={setValue} errors={errors} onSelectSavedClient={applySavedClient} />
       <PODeliverySection
         register={register}
+        watch={watch}
         errors={errors}
         vendorAddress={vendorAddress}
         setValue={setValue}

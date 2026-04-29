@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { UseFormRegister, FieldErrors, UseFormSetValue } from "react-hook-form";
+import type { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
 import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass, textareaClass } from "@/components/ui/FormField";
+import { StateCodeInput } from "@/components/ui/StateCodeInput";
+import { getCodeByState, getStateByCode } from "@/lib/data/states";
 
 interface Props {
   register: UseFormRegister<POFormValues>;
+  watch: UseFormWatch<POFormValues>;
   errors: FieldErrors<POFormValues>;
   setValue: UseFormSetValue<POFormValues>;
   vendorAddress?: {
@@ -20,7 +23,7 @@ interface Props {
   };
 }
 
-export function PODeliverySection({ register, errors, setValue, vendorAddress }: Props) {
+export function PODeliverySection({ register, watch, errors, setValue, vendorAddress }: Props) {
   const [sameAsBilling, setSameAsBilling] = useState(true);
 
   useEffect(() => {
@@ -66,8 +69,23 @@ export function PODeliverySection({ register, errors, setValue, vendorAddress }:
             <input type="text" className={inputClass} {...register("delivery.address.line2")} />
           </FormField>
           <FormField label="City" required><input type="text" className={inputClass} {...register("delivery.address.city")} /></FormField>
-          <FormField label="State" required><input type="text" className={inputClass} {...register("delivery.address.state")} /></FormField>
-          <FormField label="State Code"><input type="text" className={inputClass} maxLength={2} {...register("delivery.address.stateCode")} /></FormField>
+          <StateCodeInput
+            stateValue={watch("delivery.address.state") ?? ""}
+            stateCodeValue={watch("delivery.address.stateCode") ?? ""}
+            onStateChange={(value) => {
+              setValue("delivery.address.state", value, { shouldDirty: true });
+              const code = getCodeByState(value);
+              if (code) setValue("delivery.address.stateCode", code, { shouldDirty: true });
+            }}
+            onStateCodeChange={(value) => {
+              setValue("delivery.address.stateCode", value, { shouldDirty: true });
+              const name = getStateByCode(value);
+              if (name) setValue("delivery.address.state", name, { shouldDirty: true });
+            }}
+            stateError={errors.delivery?.address?.state?.message}
+            stateCodeError={errors.delivery?.address?.stateCode?.message}
+            required
+          />
           <FormField label="Pincode"><input type="text" className={inputClass} maxLength={6} {...register("delivery.address.pincode")} /></FormField>
         </fieldset>
         <FormField label="Contact Person"><input type="text" className={inputClass} {...register("delivery.contactPerson")} /></FormField>

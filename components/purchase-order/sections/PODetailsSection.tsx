@@ -1,20 +1,24 @@
 "use client";
 
-import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
+import type { Control, UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
 import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { NumberingInput } from "@/components/ui/NumberingInput";
+import { StateCodeInput } from "@/components/ui/StateCodeInput";
+import { getCodeByState, getStateByCode } from "@/lib/data/states";
 
 interface Props {
   control: Control<POFormValues>;
   register: UseFormRegister<POFormValues>;
+  watch: UseFormWatch<POFormValues>;
+  setValue: UseFormSetValue<POFormValues>;
   errors: FieldErrors<POFormValues>;
   isDuplicate: (num: string) => boolean;
 }
 
-export function PODetailsSection({ control, register, errors, isDuplicate }: Props) {
+export function PODetailsSection({ control, register, watch, setValue, errors, isDuplicate }: Props) {
   return (
     <FormSection title="PO Details">
       <div className="grid grid-cols-2 gap-3">
@@ -50,13 +54,25 @@ export function PODetailsSection({ control, register, errors, isDuplicate }: Pro
           />
         </FormField>
 
-        <FormField label="Place of Supply" required error={errors.placeOfSupply?.message}>
-          <input type="text" className={inputClass} placeholder="State name" {...register("placeOfSupply")} />
-        </FormField>
-
-        <FormField label="Place of Supply Code" required error={errors.placeOfSupplyCode?.message}>
-          <input type="text" className={inputClass} placeholder="e.g. 27" maxLength={2} {...register("placeOfSupplyCode")} />
-        </FormField>
+        <StateCodeInput
+          stateValue={watch("placeOfSupply") ?? ""}
+          stateCodeValue={watch("placeOfSupplyCode") ?? ""}
+          onStateChange={(value) => {
+            setValue("placeOfSupply", value);
+            const code = getCodeByState(value);
+            if (code) setValue("placeOfSupplyCode", code);
+          }}
+          onStateCodeChange={(value) => {
+            setValue("placeOfSupplyCode", value);
+            const name = getStateByCode(value);
+            if (name) setValue("placeOfSupply", name);
+          }}
+          stateError={errors.placeOfSupply?.message}
+          stateCodeError={errors.placeOfSupplyCode?.message}
+          stateLabel="Place of Supply"
+          stateCodeLabel="Place of Supply Code"
+          required
+        />
 
         <FormField label="Payment Terms" required error={errors.paymentTerms?.message}>
           <input type="text" className={inputClass} placeholder="e.g. Net 30, Advance" {...register("paymentTerms")} />

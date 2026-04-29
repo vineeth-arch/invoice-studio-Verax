@@ -4,6 +4,8 @@ import type { UseFormRegister, UseFormWatch, UseFormSetValue } from "react-hook-
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
+import { StateCodeInput } from "@/components/ui/StateCodeInput";
+import { getCodeByState, getStateByCode } from "@/lib/data/states";
 
 interface Props {
   register: UseFormRegister<InvoiceFormValues>;
@@ -41,12 +43,20 @@ export function ShippingDetailsSection({ register, watch, setValue }: Props) {
           <FormField label="City">
             <input type="text" className={inputClass} {...register("shipping.address.city")} />
           </FormField>
-          <FormField label="State">
-            <input type="text" className={inputClass} {...register("shipping.address.state")} />
-          </FormField>
-          <FormField label="State Code">
-            <input type="text" className={inputClass} maxLength={2} {...register("shipping.address.stateCode")} />
-          </FormField>
+          <StateCodeInput
+            stateValue={watch("shipping.address.state") ?? ""}
+            stateCodeValue={watch("shipping.address.stateCode") ?? ""}
+            onStateChange={(value) => {
+              setValue("shipping.address.state", value);
+              const code = getCodeByState(value);
+              if (code) setValue("shipping.address.stateCode", code);
+            }}
+            onStateCodeChange={(value) => {
+              setValue("shipping.address.stateCode", value);
+              const name = getStateByCode(value);
+              if (name) setValue("shipping.address.state", name);
+            }}
+          />
           <FormField label="Pincode">
             <input type="text" className={inputClass} maxLength={6} {...register("shipping.address.pincode")} />
           </FormField>

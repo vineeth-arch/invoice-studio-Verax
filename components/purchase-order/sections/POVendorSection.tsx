@@ -1,22 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
+import type { Control, UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
 import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { GSTINInput } from "@/components/ui/GSTINInput";
+import { StateCodeInput } from "@/components/ui/StateCodeInput";
+import { getCodeByState, getStateByCode } from "@/lib/data/states";
 import type { SavedClient } from "@/lib/types/client";
 
 interface Props {
   control: Control<POFormValues>;
   register: UseFormRegister<POFormValues>;
+  watch: UseFormWatch<POFormValues>;
+  setValue: UseFormSetValue<POFormValues>;
   errors: FieldErrors<POFormValues>;
   onSelectSavedClient: (client: SavedClient | null) => void;
 }
 
-export function POVendorSection({ control, register, errors, onSelectSavedClient }: Props) {
+export function POVendorSection({ control, register, watch, setValue, errors, onSelectSavedClient }: Props) {
   const [savedClients, setSavedClients] = useState<SavedClient[]>([]);
   const [selectedClientId, setSelectedClientId] = useState("");
 
@@ -71,8 +75,23 @@ export function POVendorSection({ control, register, errors, onSelectSavedClient
           <input type="text" className={inputClass} {...register("vendor.address.line2")} />
         </FormField>
         <FormField label="City" required><input type="text" className={inputClass} {...register("vendor.address.city")} /></FormField>
-        <FormField label="State" required><input type="text" className={inputClass} {...register("vendor.address.state")} /></FormField>
-        <FormField label="State Code"><input type="text" className={inputClass} maxLength={2} {...register("vendor.address.stateCode")} /></FormField>
+        <StateCodeInput
+          stateValue={watch("vendor.address.state") ?? ""}
+          stateCodeValue={watch("vendor.address.stateCode") ?? ""}
+          onStateChange={(value) => {
+            setValue("vendor.address.state", value);
+            const code = getCodeByState(value);
+            if (code) setValue("vendor.address.stateCode", code);
+          }}
+          onStateCodeChange={(value) => {
+            setValue("vendor.address.stateCode", value);
+            const name = getStateByCode(value);
+            if (name) setValue("vendor.address.state", name);
+          }}
+          stateError={errors.vendor?.address?.state?.message}
+          stateCodeError={errors.vendor?.address?.stateCode?.message}
+          required
+        />
         <FormField label="Pincode"><input type="text" className={inputClass} maxLength={6} {...register("vendor.address.pincode")} /></FormField>
         <FormField label="GSTIN (optional)" className="col-span-2">
           <Controller name="vendor.gstin" control={control} render={({ field }) => (

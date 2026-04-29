@@ -1,18 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
+import type { Control, UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { GSTINInput } from "@/components/ui/GSTINInput";
 import { Button } from "@/components/ui/Button";
+import { StateCodeInput } from "@/components/ui/StateCodeInput";
+import { getCodeByState, getStateByCode } from "@/lib/data/states";
 import type { SavedClient } from "@/lib/types/client";
 
 interface Props {
   control: Control<InvoiceFormValues>;
   register: UseFormRegister<InvoiceFormValues>;
+  watch: UseFormWatch<InvoiceFormValues>;
+  setValue: UseFormSetValue<InvoiceFormValues>;
   errors: FieldErrors<InvoiceFormValues>;
   isProforma: boolean;
   onSelectSavedClient: (client: SavedClient | null) => void;
@@ -23,6 +27,8 @@ interface Props {
 export function BuyerDetailsSection({
   control,
   register,
+  watch,
+  setValue,
   errors,
   isProforma,
   onSelectSavedClient,
@@ -94,13 +100,23 @@ export function BuyerDetailsSection({
           <input type="text" className={inputClass} {...register("buyer.billingAddress.city")} />
         </FormField>
 
-        <FormField label="State" required error={errors.buyer?.billingAddress?.state?.message}>
-          <input type="text" className={inputClass} {...register("buyer.billingAddress.state")} />
-        </FormField>
-
-        <FormField label="State Code" required error={errors.buyer?.billingAddress?.stateCode?.message}>
-          <input type="text" className={inputClass} placeholder="e.g. 27" maxLength={2} {...register("buyer.billingAddress.stateCode")} />
-        </FormField>
+        <StateCodeInput
+          stateValue={watch("buyer.billingAddress.state") ?? ""}
+          stateCodeValue={watch("buyer.billingAddress.stateCode") ?? ""}
+          onStateChange={(value) => {
+            setValue("buyer.billingAddress.state", value);
+            const code = getCodeByState(value);
+            if (code) setValue("buyer.billingAddress.stateCode", code);
+          }}
+          onStateCodeChange={(value) => {
+            setValue("buyer.billingAddress.stateCode", value);
+            const name = getStateByCode(value);
+            if (name) setValue("buyer.billingAddress.state", name);
+          }}
+          stateError={errors.buyer?.billingAddress?.state?.message}
+          stateCodeError={errors.buyer?.billingAddress?.stateCode?.message}
+          required
+        />
 
         <FormField label="Pincode" required error={errors.buyer?.billingAddress?.pincode?.message}>
           <input type="text" className={inputClass} maxLength={6} {...register("buyer.billingAddress.pincode")} />
@@ -114,13 +130,25 @@ export function BuyerDetailsSection({
           </FormField>
         )}
 
-        <FormField label="Place of Supply" required error={errors.buyer?.placeOfSupply?.message}>
-          <input type="text" className={inputClass} placeholder="State name" {...register("buyer.placeOfSupply")} />
-        </FormField>
-
-        <FormField label="Place of Supply Code" required error={errors.buyer?.placeOfSupplyCode?.message}>
-          <input type="text" className={inputClass} placeholder="e.g. 27" maxLength={2} {...register("buyer.placeOfSupplyCode")} />
-        </FormField>
+        <StateCodeInput
+          stateValue={watch("buyer.placeOfSupply") ?? ""}
+          stateCodeValue={watch("buyer.placeOfSupplyCode") ?? ""}
+          onStateChange={(value) => {
+            setValue("buyer.placeOfSupply", value);
+            const code = getCodeByState(value);
+            if (code) setValue("buyer.placeOfSupplyCode", code);
+          }}
+          onStateCodeChange={(value) => {
+            setValue("buyer.placeOfSupplyCode", value);
+            const name = getStateByCode(value);
+            if (name) setValue("buyer.placeOfSupply", name);
+          }}
+          stateError={errors.buyer?.placeOfSupply?.message}
+          stateCodeError={errors.buyer?.placeOfSupplyCode?.message}
+          stateLabel="Place of Supply"
+          stateCodeLabel="Place of Supply Code"
+          required
+        />
 
         <FormField label="Buyer Email">
           <input type="email" className={inputClass} {...register("buyer.contact.email")} />

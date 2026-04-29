@@ -6,8 +6,10 @@ import { Edit, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { inputClass } from "@/components/ui/FormField";
+import { StateCodeInput } from "@/components/ui/StateCodeInput";
 import { useSavedClients } from "@/lib/hooks/useSavedClients";
 import { useToast } from "@/lib/hooks/useToast";
+import { getCodeByState, getStateByCode } from "@/lib/data/states";
 import type { SavedClient } from "@/lib/types/client";
 
 const emptyClient = (): Omit<SavedClient, "id" | "createdAt" | "updatedAt"> => ({
@@ -170,13 +172,39 @@ export default function ClientsPage() {
           <input className={`${inputClass} col-span-2`} placeholder="Address line 1" value={draft.address1} onChange={(e) => setDraft((prev) => ({ ...prev, address1: e.target.value }))} />
           <input className={inputClass} placeholder="Address line 2" value={draft.address2} onChange={(e) => setDraft((prev) => ({ ...prev, address2: e.target.value }))} />
           <input className={inputClass} placeholder="City" value={draft.city} onChange={(e) => setDraft((prev) => ({ ...prev, city: e.target.value }))} />
-          <input className={inputClass} placeholder="State" value={draft.state} onChange={(e) => setDraft((prev) => ({ ...prev, state: e.target.value }))} />
-          <input className={inputClass} placeholder="State code" value={draft.stateCode} onChange={(e) => setDraft((prev) => ({ ...prev, stateCode: e.target.value }))} />
+          <StateCodeInput
+            stateValue={draft.state}
+            stateCodeValue={draft.stateCode}
+            onStateChange={(value) => {
+              setDraft((prev) => ({ ...prev, state: value }));
+              const code = getCodeByState(value);
+              if (code) setDraft((prev) => ({ ...prev, stateCode: code }));
+            }}
+            onStateCodeChange={(value) => {
+              setDraft((prev) => ({ ...prev, stateCode: value }));
+              const name = getStateByCode(value);
+              if (name) setDraft((prev) => ({ ...prev, state: name }));
+            }}
+          />
           <input className={inputClass} placeholder="Pincode" value={draft.pincode} onChange={(e) => setDraft((prev) => ({ ...prev, pincode: e.target.value }))} />
           <input className={inputClass} placeholder="Email" value={draft.email} onChange={(e) => setDraft((prev) => ({ ...prev, email: e.target.value }))} />
           <input className={inputClass} placeholder="Phone" value={draft.phone} onChange={(e) => setDraft((prev) => ({ ...prev, phone: e.target.value }))} />
-          <input className={inputClass} placeholder="Place of supply" value={draft.placeOfSupply} onChange={(e) => setDraft((prev) => ({ ...prev, placeOfSupply: e.target.value }))} />
-          <input className={inputClass} placeholder="Place of supply code" value={draft.placeOfSupplyCode} onChange={(e) => setDraft((prev) => ({ ...prev, placeOfSupplyCode: e.target.value }))} />
+          <StateCodeInput
+            stateValue={draft.placeOfSupply}
+            stateCodeValue={draft.placeOfSupplyCode}
+            onStateChange={(value) => {
+              setDraft((prev) => ({ ...prev, placeOfSupply: value }));
+              const code = getCodeByState(value);
+              if (code) setDraft((prev) => ({ ...prev, placeOfSupplyCode: code }));
+            }}
+            onStateCodeChange={(value) => {
+              setDraft((prev) => ({ ...prev, placeOfSupplyCode: value }));
+              const name = getStateByCode(value);
+              if (name) setDraft((prev) => ({ ...prev, placeOfSupply: name }));
+            }}
+            stateLabel="Place of supply"
+            stateCodeLabel="POS code"
+          />
         </div>
       </Modal>
 

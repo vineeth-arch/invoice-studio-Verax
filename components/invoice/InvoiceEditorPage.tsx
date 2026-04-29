@@ -41,6 +41,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   const [conversionDraft, setConversionDraft] = useState<Partial<Invoice> | null>(null);
   const [draftReady, setDraftReady] = useState(Boolean(invoiceId));
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isShareActionLoading, setIsShareActionLoading] = useState(false);
   const [shareToken, setShareToken] = useState("");
@@ -121,6 +122,8 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
         status,
         shareToken: existingInvoice?.shareToken,
       } as Partial<Invoice>;
+
+      setPreviewInvoice((current) => ({ ...current, ...invoice, status }));
 
       const result = await saveInvoice(invoice);
       if (result.success) {

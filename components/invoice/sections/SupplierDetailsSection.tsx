@@ -31,10 +31,10 @@ export function SupplierDetailsSection({
   onUseCompanyProfileChange,
 }: Props) {
   return (
-    <FormSection title="Supplier Details">
+    <FormSection title="Supplier Details (FROM)">
       {showCompanyProfileControls && !hasSavedProfile ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <div>No company profile set up yet. Set it up once and it will auto-fill here every time.</div>
+          <div>Set up your company profile once and it auto-fills here every time.</div>
           <Link href="/company-profile" className="mt-2 inline-flex font-medium text-amber-950 underline underline-offset-2">
             Set up company profile →
           </Link>
@@ -50,13 +50,13 @@ export function SupplierDetailsSection({
             />
             <div className="text-sm">
               <div className="font-medium text-slate-900">
-                {useCompanyProfile ? "Use my company profile (default)" : "Using custom supplier details"}
+                Use my company profile as FROM
               </div>
               {useCompanyProfile ? (
                 <div className="text-slate-600">&quot;{companyName || "Saved company profile"}&quot;</div>
               ) : (
                 <div className="text-slate-500">
-                  You are using a custom supplier. This will not affect your saved company profile.
+                  Using custom supplier. Your saved profile is unchanged.
                 </div>
               )}
             </div>

@@ -33,9 +33,9 @@ export function POVendorSection({ control, register, errors, onSelectSavedClient
   const hasClients = savedClients.length > 0;
 
   return (
-    <FormSection title="Buyer / Vendor Details">
+    <FormSection title="Vendor / Buyer Details (BILL TO)">
       <div className="grid grid-cols-2 gap-3">
-        <FormField label="Select saved client" className="col-span-2">
+        <FormField label="Select saved client for BILL TO" className="col-span-2">
           <select
             className={inputClass}
             value={selectedClientId}
@@ -47,21 +47,21 @@ export function POVendorSection({ control, register, errors, onSelectSavedClient
                 onSelectSavedClient(null);
                 return;
               }
-              onSelectSavedClient(savedClients.find((c) => c.id === nextValue) ?? null);
+              onSelectSavedClient(savedClients.find((client) => client.id === nextValue) ?? null);
             }}
           >
             <option value="">
-              {hasClients ? "Select a saved vendor..." : "No saved clients — add one in Clients"}
+              {hasClients ? "Select a saved client..." : "No saved clients — add one in Clients"}
             </option>
             {hasClients && <option value="__clear__">Clear selection</option>}
-            {savedClients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}{c.gstin ? ` • ${c.gstin}` : ""}
+            {savedClients.map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.name}{client.gstin ? ` • ${client.gstin}` : ""}
               </option>
             ))}
           </select>
         </FormField>
-        <FormField label="Supplier Name" required error={errors.vendor?.name?.message} className="col-span-2">
+        <FormField label="Name" required error={errors.vendor?.name?.message} className="col-span-2">
           <input type="text" className={inputClass} {...register("vendor.name")} />
         </FormField>
         <FormField label="Address Line 1" required error={errors.vendor?.address?.line1?.message} className="col-span-2">

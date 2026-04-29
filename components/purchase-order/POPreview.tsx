@@ -12,14 +12,6 @@ export function POPreview({ po, isGeneratingPDF = false }: POPreviewProps) {
   const totals = po.totals;
   const bankDetails = po.bankDetails;
 
-  // These fields may be present at runtime but are not yet in the type
-  const poExt = po as Partial<PurchaseOrder> & {
-    validUntil?: string;
-    deliveryDate?: string;
-    placeOfSupply?: string;
-    poReference?: string;
-  };
-
   return (
     <DocumentTemplate
       documentType="purchase_order"
@@ -49,16 +41,11 @@ export function POPreview({ po, isGeneratingPDF = false }: POPreviewProps) {
       docDetails={{
         number: po.poNumber ?? "",
         date: po.poDate ?? "",
-        validUntil: poExt.validUntil,
-        deliveryDate: poExt.deliveryDate ?? po.expectedDeliveryDate,
-        poReference: poExt.poReference ?? po.quotationReference,
+        validUntil: po.validUntil,
+        deliveryDate: po.deliveryDate ?? po.expectedDeliveryDate,
+        poReference: po.poReference ?? po.quotationReference,
         projectDescription: po.projectDescription,
-        placeOfSupply:
-          poExt.placeOfSupply ??
-          po.delivery?.address?.state ??
-          billTo?.address?.state ??
-          from?.address?.state ??
-          "",
+        placeOfSupply: po.placeOfSupply ?? po.delivery?.address?.state ?? billTo?.address?.state ?? from?.address?.state ?? "",
       }}
       lineItems={(po.lineItems ?? []).map((item) => ({
         description: item.description,
@@ -87,26 +74,24 @@ export function POPreview({ po, isGeneratingPDF = false }: POPreviewProps) {
         amountInWords: totals?.amountInWords ?? "",
         gstMode: "igst",
       }}
-      bankDetails={
-        bankDetails
-          ? {
-              accountName: bankDetails.accountName ?? "",
-              bankName: bankDetails.bankName ?? "",
-              accountNumber: bankDetails.accountNumber ?? "",
-              ifsc: bankDetails.ifscCode ?? "",
-              branch: bankDetails.branch ?? "",
-              upiId: bankDetails.upiId ?? "",
-            }
-          : null
-      }
+      bankDetails={bankDetails ? {
+        accountName: bankDetails.accountName ?? "",
+        bankName: bankDetails.bankName ?? "",
+        accountNumber: bankDetails.accountNumber ?? "",
+        ifsc: bankDetails.ifscCode ?? "",
+        branch: bankDetails.branch ?? "",
+        upiId: bankDetails.upiId ?? "",
+      } : null}
       termsAndConditions={po.commercialTerms?.termsAndConditions ?? ""}
       notes={[
         po.paymentTerms ? `Payment Terms: ${po.paymentTerms}` : "",
         po.deliveryTerms ? `Delivery Terms: ${po.deliveryTerms}` : "",
         po.commercialTerms?.notes ?? "",
-      ]
-        .filter(Boolean)
-        .join("\n")}
+        po.commercialTerms?.warrantyTerms ? `Warranty: ${po.commercialTerms.warrantyTerms}` : "",
+        po.commercialTerms?.inspectionTerms ? `Inspection: ${po.commercialTerms.inspectionTerms}` : "",
+        po.commercialTerms?.returnPolicy ? `Return Policy: ${po.commercialTerms.returnPolicy}` : "",
+        po.commercialTerms?.cancellationPolicy ? `Cancellation: ${po.commercialTerms.cancellationPolicy}` : "",
+      ].filter(Boolean).join("\n")}
       signatory={{
         name: po.approvedBy ?? "",
         designation: po.approvedBySignature?.designation ?? "",

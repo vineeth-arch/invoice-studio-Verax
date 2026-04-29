@@ -49,9 +49,9 @@ export function BuyerDetailsSection({
   const hasClients = savedClients.length > 0;
 
   return (
-    <FormSection title="Buyer Details">
+    <FormSection title="Buyer Details (BILL TO)">
       <div className="grid grid-cols-2 gap-3">
-        <FormField label="Select saved client" className="col-span-2">
+        <FormField label="Select saved client for BILL TO" className="col-span-2">
           <select
             className={inputClass}
             value={selectedClientId}
@@ -78,7 +78,7 @@ export function BuyerDetailsSection({
           </select>
         </FormField>
 
-        <FormField label="Buyer Name" required error={errors.buyer?.name?.message} className="col-span-2">
+        <FormField label="Name" required error={errors.buyer?.name?.message} className="col-span-2">
           <input type="text" className={inputClass} placeholder="Client / customer name" {...register("buyer.name")} />
         </FormField>
 

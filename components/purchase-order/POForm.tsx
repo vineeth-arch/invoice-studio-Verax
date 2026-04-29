@@ -39,6 +39,11 @@ function buildDefaultValues(settings: DocumentTemplateSettings | null, profile: 
   return {
     poNumber: suggested,
     poDate: new Date().toISOString().slice(0, 10),
+    validUntil: "",
+    deliveryDate: "",
+    poReference: "",
+    placeOfSupply: "",
+    placeOfSupplyCode: "",
     paymentTerms: "Net 30",
     deliveryTerms: "FOR Destination",
     status: "DRAFT",
@@ -50,6 +55,14 @@ function buildDefaultValues(settings: DocumentTemplateSettings | null, profile: 
     delivery: { address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" } },
     approvedBy: profile?.defaultSignatoryName ?? "",
     approvedBySignature: { signatureImageBase64: profile?.defaultSignatureImageBase64 },
+    bankDetails: profile?.bankDetails ? {
+      accountName: profile.bankDetails.accountName,
+      accountNumber: profile.bankDetails.accountNumber,
+      bankName: profile.bankDetails.bankName,
+      branch: profile.bankDetails.branch,
+      ifscCode: profile.bankDetails.ifscCode,
+      upiId: profile.bankDetails.upiId,
+    } : undefined,
     commercialTerms: { termsAndConditions: profile?.defaultTermsAndConditions },
   };
 }
@@ -120,6 +133,14 @@ export function POForm({
     setValue("approvedBy", profile.defaultSignatoryName ?? "");
     setValue("approvedBySignature.signatureImageBase64", profile.defaultSignatureImageBase64 ?? "");
     if (profile.logoImageBase64) setValue("buyer.logoImageBase64", profile.logoImageBase64);
+    if (profile.bankDetails) {
+      setValue("bankDetails.bankName", profile.bankDetails.bankName ?? "");
+      setValue("bankDetails.accountName", profile.bankDetails.accountName ?? "");
+      setValue("bankDetails.accountNumber", profile.bankDetails.accountNumber ?? "");
+      setValue("bankDetails.ifscCode", profile.bankDetails.ifscCode ?? "");
+      setValue("bankDetails.branch", profile.bankDetails.branch ?? "");
+      setValue("bankDetails.upiId", profile.bankDetails.upiId ?? "");
+    }
   }, [setValue]);
 
   useEffect(() => {
@@ -155,6 +176,8 @@ export function POForm({
     setValue("vendor.gstin", client.gstin);
     setValue("vendor.contact.email", client.email);
     setValue("vendor.contact.phone", client.phone);
+    setValue("placeOfSupply", client.placeOfSupply);
+    setValue("placeOfSupplyCode", client.placeOfSupplyCode);
   }, [setValue]);
 
   return (
@@ -184,10 +207,26 @@ export function POForm({
 
       <div className="flex items-center gap-3 pt-2">
         <span className="text-xs text-slate-500">Save as:</span>
-        <Button type="button" variant="secondary" loading={isSaving} onClick={handleSubmit((v) => onSave(v, "DRAFT"))}>
+        <Button
+          type="button"
+          variant="secondary"
+          loading={isSaving}
+          onClick={() => {
+            setValue("status", "DRAFT");
+            handleSubmit((v) => onSave(v, "DRAFT"))();
+          }}
+        >
           Save Draft
         </Button>
-        <Button type="button" variant="primary" loading={isSaving} onClick={handleSubmit((v) => onSave(v, "FINAL"))}>
+        <Button
+          type="button"
+          variant="primary"
+          loading={isSaving}
+          onClick={() => {
+            setValue("status", "FINAL");
+            handleSubmit((v) => onSave(v, "FINAL"))();
+          }}
+        >
           Save as Final
         </Button>
       </div>

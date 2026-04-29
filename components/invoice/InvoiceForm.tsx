@@ -330,7 +330,10 @@ export function InvoiceForm({
           type="button"
           variant="secondary"
           loading={isSaving}
-          onClick={handleSubmit((v) => onSave(v, "DRAFT"))}
+          onClick={() => {
+            setValue("status", "DRAFT");
+            handleSubmit((v) => onSave(v, "DRAFT"))();
+          }}
         >
           Save Draft
         </Button>
@@ -338,7 +341,10 @@ export function InvoiceForm({
           type="button"
           variant="primary"
           loading={isSaving}
-          onClick={handleSubmit((v) => onSave(v, "FINAL"))}
+          onClick={() => {
+            setValue("status", "FINAL");
+            handleSubmit((v) => onSave(v, "FINAL"))();
+          }}
         >
           Save as Final
         </Button>

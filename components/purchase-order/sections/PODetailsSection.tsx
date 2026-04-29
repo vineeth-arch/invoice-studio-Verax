@@ -28,8 +28,16 @@ export function PODetailsSection({ control, register, errors, isDuplicate }: Pro
           <input type="date" className={inputClass} {...register("poDate")} />
         </FormField>
 
-        <FormField label="Expected Delivery Date">
-          <input type="date" className={inputClass} {...register("expectedDeliveryDate")} />
+        <FormField label="Valid Until">
+          <input type="date" className={inputClass} {...register("validUntil")} />
+        </FormField>
+
+        <FormField label="Delivery Date">
+          <input type="date" className={inputClass} {...register("deliveryDate")} />
+        </FormField>
+
+        <FormField label="PO Reference">
+          <input type="text" className={inputClass} placeholder="PO-REF-001" {...register("poReference")} />
         </FormField>
 
         <FormField label="Project Description (optional)" error={errors.projectDescription?.message}>
@@ -42,12 +50,12 @@ export function PODetailsSection({ control, register, errors, isDuplicate }: Pro
           />
         </FormField>
 
-        <FormField label="PO Status">
-          <select className={inputClass} {...register("poStatus")}>
-            <option value="Under Approval">Under Approval</option>
-            <option value="Approved">Approved</option>
-            <option value="Processed">Processed</option>
-          </select>
+        <FormField label="Place of Supply" required error={errors.placeOfSupply?.message}>
+          <input type="text" className={inputClass} placeholder="State name" {...register("placeOfSupply")} />
+        </FormField>
+
+        <FormField label="Place of Supply Code" required error={errors.placeOfSupplyCode?.message}>
+          <input type="text" className={inputClass} placeholder="e.g. 27" maxLength={2} {...register("placeOfSupplyCode")} />
         </FormField>
 
         <FormField label="Payment Terms" required error={errors.paymentTerms?.message}>
@@ -56,30 +64,6 @@ export function PODetailsSection({ control, register, errors, isDuplicate }: Pro
 
         <FormField label="Delivery Terms" required error={errors.deliveryTerms?.message}>
           <input type="text" className={inputClass} placeholder="e.g. FOR Destination" {...register("deliveryTerms")} />
-        </FormField>
-
-        <FormField label="Vendor Code">
-          <input type="text" className={inputClass} {...register("vendor.vendorCode")} />
-        </FormField>
-
-        <FormField label="Quotation Reference">
-          <input type="text" className={inputClass} {...register("quotationReference")} />
-        </FormField>
-
-        <FormField label="Quotation Date">
-          <input type="date" className={inputClass} {...register("quotationDate")} />
-        </FormField>
-
-        <FormField label="Internal Requisition No.">
-          <input type="text" className={inputClass} {...register("internalRequisitionNumber")} />
-        </FormField>
-
-        <FormField label="Project Name">
-          <input type="text" className={inputClass} {...register("projectName")} />
-        </FormField>
-
-        <FormField label="Department / Cost Center">
-          <input type="text" className={inputClass} {...register("department")} />
         </FormField>
       </div>
     </FormSection>

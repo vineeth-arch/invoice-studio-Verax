@@ -30,8 +30,13 @@ const poLineItemSchema = z.object({
 export const purchaseOrderSchema = z.object({
   poNumber: z.string().min(1, "PO number is required"),
   poDate: z.string().min(1, "PO date is required"),
+  validUntil: z.string().optional(),
+  deliveryDate: z.string().optional(),
   expectedDeliveryDate: z.string().optional(),
   projectDescription: z.string().max(120, "Project description must be ≤ 120 characters").optional(),
+  poReference: z.string().optional(),
+  placeOfSupply: z.string().min(1, "Place of supply is required"),
+  placeOfSupplyCode: z.string().min(1, "Place of supply code is required"),
   paymentTerms: z.string().min(1, "Payment terms are required"),
   deliveryTerms: z.string().min(1, "Delivery terms are required"),
   quotationReference: z.string().optional(),
@@ -70,6 +75,14 @@ export const purchaseOrderSchema = z.object({
 
   lineItems: z.array(poLineItemSchema).min(1, "At least one line item is required"),
   otherCharges: z.preprocess(Number, z.number().min(0).default(0)),
+  bankDetails: z.object({
+    accountName: z.string().optional(),
+    accountNumber: z.string().optional(),
+    bankName: z.string().optional(),
+    branch: z.string().optional(),
+    ifscCode: z.string().optional(),
+    upiId: z.string().optional(),
+  }).optional(),
 
   commercialTerms: z.object({
     warrantyTerms: z.string().optional(),

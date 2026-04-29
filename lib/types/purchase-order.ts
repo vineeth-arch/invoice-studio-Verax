@@ -69,8 +69,13 @@ export interface PurchaseOrder {
   id: string;
   poNumber: string;
   poDate: string;
+  validUntil?: string;
+  deliveryDate?: string;
   expectedDeliveryDate?: string;
   projectDescription?: string;
+  poReference?: string;
+  placeOfSupply?: string;
+  placeOfSupplyCode?: string;
   paymentTerms: string;
   deliveryTerms: string;
   quotationReference?: string;
@@ -84,6 +89,7 @@ export interface PurchaseOrder {
   lineItems: POLineItem[];
   totals: POTotals;
   otherCharges: number;
+  bankDetails?: BankDetails;
   commercialTerms: POCommercialTerms;
   preparedBy?: string;
   approvedBy: string;

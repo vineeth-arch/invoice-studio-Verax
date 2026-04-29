@@ -31,6 +31,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
   const [previewPO, setPreviewPO] = useState<Partial<PurchaseOrder>>({});
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [activeTab, setActiveTab] = useState<"form" | "preview">("form");
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
@@ -59,6 +60,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
         otherCharges: Number(values.otherCharges) || 0,
         status,
       } as Partial<PurchaseOrder>;
+      setPreviewPO((current) => ({ ...current, ...po, status }));
       const result = await savePurchaseOrder(po);
       if (result.success) {
         if (!existingPO && !poId) await documentNumberingRepository.incrementPOSequence();

@@ -65,7 +65,6 @@ export function InvoicePreview({ invoice, isGeneratingPDF = false }: InvoicePrev
         upiId: paymentDetails?.upiId ?? "",
       }
     : null;
-
   return (
     <DocumentTemplate
       documentType={documentType}
@@ -129,6 +128,7 @@ export function InvoicePreview({ invoice, isGeneratingPDF = false }: InvoicePrev
         gstMode: normalizeGSTMode(invoice.gstMode),
       }}
       bankDetails={resolvedBankDetails}
+      bankDetails={resolvedBankDetails}
       termsAndConditions={invoice.termsAndConditions ?? ""}
       notes={invoice.notes ?? ""}
       declaration={invoice.declaration}
@@ -140,6 +140,9 @@ export function InvoicePreview({ invoice, isGeneratingPDF = false }: InvoicePrev
       footer={{
         email: supplier?.contact?.email ?? "",
         phone: supplier?.contact?.phone ?? "",
+        tagline: supplier?.name
+          ? `${supplier.name} | Brand Identity, Packaging Design & Creative Consultancy`
+          : "Brand Identity, Packaging Design & Creative Consultancy",
         tagline: supplier?.name
           ? `${supplier.name} | Brand Identity, Packaging Design & Creative Consultancy`
           : "Brand Identity, Packaging Design & Creative Consultancy",

@@ -12,6 +12,7 @@ import {
   Building2,
   Users,
   BriefcaseBusiness,
+  BookOpen,
   Settings,
   BarChart3,
   ChevronLeft,
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { href: "/drafts", label: "Drafts", icon: FilePenLine },
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/services", label: "Services", icon: BriefcaseBusiness },
+  { href: "/sac-codes", label: "SAC Codes", icon: BookOpen },
   { href: "/company-profile", label: "Company Profile", icon: Building2 },
 ];
 

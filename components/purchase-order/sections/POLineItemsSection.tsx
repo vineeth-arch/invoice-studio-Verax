@@ -14,7 +14,7 @@ import { formatNumber } from "@/lib/utils/formatting";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils/cn";
 import { Modal } from "@/components/ui/Modal";
-import { HsnSacCombobox } from "@/components/ui/HsnSacCombobox";
+import { SACSearchInput } from "@/components/ui/SACSearchInput";
 
 interface Props {
   control: Control<POFormValues>;
@@ -80,12 +80,12 @@ function POLineItemCard({
             />
           </FormField>
           <FormField label="HSN / SAC">
-            <HsnSacCombobox
+            <SACSearchInput
               value={item?.hsnSac ?? ""}
               onChange={(value) => setValue(`lineItems.${index}.hsnSac`, value, { shouldDirty: true })}
-              onSelectCode={(entry) => {
-                setValue(`lineItems.${index}.hsnSac`, entry.code, { shouldDirty: true });
-                setValue(`lineItems.${index}.gstRate`, entry.gstRate, { shouldDirty: true });
+              onSelect={(sac) => {
+                setValue(`lineItems.${index}.hsnSac`, sac.code, { shouldDirty: true });
+                setValue(`lineItems.${index}.gstRate`, sac.defaultGstRate, { shouldDirty: true });
               }}
             />
           </FormField>

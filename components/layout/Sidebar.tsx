@@ -18,9 +18,13 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  LogIn,
+  User,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { DRAFTS_STORAGE_EVENT, getDraftCounts } from "@/lib/utils/drafts";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -31,7 +35,6 @@ const NAV_ITEMS = [
   { href: "/clients", label: "Clients", icon: Users },
   { href: "/services", label: "Services", icon: BriefcaseBusiness },
   { href: "/company-profile", label: "Company Profile", icon: Building2 },
-  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 const REPORT_ITEMS = [
@@ -57,10 +60,12 @@ function isActive(href: string, pathname: string): boolean {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { loading, user, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [mounted, setMounted] = useState(false);
   const [draftCount, setDraftCount] = useState(0);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const refreshDraftCount = useCallback(() => {
     setDraftCount(getDraftCounts().total);
@@ -120,6 +125,15 @@ export function Sidebar() {
       return next;
     });
   }, []);
+
+  const handleSignOut = useCallback(async () => {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setIsSigningOut(false);
+    }
+  }, [signOut]);
 
   if (!mounted) return null;
 
@@ -219,6 +233,98 @@ export function Sidebar() {
               </Link>
             );
           })}
+
+          <div className="pt-2">
+            {!collapsed ? (
+              user ? (
+                <div
+                  className="rounded-xl px-3 py-3"
+                  style={{ border: "1px solid var(--border)", background: "rgba(245, 197, 24, 0.06)" }}
+                >
+                  <Link
+                    href="/auth"
+                    className="flex items-start gap-3 transition-opacity hover:opacity-85"
+                  >
+                    <User className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--accent-yellow)" }} />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                        Signed In ✓
+                      </div>
+                      <div className="mt-0.5 truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                        {loading ? "Checking session..." : user.email}
+                      </div>
+                    </div>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => void handleSignOut()}
+                    disabled={isSigningOut}
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    {isSigningOut ? "Signing out..." : "Sign Out"}
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  href="/auth"
+                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-150 hover:bg-white/5"
+                  style={{ color: "var(--sidebar-text-muted)" }}
+                >
+                  <LogIn className="h-4 w-4 shrink-0" />
+                  <span className="text-sm font-medium truncate">Sign In / Sync</span>
+                </Link>
+              )
+            ) : (
+              <Link
+                href="/auth"
+                title={user ? `Signed In ✓${user.email ? ` · ${user.email}` : ""}` : "Sign In / Sync"}
+                className="group relative flex items-center justify-center rounded-xl px-3 py-3 transition-all duration-150 hover:bg-white/5"
+                style={{ color: user ? "var(--accent-yellow)" : "var(--sidebar-text-muted)" }}
+              >
+                {user ? <User className="h-4 w-4 shrink-0" /> : <LogIn className="h-4 w-4 shrink-0" />}
+                <span
+                  className="absolute left-[calc(100%+8px)] px-2 py-1 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg"
+                  style={{ background: "#111111", color: "#F0EFE9" }}
+                >
+                  {user ? "Signed In ✓" : "Sign In / Sync"}
+                </span>
+              </Link>
+            )}
+          </div>
+
+          <Link
+            href="/settings"
+            title={collapsed ? "Settings" : undefined}
+            className={cn(
+              "flex items-center gap-3 rounded-xl transition-all duration-150 relative group",
+              collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5",
+            )}
+            style={{
+              background: isActive("/settings", pathname) ? "var(--sidebar-active-bg)" : undefined,
+              color: isActive("/settings", pathname) ? "var(--accent-yellow)" : "var(--sidebar-text-muted)",
+            }}
+            onMouseEnter={(e) => { if (!isActive("/settings", pathname)) (e.currentTarget as HTMLElement).style.color = "var(--sidebar-text)"; }}
+            onMouseLeave={(e) => { if (!isActive("/settings", pathname)) (e.currentTarget as HTMLElement).style.color = "var(--sidebar-text-muted)"; }}
+          >
+            {isActive("/settings", pathname) && (
+              <span
+                className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full"
+                style={{ background: "var(--accent-yellow)" }}
+              />
+            )}
+            <Settings className="h-4 w-4 shrink-0" />
+            {!collapsed && <span className="text-sm font-medium truncate">Settings</span>}
+            {collapsed && (
+              <span
+                className="absolute left-[calc(100%+8px)] px-2 py-1 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg"
+                style={{ background: "#111111", color: "#F0EFE9" }}
+              >
+                Settings
+              </span>
+            )}
+          </Link>
 
           {!collapsed && (
             <div className="px-3 pt-5 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--sidebar-text-muted)" }}>

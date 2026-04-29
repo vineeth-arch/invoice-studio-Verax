@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import {
   FileText,
   ShoppingCart,
@@ -8,12 +9,14 @@ import {
   BriefcaseBusiness,
   ArrowUpRight,
   Clock,
+  X,
 } from "lucide-react";
 import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
 import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
 import { formatCurrencyINR } from "@/lib/utils/formatting";
 import { StatusBadge } from "@/components/ui/Badge";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 /* ── Bento stat card ── */
 function StatCard({
@@ -79,9 +82,11 @@ function ActionPill({
 }
 
 export default function DashboardPage() {
+  const { configured, user } = useAuth();
   const { invoices, loading: invLoading } = useInvoices();
   const { purchaseOrders, loading: poLoading } = usePurchaseOrders();
   const { profile } = useCompanyProfile();
+  const [showSyncBanner, setShowSyncBanner] = useState(true);
 
   const finalInvoices = invoices.filter((i) => i.status === "FINAL" || i.status === "PAID");
   const totalInvoiced = finalInvoices.reduce((s, i) => s + i.totals.grandTotal, 0);
@@ -138,6 +143,40 @@ export default function DashboardPage() {
 
   return (
     <div className="p-5 md:p-7 max-w-[1200px]">
+      {configured && !user && showSyncBanner && (
+        <div
+          className="mb-5 rounded-bento px-5 py-4"
+          style={{ background: "var(--accent-yellow-muted)", border: "1px solid var(--accent-yellow)" }}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "var(--accent-yellow-text)" }}>
+                Your data is saved locally only.
+              </p>
+              <p className="mt-1 text-sm" style={{ color: "var(--accent-yellow-text)", opacity: 0.8 }}>
+                Sign in to sync across devices and enable cloud backup.
+              </p>
+              <Link
+                href="/auth"
+                className="mt-3 inline-flex rounded-xl px-4 py-2 text-sm font-medium transition-opacity hover:opacity-85"
+                style={{ background: "var(--accent-yellow)", color: "#111111" }}
+              >
+                Sign In
+              </Link>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowSyncBanner(false)}
+              className="rounded-md p-1 transition-colors hover:bg-black/5"
+              style={{ color: "var(--accent-yellow-text)" }}
+              aria-label="Dismiss sign-in banner"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Page header */}
       <div className="mb-7">
         <h1 className="font-display text-[28px] font-extrabold leading-tight" style={{ color: "var(--text-primary)" }}>

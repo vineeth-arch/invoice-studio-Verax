@@ -25,7 +25,7 @@ export default function AuthPage() {
         return;
       }
 
-      setMessage("Magic link sent. Open it from your email on this device to enable cloud sync.");
+      setMessage("Check your email for a sign-in link");
     } finally {
       setSubmitting(false);
     }

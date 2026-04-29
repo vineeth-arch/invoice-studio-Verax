@@ -1,5 +1,5 @@
 # GST Invoice Generator
-### by Design Innsaeit
+### by Design Innsaeit 
 
 > A professional GST-compliant invoice and purchase order generator built for Indian service businesses, creative studios, consultants, and MSMEs.
 

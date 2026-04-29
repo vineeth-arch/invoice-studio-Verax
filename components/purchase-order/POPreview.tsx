@@ -10,7 +10,6 @@ export function POPreview({ po, isGeneratingPDF = false }: POPreviewProps) {
   const from = po.buyer;
   const billTo = po.vendor;
   const totals = po.totals;
-  const bankDetails = po.bankDetails;
 
   return (
     <DocumentTemplate
@@ -74,14 +73,7 @@ export function POPreview({ po, isGeneratingPDF = false }: POPreviewProps) {
         amountInWords: totals?.amountInWords ?? "",
         gstMode: "igst",
       }}
-      bankDetails={bankDetails ? {
-        accountName: bankDetails.accountName ?? "",
-        bankName: bankDetails.bankName ?? "",
-        accountNumber: bankDetails.accountNumber ?? "",
-        ifsc: bankDetails.ifscCode ?? "",
-        branch: bankDetails.branch ?? "",
-        upiId: bankDetails.upiId ?? "",
-      } : null}
+      bankDetails={null}
       termsAndConditions={po.commercialTerms?.termsAndConditions ?? ""}
       notes={[
         po.paymentTerms ? `Payment Terms: ${po.paymentTerms}` : "",

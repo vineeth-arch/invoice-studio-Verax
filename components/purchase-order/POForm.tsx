@@ -55,14 +55,6 @@ function buildDefaultValues(settings: DocumentTemplateSettings | null, profile: 
     delivery: { address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" } },
     approvedBy: profile?.defaultSignatoryName ?? "",
     approvedBySignature: { signatureImageBase64: profile?.defaultSignatureImageBase64 },
-    bankDetails: profile?.bankDetails ? {
-      accountName: profile.bankDetails.accountName,
-      accountNumber: profile.bankDetails.accountNumber,
-      bankName: profile.bankDetails.bankName,
-      branch: profile.bankDetails.branch,
-      ifscCode: profile.bankDetails.ifscCode,
-      upiId: profile.bankDetails.upiId,
-    } : undefined,
     commercialTerms: { termsAndConditions: profile?.defaultTermsAndConditions },
   };
 }
@@ -94,6 +86,7 @@ export function POForm({
   });
 
   const formValues = useWatch({ control });
+  const vendorAddress = useWatch({ control, name: "vendor.address" });
 
   const previewPO = useMemo<Partial<PurchaseOrder>>(() => {
     const items = (formValues.lineItems ?? []).map((item) =>
@@ -134,14 +127,6 @@ export function POForm({
     setValue("approvedBy", profile.defaultSignatoryName ?? "");
     setValue("approvedBySignature.signatureImageBase64", profile.defaultSignatureImageBase64 ?? "");
     if (profile.logoImageBase64) setValue("buyer.logoImageBase64", profile.logoImageBase64);
-    if (profile.bankDetails) {
-      setValue("bankDetails.bankName", profile.bankDetails.bankName ?? "");
-      setValue("bankDetails.accountName", profile.bankDetails.accountName ?? "");
-      setValue("bankDetails.accountNumber", profile.bankDetails.accountNumber ?? "");
-      setValue("bankDetails.ifscCode", profile.bankDetails.ifscCode ?? "");
-      setValue("bankDetails.branch", profile.bankDetails.branch ?? "");
-      setValue("bankDetails.upiId", profile.bankDetails.upiId ?? "");
-    }
   }, [setValue]);
 
   useEffect(() => {
@@ -222,7 +207,12 @@ export function POForm({
         }}
       />
       <POVendorSection control={control} register={register} errors={errors} onSelectSavedClient={applySavedClient} />
-      <PODeliverySection register={register} errors={errors} />
+      <PODeliverySection
+        register={register}
+        errors={errors}
+        vendorAddress={vendorAddress}
+        setValue={setValue}
+      />
       <POLineItemsSection control={control} setValue={setValue} errors={errors} />
       <POTotalsSection control={control} register={register} />
       <POCommercialTermsSection register={register} />

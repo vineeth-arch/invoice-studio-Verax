@@ -75,14 +75,6 @@ export const purchaseOrderSchema = z.object({
 
   lineItems: z.array(poLineItemSchema).min(1, "At least one line item is required"),
   otherCharges: z.preprocess(Number, z.number().min(0).default(0)),
-  bankDetails: z.object({
-    accountName: z.string().optional(),
-    accountNumber: z.string().optional(),
-    bankName: z.string().optional(),
-    branch: z.string().optional(),
-    ifscCode: z.string().optional(),
-    upiId: z.string().optional(),
-  }).optional(),
 
   commercialTerms: z.object({
     warrantyTerms: z.string().optional(),

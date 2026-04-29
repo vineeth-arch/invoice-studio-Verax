@@ -162,6 +162,18 @@ function MetaRow({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
+function hasBankDetails(bankDetails: DocumentTemplateProps["bankDetails"]) {
+  if (!bankDetails) return false;
+  return Boolean(
+    bankDetails.accountName ||
+      bankDetails.bankName ||
+      bankDetails.accountNumber ||
+      bankDetails.branch ||
+      bankDetails.ifsc ||
+      bankDetails.upiId
+  );
+}
+
 const DOCUMENT_TITLES: Record<DocumentType, string> = {
   tax_invoice: "TAX INVOICE",
   bill_of_supply: "BILL OF SUPPLY",
@@ -234,6 +246,7 @@ export function DocumentTemplate({
     : isPO
       ? docDetails.deliveryDate
       : docDetails.dueDate;
+  const showBankSection = hasBankDetails(bankDetails);
 
   // Invoice table column count for empty-state colspan
   const invoiceColCount =
@@ -1022,7 +1035,7 @@ export function DocumentTemplate({
           }}
         >
           {/* Bank details */}
-          {bankDetails && (
+          {showBankSection && bankDetails && (
             <div className="print-keep-together" style={{ marginBottom: "14px" }}>
               <div style={LABEL_STYLE}>Bank / Payment Details</div>
               <div style={DETAIL_STYLE}>

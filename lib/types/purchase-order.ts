@@ -98,7 +98,6 @@ export interface PurchaseOrder {
   vendorAcceptanceSignature?: SignatureInfo;
   poStatus: POStatus;
   status: DocumentStatus;
-  bankDetails?: BankDetails;
   createdAt: string;
   updatedAt: string;
 }

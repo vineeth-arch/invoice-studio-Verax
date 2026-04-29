@@ -31,7 +31,6 @@ export function POEditorPage({ poId }: POEditorPageProps) {
   const [previewPO, setPreviewPO] = useState<Partial<PurchaseOrder>>({});
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [activeTab, setActiveTab] = useState<"form" | "preview">("form");
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isConverting, setIsConverting] = useState(false);

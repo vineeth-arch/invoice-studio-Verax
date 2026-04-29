@@ -57,16 +57,17 @@ export const A4PreviewWrapper = forwardRef<HTMLDivElement, A4PreviewWrapperProps
     };
 
     return (
-      <div ref={containerRef} className={cn("w-full overflow-hidden", className)}>
+      <div ref={containerRef} className={cn("w-full overflow-visible", className)}>
         {/* Compensate for transform scale not affecting layout flow */}
         <div style={{ height: pageHeight * scale }}>
           <div
             ref={setRefs}
             className={`a4-print-area bg-white shadow-lg${noPadding ? " di-document-wrapper" : ""}`}
             style={{
-              width: A4_WIDTH_PX,
-              minHeight: A4_HEIGHT_PX,
+              width: "210mm",
+              minHeight: "297mm",
               height: "auto",
+              overflow: "visible",
               transformOrigin: "top left",
               transform: `scale(${scale})`,
               padding: noPadding ? "0" : "60px 53px",

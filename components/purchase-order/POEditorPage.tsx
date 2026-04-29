@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { A4PreviewWrapper } from "@/components/document/A4PreviewWrapper";
 import { PDFExportButton } from "@/components/document/PDFExportButton";
@@ -26,15 +26,23 @@ interface POEditorPageProps {
   poId?: string;
 }
 
+const SPLIT_RATIO_KEY = "po_split_ratio";
+const DEFAULT_SPLIT_RATIO = 0.5;
+const MIN_FORM_WIDTH = 380;
+const MIN_PREVIEW_WIDTH = 320;
+
 export function POEditorPage({ poId }: POEditorPageProps) {
   const router = useRouter();
   const previewRef = useRef<HTMLDivElement>(null);
+  const splitPaneRef = useRef<HTMLDivElement>(null);
   const [previewPO, setPreviewPO] = useState<Partial<PurchaseOrder>>({});
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"form" | "preview">("form");
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
+  const [splitRatio, setSplitRatio] = useState(DEFAULT_SPLIT_RATIO);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   const { invoices } = useInvoices();
   const { purchaseOrders, loading: purchaseOrdersLoading, savePurchaseOrder, getPurchaseOrder } = usePurchaseOrders();
@@ -44,6 +52,22 @@ export function POEditorPage({ poId }: POEditorPageProps) {
 
   const existingPO = poId ? getPurchaseOrder(poId) : undefined;
   const allDocs = [...invoices, ...purchaseOrders];
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const updateDesktopState = () => setIsDesktop(mediaQuery.matches);
+    updateDesktopState();
+
+    const storedRatio = Number(window.localStorage.getItem(SPLIT_RATIO_KEY));
+    if (!Number.isNaN(storedRatio) && storedRatio > 0 && storedRatio < 1) {
+      setSplitRatio(storedRatio);
+    }
+
+    mediaQuery.addEventListener("change", updateDesktopState);
+    return () => mediaQuery.removeEventListener("change", updateDesktopState);
+  }, []);
 
   const handleSave = useCallback(async (values: POFormValues, status: "DRAFT" | "FINAL") => {
     console.log("Save triggered", status);
@@ -127,6 +151,40 @@ export function POEditorPage({ poId }: POEditorPageProps) {
     }
   }, [addToast, existingPO, router, savePurchaseOrder]);
 
+  const startSplitDrag = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDesktop) return;
+
+    const container = splitPaneRef.current;
+    if (!container) return;
+
+    event.preventDefault();
+
+    const { left, width } = container.getBoundingClientRect();
+    const minRatio = MIN_FORM_WIDTH / width;
+    const maxRatio = (width - MIN_PREVIEW_WIDTH) / width;
+    let currentRatio = splitRatio;
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const nextWidth = moveEvent.clientX - left;
+      const nextRatio = Math.min(maxRatio, Math.max(minRatio, nextWidth / width));
+      currentRatio = nextRatio;
+      setSplitRatio(nextRatio);
+    };
+
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.localStorage.setItem(SPLIT_RATIO_KEY, String(currentRatio));
+    };
+
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [isDesktop, splitRatio]);
+
   const pdfFilename = `PO-${previewPO.poNumber ?? "draft"}-${previewPO.vendor?.name ?? "vendor"}`;
 
   if (poId && purchaseOrdersLoading) {
@@ -174,33 +232,27 @@ export function POEditorPage({ poId }: POEditorPageProps) {
       </div>
 
       {/* ── Mobile tab switcher ── */}
-      <div
-        className="lg:hidden flex shrink-0 no-print"
-        style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}
-      >
-        {(["form", "preview"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className="flex-1 py-2.5 text-sm font-medium capitalize transition-colors"
-            style={{
-              color: activeTab === tab ? "var(--accent-yellow)" : "var(--text-secondary)",
-              borderBottom: activeTab === tab ? "2px solid var(--accent-yellow)" : "2px solid transparent",
-            }}
-          >
-            {tab}
-          </button>
-        ))}
+      <div className="flex border-b border-slate-200 bg-white no-print lg:hidden">
+        <button
+          onClick={() => setActiveTab("form")}
+          className={`flex-1 py-2 text-sm font-medium ${activeTab === "form" ? "border-b-2 border-brand-500 text-brand-600" : "text-slate-500"}`}
+        >
+          Form
+        </button>
+        <button
+          onClick={() => setActiveTab("preview")}
+          className={`flex-1 py-2 text-sm font-medium ${activeTab === "preview" ? "border-b-2 border-brand-500 text-brand-600" : "text-slate-500"}`}
+        >
+          Preview
+        </button>
       </div>
 
-      {/* ── Split pane ── */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Form panel */}
+      <div ref={splitPaneRef} className="flex flex-1 overflow-hidden">
         <div
-          className={`${activeTab === "preview" ? "hidden" : "flex"} lg:flex w-full lg:w-1/2 flex-col overflow-y-auto no-print`}
-          style={{ background: "var(--bg)" }}
+          className={`${activeTab === "preview" ? "hidden" : "flex"} w-full flex-col overflow-y-auto bg-slate-50 no-print lg:flex lg:min-w-[380px]`}
+          style={isDesktop ? { flexBasis: `${splitRatio * 100}%` } : undefined}
         >
-          <div className="p-4 space-y-3">
+          <div className="space-y-3 p-4">
             <POForm
               initialValues={existingPO ?? undefined}
               settings={settings}
@@ -214,21 +266,25 @@ export function POEditorPage({ poId }: POEditorPageProps) {
           </div>
         </div>
 
-        {/* Preview panel — always white, theme-immune */}
         <div
-          className={`${activeTab === "form" ? "hidden" : "flex"} lg:flex w-full lg:w-1/2 flex-col overflow-y-auto p-5`}
-          style={{ background: "#E8E8E4" }}
+          className="hidden w-3 shrink-0 cursor-col-resize items-center justify-center bg-slate-100 transition-colors hover:bg-slate-200 no-print lg:flex"
+          onMouseDown={startSplitDrag}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize form and preview panels"
         >
           <div
-            className="rounded-2xl overflow-hidden shadow-2xl mx-auto"
-            style={{ maxWidth: 820, background: "#FFFFFF" }}
-          >
-            <A4PreviewWrapper ref={previewRef} noPadding>
-              <div className="pdf-preview-surface">
-                <POPreview po={previewPO} isGeneratingPDF={isGeneratingPDF} />
-              </div>
-            </A4PreviewWrapper>
-          </div>
+            className="h-14 w-1 rounded-full bg-slate-300"
+          />
+        </div>
+
+        <div
+          className={`${activeTab === "form" ? "hidden" : "flex"} w-full flex-col overflow-y-auto bg-gray-200 p-4 lg:flex lg:min-w-[320px]`}
+          style={isDesktop ? { flexBasis: `${(1 - splitRatio) * 100}%` } : undefined}
+        >
+          <A4PreviewWrapper ref={previewRef} noPadding>
+            <POPreview po={previewPO} isGeneratingPDF={isGeneratingPDF} />
+          </A4PreviewWrapper>
         </div>
       </div>
 

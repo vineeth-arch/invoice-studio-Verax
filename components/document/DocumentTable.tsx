@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Edit, Copy, Trash2, MoreVertical } from "lucide-react";
+import { Edit, Copy, Trash2, MoreVertical, ArrowRightLeft } from "lucide-react";
 import type { Invoice } from "@/lib/types/invoice";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import type { DocumentStatus } from "@/lib/types/common";
@@ -50,10 +50,12 @@ function DocMenu({
   editHref,
   onDuplicate,
   onDelete,
+  onConvert,
 }: {
   editHref: string;
   onDuplicate: () => void;
   onDelete: () => void;
+  onConvert?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -98,6 +100,16 @@ function DocMenu({
             <Copy className="h-3.5 w-3.5" style={{ color: "var(--text-muted)" }} />
             Duplicate
           </button>
+          {onConvert && (
+            <button
+              onClick={() => { onConvert(); setOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-theme-surface-raised"
+              style={{ color: "var(--text-primary)" }}
+            >
+              <ArrowRightLeft className="h-3.5 w-3.5" style={{ color: "var(--text-muted)" }} />
+              Convert to Invoice
+            </button>
+          )}
           <div style={{ borderTop: "1px solid var(--border)" }} className="my-1" />
           <button
             onClick={() => { onDelete(); setOpen(false); }}
@@ -118,13 +130,16 @@ function DocCard({
   doc,
   onDuplicate,
   onDelete,
+  onConvert,
 }: {
   doc: DocEntry;
   onDuplicate: () => void;
   onDelete: () => void;
+  onConvert: () => void;
 }) {
   const editHref = `/${doc.type === "invoice" ? "invoice" : "purchase-order"}/${doc.id}/edit`;
   const isInvoice = doc.type === "invoice";
+  const canConvert = !isInvoice && doc.status === "FINAL" && doc.poStatus === "Approved";
 
   return (
     <div
@@ -149,6 +164,7 @@ function DocCard({
           editHref={editHref}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
+          onConvert={canConvert ? onConvert : undefined}
         />
       </div>
 
@@ -194,9 +210,10 @@ interface DocumentTableProps {
   purchaseOrders: PurchaseOrder[];
   onDelete: (id: string, type: "invoice" | "po") => void;
   onDuplicate: (id: string, type: "invoice" | "po") => void;
+  onConvert: (id: string, type: "invoice" | "po") => void;
 }
 
-export function DocumentTable({ invoices, purchaseOrders, onDelete, onDuplicate }: DocumentTableProps) {
+export function DocumentTable({ invoices, purchaseOrders, onDelete, onDuplicate, onConvert }: DocumentTableProps) {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: "invoice" | "po" } | null>(null);
   const [filterType, setFilterType] = useState<"all" | "invoice" | "po">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | DocumentStatus>("all");
@@ -285,6 +302,7 @@ export function DocumentTable({ invoices, purchaseOrders, onDelete, onDuplicate 
               doc={doc}
               onDuplicate={() => onDuplicate(doc.id, doc.type)}
               onDelete={() => setDeleteTarget({ id: doc.id, type: doc.type })}
+              onConvert={() => onConvert(doc.id, doc.type)}
             />
           ))}
         </div>

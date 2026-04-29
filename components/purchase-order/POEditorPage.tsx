@@ -2,6 +2,7 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowRightLeft } from "lucide-react";
 import { A4PreviewWrapper } from "@/components/document/A4PreviewWrapper";
 import { PDFExportButton } from "@/components/document/PDFExportButton";
 import { PrintButton } from "@/components/document/PrintButton";
@@ -17,9 +18,9 @@ import { useToast } from "@/lib/hooks/useToast";
 import { documentNumberingRepository } from "@/lib/repositories/documentNumberingRepository";
 import { saveInvoiceConversionDraft } from "@/lib/storage/local";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
-import type { Invoice } from "@/lib/types/invoice";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { calculatePOLineItem, calculatePOTotals } from "@/lib/utils/calculations";
+import { buildInvoiceDraftFromPurchaseOrder, canConvertPurchaseOrder } from "@/lib/utils/poToInvoice";
 import { v4 as uuidv4 } from "uuid";
 
 interface POEditorPageProps {
@@ -142,45 +143,26 @@ export function POEditorPage({ poId }: POEditorPageProps) {
   }, [existingPO, workingPoId, poId, savePurchaseOrder, addToast, router]);
 
   const handleConvertToInvoice = useCallback(() => {
-    if (!existingPO) return;
-    const invoiceDraft: Partial<Invoice> = {
-      invoiceType: "TAX_INVOICE",
-      invoiceNumber: "",
-      invoiceDate: new Date().toISOString().slice(0, 10),
-      dueDate: "",
-      status: "DRAFT",
-      paymentStatus: "Unpaid",
-      poReference: existingPO.poNumber,
-      projectDescription: existingPO.projectDescription,
-      notes: existingPO.commercialTerms?.notes,
-      buyer: {
-        name: existingPO.vendor.name,
-        billingAddress: { ...existingPO.vendor.address, country: existingPO.vendor.address.country ?? "India" },
-        gstin: existingPO.vendor.gstin,
-        contact: { email: existingPO.vendor.contact?.email ?? "", phone: existingPO.vendor.contact?.phone ?? "" },
-        placeOfSupply: existingPO.delivery.address.state || existingPO.vendor.address.state,
-        placeOfSupplyCode: existingPO.delivery.address.stateCode || existingPO.vendor.address.stateCode,
-      },
-      lineItems: existingPO.lineItems.map((item) => ({
-        id: item.id, description: item.description, hsnSac: item.hsnSac ?? "",
-        quantity: item.quantity, unit: item.unit, rate: item.rate, discountPercent: item.discountPercent,
-        gstRate: item.gstRate, gross: 0, discountAmount: 0, taxableValue: 0, cgst: 0, sgst: 0, igst: 0, lineTotal: 0,
-      })),
-    };
-    const draftResult = saveInvoiceConversionDraft(invoiceDraft);
-    if (!draftResult.success) { addToast(draftResult.error ?? "Failed to prepare invoice draft.", "error"); return; }
+    if (!canConvertPurchaseOrder(existingPO)) return;
     setIsConvertModalOpen(true);
-  }, [addToast, existingPO]);
+  }, [existingPO]);
 
-  const finalizeConversion = useCallback(async (nextStatus: PurchaseOrder["poStatus"]) => {
+  const finalizeConversion = useCallback(async () => {
     if (!existingPO) return;
     setIsConverting(true);
     try {
-      const result = await savePurchaseOrder({ ...existingPO, poStatus: nextStatus });
+      const draftResult = saveInvoiceConversionDraft(buildInvoiceDraftFromPurchaseOrder(existingPO));
+      if (!draftResult.success) {
+        addToast(draftResult.error ?? "Failed to prepare invoice draft.", "error");
+        return;
+      }
+
+      const result = await savePurchaseOrder({ ...existingPO, poStatus: "Processed" });
       if (!result.success) {
         addToast(result.error ?? "Failed to update PO status.", "error");
         return;
       }
+
       setIsConvertModalOpen(false);
       router.push("/invoice/new");
     } finally {
@@ -224,6 +206,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
 
   const pdfFilename = `PO-${previewPO.poNumber ?? "draft"}-${previewPO.vendor?.name ?? "vendor"}`;
   const isEditingRoute = Boolean(poId);
+  const canConvert = isEditingRoute && canConvertPurchaseOrder(existingPO);
 
   if (poId && purchaseOrdersLoading) {
     return (
@@ -266,8 +249,9 @@ export function POEditorPage({ poId }: POEditorPageProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {isEditingRoute && existingPO && (
+          {canConvert && (
             <Button variant="outline" onClick={handleConvertToInvoice}>
+              <ArrowRightLeft className="h-4 w-4" />
               Convert to Invoice
             </Button>
           )}
@@ -337,26 +321,29 @@ export function POEditorPage({ poId }: POEditorPageProps) {
       <Modal
         open={isConvertModalOpen}
         onClose={() => !isConverting && setIsConvertModalOpen(false)}
-        title="Mark this PO as Processed?"
+        title="Convert PO to Invoice?"
         actions={(
           <>
             <Button
               variant="outline"
-              onClick={() => void finalizeConversion("Approved")}
-              loading={isConverting}
+              onClick={() => setIsConvertModalOpen(false)}
+              disabled={isConverting}
             >
-              No, keep as Approved
+              Cancel
             </Button>
             <Button
-              onClick={() => void finalizeConversion("Processed")}
+              onClick={() => void finalizeConversion()}
               loading={isConverting}
             >
-              Yes, mark Processed
+              Convert
             </Button>
           </>
         )}
       >
-        <p>We&apos;ll open a new invoice with the buyer details, line items, PO reference, project description, and notes pre-filled.</p>
+        <p>
+          This will create a new Tax Invoice pre-filled with data from PO {existingPO?.poNumber}.
+          {" "}The original PO will not be modified.
+        </p>
       </Modal>
     </div>
   );

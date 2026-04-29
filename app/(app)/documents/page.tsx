@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
 import { useToast } from "@/lib/hooks/useToast";
@@ -8,8 +9,11 @@ import { DocumentTable } from "@/components/document/DocumentTable";
 import { v4 as uuidv4 } from "uuid";
 import type { Invoice } from "@/lib/types/invoice";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
+import { saveInvoiceConversionDraft } from "@/lib/storage/local";
+import { buildInvoiceDraftFromPurchaseOrder, canConvertPurchaseOrder } from "@/lib/utils/poToInvoice";
 
 export default function DocumentsPage() {
+  const router = useRouter();
   const { invoices, loading: invLoading, deleteInvoice, saveInvoice } = useInvoices();
   const { purchaseOrders, loading: poLoading, deletePurchaseOrder, savePurchaseOrder } = usePurchaseOrders();
   const { addToast } = useToast();
@@ -37,6 +41,30 @@ export default function DocumentsPage() {
     }
   }, [invoices, purchaseOrders, saveInvoice, savePurchaseOrder, addToast]);
 
+  const handleConvert = useCallback(async (id: string, type: "invoice" | "po") => {
+    if (type !== "po") return;
+
+    const po = purchaseOrders.find((entry) => entry.id === id);
+    if (!po || !canConvertPurchaseOrder(po)) {
+      addToast("Only final approved purchase orders can be converted.", "error");
+      return;
+    }
+
+    const draftResult = saveInvoiceConversionDraft(buildInvoiceDraftFromPurchaseOrder(po));
+    if (!draftResult.success) {
+      addToast(draftResult.error ?? "Failed to prepare invoice draft.", "error");
+      return;
+    }
+
+    const updateResult = await savePurchaseOrder({ ...po, poStatus: "Processed" });
+    if (!updateResult.success) {
+      addToast(updateResult.error ?? "Failed to update PO status.", "error");
+      return;
+    }
+
+    router.push("/invoice/new");
+  }, [addToast, purchaseOrders, router, savePurchaseOrder]);
+
   if (invLoading || poLoading) {
     return (
       <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>
@@ -63,6 +91,7 @@ export default function DocumentsPage() {
         purchaseOrders={purchaseOrders}
         onDelete={handleDelete}
         onDuplicate={handleDuplicate}
+        onConvert={handleConvert}
       />
     </div>
   );

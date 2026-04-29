@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo, useEffect, useCallback, useState, useRef } from "react";
 import { v4 as uuidv4 } from "uuid";
 import Link from "next/link";
+import { X } from "lucide-react";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import { invoiceSchema } from "@/lib/schemas/invoice.schema";
 import type { Invoice } from "@/lib/types/invoice";
@@ -45,6 +46,7 @@ interface InvoiceFormProps {
   onPreviewChange: (invoice: Partial<Invoice>) => void;
   isNewDocument?: boolean;
   onAutoSaveStateChange?: (state: "idle" | "saved") => void;
+  conversionSourcePoReference?: string;
 }
 
 function buildDefaultValues(
@@ -104,6 +106,7 @@ export function InvoiceForm({
   onPreviewChange,
   isNewDocument = false,
   onAutoSaveStateChange,
+  conversionSourcePoReference,
 }: InvoiceFormProps) {
   const { suggested, isDuplicate } = useDocumentNumber(
     settings?.invoiceNumbering,
@@ -116,6 +119,7 @@ export function InvoiceForm({
   const [useCompanyProfile, setUseCompanyProfile] = useState(true);
   const [storedCompanyProfile, setStoredCompanyProfile] = useState<BusinessProfile | null>(null);
   const [hasRecoverableDraft, setHasRecoverableDraft] = useState(false);
+  const [showConversionBanner, setShowConversionBanner] = useState(Boolean(conversionSourcePoReference));
   const sessionWriteReadyRef = useRef(false);
   const autoSaveReadyRef = useRef(false);
 
@@ -225,6 +229,10 @@ export function InvoiceForm({
       prefillFromProfile(profileToUse);
     }
   }, [companyProfile, isNewDocument, prefillFromProfile, storedCompanyProfile, useCompanyProfile]);
+
+  useEffect(() => {
+    setShowConversionBanner(Boolean(conversionSourcePoReference));
+  }, [conversionSourcePoReference]);
 
   const applySavedClient = useCallback((selected: SavedClient | null) => {
     if (!selected) {
@@ -368,6 +376,23 @@ export function InvoiceForm({
 
   return (
     <form className="space-y-3">
+      {showConversionBanner && conversionSourcePoReference && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm text-blue-900">
+              Converted from PO: {conversionSourcePoReference}. Review all details before saving.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowConversionBanner(false)}
+              className="rounded-md p-1 text-blue-700 transition-colors hover:bg-blue-100"
+              aria-label="Dismiss conversion notice"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
       {isNewDocument && hasRecoverableDraft && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

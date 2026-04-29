@@ -423,6 +423,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
               onPreviewChange={setPreviewInvoice}
               isNewDocument={!invoiceId}
               onAutoSaveStateChange={setAutoSaveState}
+              conversionSourcePoReference={!invoiceId ? conversionDraft?.poReference : undefined}
             />
           </div>
         </div>

@@ -10,9 +10,10 @@ interface PDFExportButtonProps {
   previewRef: React.RefObject<HTMLDivElement>;
   filename: string;
   className?: string;
+  onGeneratingChange?: (isGenerating: boolean) => void;
 }
 
-export function PDFExportButton({ previewRef, filename, className }: PDFExportButtonProps) {
+export function PDFExportButton({ previewRef, filename, className, onGeneratingChange }: PDFExportButtonProps) {
   const [loading, setLoading] = useState(false);
   const { addToast } = useToast();
 
@@ -28,6 +29,7 @@ export function PDFExportButton({ previewRef, filename, className }: PDFExportBu
     if (!element) return;
 
     setLoading(true);
+    onGeneratingChange?.(true);
     element.classList.add("pdf-generating");
     const originalTransform = element.style.transform;
     const originalWidth = element.style.width;
@@ -85,6 +87,7 @@ export function PDFExportButton({ previewRef, filename, className }: PDFExportBu
       element.style.transform = originalTransform;
       element.style.width = originalWidth;
       element.style.boxShadow = originalBoxShadow;
+      onGeneratingChange?.(false);
       setLoading(false);
     }
   };

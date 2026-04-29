@@ -29,6 +29,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
   const router = useRouter();
   const previewRef = useRef<HTMLDivElement>(null);
   const [previewPO, setPreviewPO] = useState<Partial<PurchaseOrder>>({});
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"form" | "preview">("form");
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
@@ -157,7 +158,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
               Convert to Invoice
             </Button>
           )}
-          <PDFExportButton previewRef={previewRef} filename={pdfFilename} />
+          <PDFExportButton previewRef={previewRef} filename={pdfFilename} onGeneratingChange={setIsGeneratingPDF} />
           <PrintButton contentRef={previewRef} />
         </div>
       </div>
@@ -214,7 +215,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
           >
             <A4PreviewWrapper ref={previewRef} noPadding>
               <div className="pdf-preview-surface">
-                <POPreview po={previewPO} />
+                <POPreview po={previewPO} isGeneratingPDF={isGeneratingPDF} />
               </div>
             </A4PreviewWrapper>
           </div>

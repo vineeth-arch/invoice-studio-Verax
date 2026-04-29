@@ -37,6 +37,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const splitPaneRef = useRef<HTMLDivElement>(null);
   const [previewInvoice, setPreviewInvoice] = useState<Partial<Invoice>>({});
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [conversionDraft, setConversionDraft] = useState<Partial<Invoice> | null>(null);
   const [draftReady, setDraftReady] = useState(Boolean(invoiceId));
   const [isSaving, setIsSaving] = useState(false);
@@ -332,7 +333,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
               Share
             </Button>
           )}
-          <PDFExportButton previewRef={previewRef} filename={pdfFilename} />
+          <PDFExportButton previewRef={previewRef} filename={pdfFilename} onGeneratingChange={setIsGeneratingPDF} />
           <PrintButton contentRef={previewRef} />
         </div>
       </div>
@@ -386,7 +387,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
           style={isDesktop ? { flexBasis: `${(1 - splitRatio) * 100}%` } : undefined}
         >
           <A4PreviewWrapper ref={previewRef} noPadding>
-            <InvoicePreview invoice={previewInvoice} />
+            <InvoicePreview invoice={previewInvoice} isGeneratingPDF={isGeneratingPDF} />
           </A4PreviewWrapper>
         </div>
       </div>

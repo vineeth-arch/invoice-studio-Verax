@@ -175,6 +175,7 @@ const DOCUMENT_TITLES: Record<DocumentType, string> = {
 export function DocumentTemplate({
   documentType,
   status,
+  isGeneratingPDF,
   from,
   billTo,
   docDetails,
@@ -286,7 +287,7 @@ export function DocumentTemplate({
           >
             {subtitle}
           </div>
-          {status === "draft" && (
+          {status === "draft" && !isGeneratingPDF && (
             <span
               style={{
                 display: "inline-block",

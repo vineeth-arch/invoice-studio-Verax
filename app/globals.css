@@ -270,8 +270,15 @@ body {
 @media print {
   .no-print { display: none !important; }
   .print-only { display: block !important; }
+  .draft-badge { display: none !important; }
   html, body { margin: 0; padding: 0; background: white; }
   @page { size: A4 portrait; margin: 0; }
+  body { margin: 0; }
+  .invoice-template,
+  .po-template {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
   .a4-print-area {
     width: 210mm !important;
     min-height: 297mm !important;
@@ -279,7 +286,7 @@ body {
     transform: none !important;
     box-shadow: none !important;
     margin: 0 !important;
-    padding: 16mm 14mm !important;
+    padding: 0 !important;
   }
   .print-keep-together { page-break-inside: avoid; }
   thead { display: table-header-group; }
@@ -317,4 +324,8 @@ body {
 }
 @media print {
   .a4-print-area.di-document-wrapper { padding: 0 !important; }
+}
+
+.pdf-generating .draft-badge {
+  display: none !important;
 }

@@ -39,6 +39,32 @@ function safeSet(key: string, value: unknown): SaveResult {
   }
 }
 
+function safeRemove(key: string): SaveResult {
+  if (typeof window === "undefined") return { success: false, error: "Server-side" };
+  try {
+    localStorage.removeItem(key);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to remove data." };
+  }
+}
+
+function setMany(entries: Array<[string, unknown]>): SaveResult {
+  for (const [key, value] of entries) {
+    const result = safeSet(key, value);
+    if (!result.success) return result;
+  }
+  return { success: true };
+}
+
+function removeMany(keys: string[]): SaveResult {
+  for (const key of keys) {
+    const result = safeRemove(key);
+    if (!result.success) return result;
+  }
+  return { success: true };
+}
+
 // ─── Invoices ───────────────────────────────────────────
 
 export function getInvoices(): Invoice[] {
@@ -92,15 +118,20 @@ export function replaceInvoices(invoices: Invoice[]): SaveResult {
 }
 
 export function getInvoiceConversionDraft(): Partial<Invoice> | null {
-  return safeGet<Partial<Invoice> | null>(STORAGE_KEYS.INVOICE_CONVERSION_DRAFT, null);
+  return safeGet<Partial<Invoice> | null>("di_conversion_draft",
+    safeGet<Partial<Invoice> | null>(STORAGE_KEYS.INVOICE_CONVERSION_DRAFT, null)
+  );
 }
 
 export function saveInvoiceConversionDraft(invoice: Partial<Invoice>): SaveResult {
-  return safeSet(STORAGE_KEYS.INVOICE_CONVERSION_DRAFT, invoice);
+  return setMany([
+    [STORAGE_KEYS.INVOICE_CONVERSION_DRAFT, invoice],
+    ["di_conversion_draft", invoice],
+  ]);
 }
 
 export function clearInvoiceConversionDraft(): SaveResult {
-  return safeSet(STORAGE_KEYS.INVOICE_CONVERSION_DRAFT, null);
+  return removeMany([STORAGE_KEYS.INVOICE_CONVERSION_DRAFT, "di_conversion_draft"]);
 }
 
 // ─── Purchase Orders ────────────────────────────────────
@@ -143,11 +174,13 @@ export function replacePurchaseOrders(purchaseOrders: PurchaseOrder[]): SaveResu
 // ─── Company Profile ────────────────────────────────────
 
 export function getCompanyProfile(): BusinessProfile | null {
-  const stored = safeGet<BusinessProfile | null>(STORAGE_KEYS.COMPANY_PROFILE, null);
+  const stored = safeGet<BusinessProfile | null>(
+    "di_company_profile",
+    safeGet<BusinessProfile | null>(STORAGE_KEYS.COMPANY_PROFILE, null)
+  );
   const merged = mergeCompanyProfileWithDefaults(stored);
 
   if (!stored) {
-    safeSet(STORAGE_KEYS.COMPANY_PROFILE, merged);
     return merged;
   }
 
@@ -160,11 +193,19 @@ export function getCompanyProfile(): BusinessProfile | null {
 
 export function saveCompanyProfile(profile: BusinessProfile): SaveResult {
   const now = new Date().toISOString();
-  return safeSet(STORAGE_KEYS.COMPANY_PROFILE, mergeCompanyProfileWithDefaults({ ...profile, updatedAt: now }));
+  const merged = mergeCompanyProfileWithDefaults({ ...profile, updatedAt: now });
+  return setMany([
+    [STORAGE_KEYS.COMPANY_PROFILE, merged],
+    ["di_company_profile", merged],
+  ]);
 }
 
 export function replaceCompanyProfile(profile: BusinessProfile | null): SaveResult {
-  return safeSet(STORAGE_KEYS.COMPANY_PROFILE, profile ? mergeCompanyProfileWithDefaults(profile) : getDefaultCompanyProfile());
+  const nextProfile = profile ? mergeCompanyProfileWithDefaults(profile) : getDefaultCompanyProfile();
+  return setMany([
+    [STORAGE_KEYS.COMPANY_PROFILE, nextProfile],
+    ["di_company_profile", nextProfile],
+  ]);
 }
 
 // ─── Saved Clients ─────────────────────────────────────

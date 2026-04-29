@@ -28,6 +28,7 @@ export function PDFExportButton({ previewRef, filename, className }: PDFExportBu
     if (!element) return;
 
     setLoading(true);
+    element.classList.add("pdf-generating");
     const originalTransform = element.style.transform;
     const originalWidth = element.style.width;
     const originalBoxShadow = element.style.boxShadow;
@@ -36,7 +37,7 @@ export function PDFExportButton({ previewRef, filename, className }: PDFExportBu
       const html2pdf = (await import("html2pdf.js")).default;
       const fileName = `${sanitizeFileName(filename)}.pdf`;
       const options = {
-        margin: 10,
+        margin: [0, 0, 0, 0],
         filename: fileName,
         enableLinks: false,
         image: {
@@ -80,6 +81,7 @@ export function PDFExportButton({ previewRef, filename, className }: PDFExportBu
       console.error("PDF generation failed", error);
       addToast("Failed to generate PDF. Please try again.", "error");
     } finally {
+      element.classList.remove("pdf-generating");
       element.style.transform = originalTransform;
       element.style.width = originalWidth;
       element.style.boxShadow = originalBoxShadow;

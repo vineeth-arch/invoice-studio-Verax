@@ -2,7 +2,7 @@
 
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useEffect, useCallback } from "react";
+import { useMemo, useEffect, useCallback, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
 import { purchaseOrderSchema } from "@/lib/schemas/purchase-order.schema";
@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/Button";
 import { useDocumentNumber } from "@/lib/hooks/useDocumentNumber";
 import type { Invoice } from "@/lib/types/invoice";
 import type { SavedClient } from "@/lib/types/client";
+import { getStoredCompanyProfileForForms } from "@/lib/utils/companyProfileStorage";
 
 interface POFormProps {
   initialValues?: Partial<PurchaseOrder>;
@@ -31,6 +32,7 @@ interface POFormProps {
   onSave: (values: POFormValues, status: "DRAFT" | "FINAL") => Promise<void>;
   isSaving?: boolean;
   onPreviewChange: (po: Partial<PurchaseOrder>) => void;
+  isNewDocument?: boolean;
 }
 
 function buildDefaultValues(settings: DocumentTemplateSettings | null, profile: BusinessProfile | null, suggested: string): Partial<POFormValues> {
@@ -43,14 +45,7 @@ function buildDefaultValues(settings: DocumentTemplateSettings | null, profile: 
     lineItems: [],
     otherCharges: 0,
     poStatus: "Under Approval",
-    buyer: profile ? {
-      name: profile.companyName,
-      address: { ...profile.address, country: "India" },
-      gstin: profile.gstin,
-      stateCode: profile.address.stateCode,
-      contact: { email: profile.contact.email, phone: profile.contact.phone },
-      logoImageBase64: profile.logoImageBase64,
-    } : { name: "", address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" }, gstin: "", stateCode: "" },
+    buyer: { name: "", address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" }, gstin: "", stateCode: "" },
     vendor: { name: "", address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" } },
     delivery: { address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" } },
     approvedBy: profile?.defaultSignatoryName ?? "",
@@ -59,8 +54,19 @@ function buildDefaultValues(settings: DocumentTemplateSettings | null, profile: 
   };
 }
 
-export function POForm({ initialValues, settings, companyProfile, existingDocs, onSave, isSaving, onPreviewChange }: POFormProps) {
+export function POForm({
+  initialValues,
+  settings,
+  companyProfile,
+  existingDocs,
+  onSave,
+  isSaving,
+  onPreviewChange,
+  isNewDocument = false,
+}: POFormProps) {
   const { suggested, isDuplicate } = useDocumentNumber(settings?.poNumbering, existingDocs, initialValues?.id);
+  const [useCompanyProfile, setUseCompanyProfile] = useState(true);
+  const [storedCompanyProfile, setStoredCompanyProfile] = useState<BusinessProfile | null>(null);
 
   const defaultValues = useMemo(
     () => initialValues ? { ...buildDefaultValues(settings, companyProfile, suggested), ...initialValues } : buildDefaultValues(settings, companyProfile, suggested),
@@ -103,16 +109,27 @@ export function POForm({ initialValues, settings, companyProfile, existingDocs, 
     return () => window.removeEventListener("keydown", handler);
   }, [handleSubmit, onSave]);
 
-  const prefillFromProfile = useCallback(() => {
-    if (!companyProfile) return;
-    setValue("buyer.name", companyProfile.companyName);
-    setValue("buyer.address", { ...companyProfile.address, country: "India" });
-    setValue("buyer.gstin", companyProfile.gstin);
-    setValue("buyer.stateCode", companyProfile.address.stateCode);
-    setValue("approvedBy", companyProfile.defaultSignatoryName ?? "");
-    setValue("approvedBySignature.signatureImageBase64", companyProfile.defaultSignatureImageBase64 ?? "");
-    if (companyProfile.logoImageBase64) setValue("buyer.logoImageBase64", companyProfile.logoImageBase64);
-  }, [companyProfile, setValue]);
+  const prefillFromProfile = useCallback((profile: BusinessProfile | null) => {
+    if (!profile) return;
+    setValue("buyer.name", profile.companyName);
+    setValue("buyer.address", { ...profile.address, country: "India" });
+    setValue("buyer.gstin", profile.gstin);
+    setValue("buyer.stateCode", profile.address.stateCode);
+    setValue("buyer.contact.email", profile.contact.email ?? "");
+    setValue("buyer.contact.phone", profile.contact.phone ?? "");
+    setValue("approvedBy", profile.defaultSignatoryName ?? "");
+    setValue("approvedBySignature.signatureImageBase64", profile.defaultSignatureImageBase64 ?? "");
+    if (profile.logoImageBase64) setValue("buyer.logoImageBase64", profile.logoImageBase64);
+  }, [setValue]);
+
+  useEffect(() => {
+    if (!isNewDocument || typeof window === "undefined") return;
+    const storedProfile = getStoredCompanyProfileForForms();
+    setStoredCompanyProfile(storedProfile);
+    if (storedProfile) {
+      prefillFromProfile(storedProfile);
+    }
+  }, [isNewDocument, prefillFromProfile]);
 
   const applySavedClient = useCallback((client: SavedClient | null) => {
     if (!client) {
@@ -144,16 +161,23 @@ export function POForm({ initialValues, settings, companyProfile, existingDocs, 
 
   return (
     <form className="space-y-3">
-      {companyProfile && (
-        <div className="flex justify-end">
-          <Button type="button" variant="outline" size="sm" onClick={prefillFromProfile}>
-            ↑ Use Company Profile
-          </Button>
-        </div>
-      )}
-
       <PODetailsSection control={control} register={register} errors={errors} isDuplicate={isDuplicate} />
-      <POBuyerSection control={control} register={register} errors={errors} onSelectSavedClient={applySavedClient} />
+      <POBuyerSection
+        control={control}
+        register={register}
+        errors={errors}
+        onSelectSavedClient={applySavedClient}
+        showCompanyProfileControls={isNewDocument}
+        hasSavedProfile={isNewDocument && Boolean(storedCompanyProfile)}
+        useCompanyProfile={isNewDocument && Boolean(storedCompanyProfile) ? useCompanyProfile : false}
+        companyName={storedCompanyProfile?.companyName ?? companyProfile?.companyName}
+        onUseCompanyProfileChange={(checked) => {
+          setUseCompanyProfile(checked);
+          if (checked) {
+            prefillFromProfile(storedCompanyProfile ?? companyProfile);
+          }
+        }}
+      />
       <POVendorSection control={control} register={register} errors={errors} />
       <PODeliverySection register={register} errors={errors} />
       <POLineItemsSection control={control} setValue={setValue} errors={errors} />

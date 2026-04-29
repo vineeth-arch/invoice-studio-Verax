@@ -366,6 +366,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
               onSave={handleSave}
               isSaving={isSaving}
               onPreviewChange={setPreviewInvoice}
+              isNewDocument={!invoiceId}
             />
           </div>
         </div>

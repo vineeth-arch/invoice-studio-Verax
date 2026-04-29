@@ -42,6 +42,7 @@ function StatusBadge({ status }: { status?: string }) {
   const s = map[status] ?? { bg: "#f3f4f6", color: "#374151", label: status };
   return (
     <span
+      className={status === "DRAFT" ? "draft-badge" : undefined}
       style={{
         display: "inline-block",
         backgroundColor: s.bg,
@@ -106,6 +107,7 @@ function PartyColumn({
   lines,
   gstin,
   phone,
+  email,
   logo,
   showUnregistered,
 }: {
@@ -114,6 +116,7 @@ function PartyColumn({
   lines: string[];
   gstin?: string;
   phone?: string;
+  email?: string;
   logo?: string;
   showUnregistered?: boolean;
 }) {
@@ -148,6 +151,11 @@ function PartyColumn({
         {phone && (
           <div>
             <span style={{ fontWeight: 600 }}>Phone:</span> {phone}
+          </div>
+        )}
+        {email && (
+          <div>
+            <span style={{ fontWeight: 600 }}>Email:</span> {email}
           </div>
         )}
       </div>
@@ -199,6 +207,10 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       title={isCreditNote ? "CREDIT NOTE" : isProforma ? "PROFORMA INVOICE" : "Tax Invoice"}
       subtitle="Design Consultancy / Creative Services"
       statusBadge={statusBadge}
+      footerEmail={supplier?.contact?.email ?? ""}
+      footerPhone={supplier?.contact?.phone ?? ""}
+      footerTagline={supplier?.name ?? ""}
+      documentClassName="invoice-template"
     >
       <div
         style={{
@@ -228,7 +240,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             PROFORMA - NOT A TAX DOCUMENT
           </div>
         )}
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, padding: "16px 24px" }}>
           <div
             style={{
               display: "grid",
@@ -245,6 +257,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                 lines={buildAddressLines(supplier?.address)}
                 gstin={supplier?.gstin}
                 phone={supplier?.contact?.phone}
+                email={supplier?.contact?.email}
                 logo={supplier?.logoImageBase64}
               />
             </div>

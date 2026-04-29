@@ -27,6 +27,7 @@ import { useToast } from "@/lib/hooks/useToast";
 import type { SavedClient } from "@/lib/types/client";
 import { resolveInvoiceType } from "@/lib/utils/invoiceTypes";
 import type { InvoiceReferenceOption } from "@/components/ui/InvoiceReferenceCombobox";
+import { getStoredCompanyProfileForForms } from "@/lib/utils/companyProfileStorage";
 
 interface InvoiceFormProps {
   initialValues?: Partial<Invoice>;
@@ -36,6 +37,7 @@ interface InvoiceFormProps {
   onSave: (values: InvoiceFormValues, status: "DRAFT" | "FINAL") => Promise<void>;
   isSaving?: boolean;
   onPreviewChange: (invoice: Partial<Invoice>) => void;
+  isNewDocument?: boolean;
 }
 
 function buildDefaultValues(
@@ -63,17 +65,7 @@ function buildDefaultValues(
     creditNoteRefs: [],
     shipping: { sameAsBilling: true },
     lineItems: [],
-    supplier: profile
-      ? {
-          name: profile.companyName,
-          address: { ...profile.address, country: "India" },
-          gstin: profile.gstin,
-          stateCode: profile.address.stateCode,
-          contact: { email: profile.contact.email, phone: profile.contact.phone, website: profile.contact.website },
-          pan: profile.pan,
-          logoImageBase64: profile.logoImageBase64,
-        }
-      : { name: "", address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" }, gstin: "", stateCode: "", contact: {} },
+    supplier: { name: "", address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" }, gstin: "", stateCode: "", contact: {} },
     buyer: { name: "", billingAddress: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" }, placeOfSupply: "", placeOfSupplyCode: "" },
     signature: {
       signatoryName: profile?.defaultSignatoryName ?? "",
@@ -103,6 +95,7 @@ export function InvoiceForm({
   onSave,
   isSaving,
   onPreviewChange,
+  isNewDocument = false,
 }: InvoiceFormProps) {
   const { suggested, isDuplicate } = useDocumentNumber(
     settings?.invoiceNumbering,
@@ -112,6 +105,8 @@ export function InvoiceForm({
   const { saveBuyerFromInvoice } = useSavedClients();
   const { addToast } = useToast();
   const [savingClient, setSavingClient] = useState(false);
+  const [useCompanyProfile, setUseCompanyProfile] = useState(true);
+  const [storedCompanyProfile, setStoredCompanyProfile] = useState<BusinessProfile | null>(null);
 
   const defaultValues = useMemo(
     () => initialValues
@@ -179,26 +174,36 @@ export function InvoiceForm({
     return () => window.removeEventListener("keydown", handler);
   }, [handleSubmit, onSave]);
 
-  const prefillFromProfile = useCallback(() => {
-    if (!companyProfile) return;
-    setValue("supplier.name", companyProfile.companyName);
-    setValue("supplier.address", { ...companyProfile.address, country: "India" });
-    setValue("supplier.gstin", companyProfile.gstin);
-    setValue("supplier.stateCode", companyProfile.address.stateCode);
-    setValue("supplier.contact.email", companyProfile.contact.email ?? "");
-    setValue("supplier.contact.phone", companyProfile.contact.phone ?? "");
-    setValue("supplier.pan", companyProfile.pan ?? "");
-    setValue("supplier.logoImageBase64", companyProfile.logoImageBase64 ?? "");
-    setValue("signature.signatoryName", companyProfile.defaultSignatoryName ?? "");
-    setValue("signature.signatureImageBase64", companyProfile.defaultSignatureImageBase64 ?? "");
-    if (companyProfile.bankDetails) {
-      setValue("paymentDetails.bankName", companyProfile.bankDetails.bankName);
-      setValue("paymentDetails.accountName", companyProfile.bankDetails.accountName);
-      setValue("paymentDetails.accountNumber", companyProfile.bankDetails.accountNumber);
-      setValue("paymentDetails.ifscCode", companyProfile.bankDetails.ifscCode);
-      setValue("paymentDetails.upiId", companyProfile.bankDetails.upiId ?? "");
+  const prefillFromProfile = useCallback((profile: BusinessProfile | null) => {
+    if (!profile) return;
+    setValue("supplier.name", profile.companyName);
+    setValue("supplier.address", { ...profile.address, country: "India" });
+    setValue("supplier.gstin", profile.gstin);
+    setValue("supplier.stateCode", profile.address.stateCode);
+    setValue("supplier.contact.email", profile.contact.email ?? "");
+    setValue("supplier.contact.phone", profile.contact.phone ?? "");
+    setValue("supplier.contact.website", profile.contact.website ?? "");
+    setValue("supplier.pan", profile.pan ?? "");
+    setValue("supplier.logoImageBase64", profile.logoImageBase64 ?? "");
+    setValue("signature.signatoryName", profile.defaultSignatoryName ?? "");
+    setValue("signature.signatureImageBase64", profile.defaultSignatureImageBase64 ?? "");
+    if (profile.bankDetails) {
+      setValue("paymentDetails.bankName", profile.bankDetails.bankName);
+      setValue("paymentDetails.accountName", profile.bankDetails.accountName);
+      setValue("paymentDetails.accountNumber", profile.bankDetails.accountNumber);
+      setValue("paymentDetails.ifscCode", profile.bankDetails.ifscCode);
+      setValue("paymentDetails.upiId", profile.bankDetails.upiId ?? "");
     }
-  }, [companyProfile, setValue]);
+  }, [setValue]);
+
+  useEffect(() => {
+    if (!isNewDocument || typeof window === "undefined") return;
+    const storedProfile = getStoredCompanyProfileForForms();
+    setStoredCompanyProfile(storedProfile);
+    if (storedProfile) {
+      prefillFromProfile(storedProfile);
+    }
+  }, [isNewDocument, prefillFromProfile]);
 
   const applySavedClient = useCallback((selected: SavedClient | null) => {
     if (!selected) {
@@ -276,14 +281,6 @@ export function InvoiceForm({
 
   return (
     <form className="space-y-3">
-      {companyProfile && (
-        <div className="flex justify-end">
-          <Button type="button" variant="outline" size="sm" onClick={prefillFromProfile}>
-            ↑ Use Company Profile
-          </Button>
-        </div>
-      )}
-
       <InvoiceDetailsSection
         control={control}
         register={register}
@@ -296,7 +293,21 @@ export function InvoiceForm({
         linkedInvoiceAmount={invoiceReferenceOptions.find((option) => option.id === formValues.linkedInvoiceId)?.amount}
         onSelectLinkedInvoice={handleLinkedInvoiceSelect}
       />
-      <SupplierDetailsSection control={control} register={register} errors={errors} />
+      <SupplierDetailsSection
+        control={control}
+        register={register}
+        errors={errors}
+        showCompanyProfileControls={isNewDocument}
+        hasSavedProfile={isNewDocument && Boolean(storedCompanyProfile)}
+        useCompanyProfile={isNewDocument && Boolean(storedCompanyProfile) ? useCompanyProfile : false}
+        companyName={storedCompanyProfile?.companyName ?? companyProfile?.companyName}
+        onUseCompanyProfileChange={(checked) => {
+          setUseCompanyProfile(checked);
+          if (checked) {
+            prefillFromProfile(storedCompanyProfile ?? companyProfile);
+          }
+        }}
+      />
       <BuyerDetailsSection
         control={control}
         register={register}

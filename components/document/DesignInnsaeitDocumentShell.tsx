@@ -1,4 +1,5 @@
 import React from "react";
+import { cn } from "@/lib/utils/cn";
 
 const BRAND_PURPLE = "#2828b0";
 const BRAND_TEAL = "#00e5cc";
@@ -11,6 +12,7 @@ interface DesignInnsaeitDocumentShellProps {
   footerEmail?: string;
   footerPhone?: string;
   footerTagline?: string;
+  documentClassName?: string;
 }
 
 export function DesignInnsaeitDocumentShell({
@@ -21,30 +23,38 @@ export function DesignInnsaeitDocumentShell({
   footerEmail = "vineeth@designinnsaeit.com",
   footerPhone = "+91-8655482753",
   footerTagline = "Design Innsaeit | Brand Identity, Packaging Design & Creative Consultancy",
+  documentClassName,
 }: DesignInnsaeitDocumentShellProps) {
+  const footerContact = [footerEmail, footerPhone].filter(Boolean).join(" | ");
+
   return (
     <div
-      className="di-document"
+      className={cn("di-document", documentClassName)}
       style={{
         fontFamily: '"Inter", Arial, sans-serif',
         display: "flex",
         flexDirection: "column",
         minHeight: "297mm",
         backgroundColor: "#ffffff",
+        margin: 0,
+        padding: 0,
       }}
     >
-      {/* ── Purple Header Band ── */}
       <div
+        className="di-document-header"
         style={{
           backgroundColor: BRAND_PURPLE,
-          padding: "20px 32px",
+          width: "100%",
+          marginLeft: 0,
+          marginRight: 0,
+          padding: "20px 24px",
+          boxSizing: "border-box",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           minHeight: "72px",
         }}
       >
-        {/* Left: title + subtitle + badge */}
         <div>
           <div
             style={{
@@ -73,7 +83,6 @@ export function DesignInnsaeitDocumentShell({
           )}
         </div>
 
-        {/* Right: logo */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/design-innsaeit-logo-white.png"
@@ -91,13 +100,12 @@ export function DesignInnsaeitDocumentShell({
         />
       </div>
 
-      {/* ── White Document Body ── */}
       <div
         className="di-document-shell-body"
         style={{
           flex: 1,
           backgroundColor: "#ffffff",
-          padding: "24px 32px",
+          padding: 0,
           display: "flex",
           flexDirection: "column",
         }}
@@ -105,14 +113,19 @@ export function DesignInnsaeitDocumentShell({
         {children}
       </div>
 
-      {/* ── Purple Footer Band ── */}
       <div
+        className="di-document-footer"
         style={{
           backgroundColor: BRAND_PURPLE,
-          padding: "10px 32px",
+          width: "100%",
+          marginLeft: 0,
+          marginRight: 0,
+          padding: "12px 24px",
+          boxSizing: "border-box",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          gap: "16px",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -138,10 +151,7 @@ export function DesignInnsaeitDocumentShell({
               fontWeight: 500,
             }}
           >
-            {footerEmail}
-            {footerPhone && (
-              <span style={{ marginLeft: "12px" }}>{footerPhone}</span>
-            )}
+            {footerContact}
           </div>
           {footerTagline && (
             <div

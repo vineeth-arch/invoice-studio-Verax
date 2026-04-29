@@ -15,7 +15,7 @@ interface Props {
 
 export function POVendorSection({ control, register, errors }: Props) {
   return (
-    <FormSection title="Supplier / Vendor Details">
+    <FormSection title="Buyer / Vendor Details">
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Supplier Name" required error={errors.vendor?.name?.message} className="col-span-2">
           <input type="text" className={inputClass} {...register("vendor.name")} />

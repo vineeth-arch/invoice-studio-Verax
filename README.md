@@ -1,303 +1,397 @@
-# GST Invoice Generator
-### by Design Innsaeit 
+# GST Invoice Studio
+### by Design Innsaeit
 
-> A professional GST-compliant invoice and purchase order generator built for Indian service businesses, creative studios, consultants, and MSMEs.
+Live URL: https://gstininvoice.designinnsaeit.com
 
-## Overview
+---
 
-GST Invoice Generator is a Next.js app for creating GST-ready invoices and purchase orders with Indian numbering, tax calculations, printable A4 templates, and reusable client and service data. It is designed for businesses that need fast document generation, better payment tracking, and optional Supabase-backed cloud sync without making the local-first workflow mandatory.
+## What This Is
 
-## Live App
+GST Invoice Studio is a Next.js web app for Indian service businesses that need GST-ready invoices, purchase orders, and export workflows without the weight of a full ERP. It is built for consultants, studios, freelancers, and MSMEs that want Rule 46-friendly documents, reusable client and service data, quick PDF output, and an optional path from browser-local storage to Supabase-backed cloud sync.
 
-Link: No Vercel deployment URL is committed in this repository.  
-Built with: Next.js · Tailwind CSS · html2pdf.js · localStorage (Supabase ready)
+The app is local-first by default, so it works even without auth or backend setup. When Supabase is configured, the same repositories can sync company data, clients, invoices, purchase orders, services, and settings to the cloud using magic-link sign-in.
 
-## Current Features
-
-### Document Generation
-
-- **Tax Invoice** — GST invoice flow with full totals, payment details, and print/PDF preview.
-- **Proforma Invoice** — Pre-billing document with no GST liability watermark and no tax breakup.
-- **Bill of Supply** — Alternate invoice type available in the invoice type selector.
-- **Export Invoice** — Alternate invoice type available in the invoice type selector.
-- **Credit Note** — Linked credit-note flow with original invoice reference and credit reason.
-- **Debit Note** — Alternate invoice type available in the invoice type selector.
-- **Purchase Order** — Vendor PO with approval status, delivery details, and PO-to-invoice conversion.
-
-### GST Compliance
-
-- **GST mode selection** — Supports CGST + SGST, IGST, No Tax, and Custom tax modes.
-- **HSN/SAC code search** — Uses `data/sac-codes.json` for searchable code lookup and GST autofill.
-- **Place of supply fields** — Captures place of supply state name and state code on invoices.
-- **Reverse charge flag** — Available on non-proforma invoice flows.
-- **IRN and e-invoice QR fields** — Supports optional IRN entry and QR image upload.
-- **E-way bill field** — Supports optional E-way Bill number entry on taxable invoices.
-- **Indian amount-in-words conversion** — Converts totals to INR words using lakh/crore formatting.
-
-### Client & Vendor Management
-
-- **Saved client address book** — Create, edit, delete, and reuse saved buyer records from the Clients page.
-- **Quick client save from invoice** — Saves the current invoice buyer directly into the client address book.
-- **PO vendor capture** — Stores vendor, delivery, and authorization details inside each purchase order.
-
-### Service Catalogue
-
-- **Saved service templates** — Store reusable service descriptions with SAC code, unit, default rate, and GST%.
-- **Catalogue insertion** — Add saved services directly into invoice and PO line items.
-
-### PDF & Printing
-
-- **A4 live preview** — Shows a document preview beside the form editor.
-- **PDF download** — Generates PDFs with `html2pdf.js`, `html2canvas`, and jsPDF settings.
-- **Print support** — Prints invoice and PO previews with print-specific CSS.
-
-### Document Sharing
-
-- **Invoice share links** — Final invoices can generate a browser-local share token and `/share/[shareToken]` URL.
-- **Share link controls** — Supports copy and revoke actions from the invoice editor.
-
-### Dashboard & Reports
-
-- **Dashboard totals** — Shows total invoiced, outstanding, and overdue amounts.
-- **Recent documents** — Lists recent invoices and purchase orders on the dashboard.
-- **Unified documents view** — Filters invoices and POs by type and status, with duplicate and delete actions.
-- **Aging report** — Buckets unpaid invoices into Current, 0-30, 31-60, 61-90, and 90+.
-- **Aging CSV export** — Exports the aging report as CSV from the report page.
-
-### Settings & Configuration
-
-- **Company profile** — Stores company identity, GSTIN, contact, bank, QR, logo, and signature defaults.
-- **Auto-fill supplier profile** — Prefills the invoice and PO FROM section from saved company profile data.
-- **Document numbering** — Configures invoice and PO prefixes, separators, padding, and FY-linked sequences.
-- **Display defaults** — Stores default GST mode, date format, and document display toggles.
-- **Theme and navigation preferences** — Persists light/dark mode and sidebar collapse state in localStorage.
-- **Optional cloud sync** — Enables Supabase magic-link auth and local-to-cloud sync when env vars are set.
-
-## Document Template Features
-
-- **3-column header layout** — Invoice and PO previews use FROM, BILL TO, and DOC DETAILS columns.
-- **A4 full-page utilisation** — Preview shells use full-height A4 layout with flexible content expansion.
-- **Pinned footer shell** — Header and footer bands stay visually anchored on short documents.
-- **Edge-to-edge bleed** — Header and footer strips extend to the left and right page edges.
-- **Dark navy chrome** — Both templates use a dark navy header/footer brand strip with white text.
-- **Company logo support** — Supplier/company logos can be uploaded and rendered inside templates.
-- **Authorized signatory block** — Invoice and PO previews render signature images and signatory names.
-- **Amount in words** — Grand totals render in Indian Rupees words automatically.
-- **Bank and payment details** — Invoice previews include bank details, UPI ID, payment link, and optional QR.
-- **Terms and conditions block** — Invoice and PO previews include notes and terms sections.
+---
 
 ## Tech Stack
 
 | Layer | Technology |
-|---|---|
-| Framework | Next.js 14 (App Router) |
-| Styling | Tailwind CSS |
-| PDF Generation | html2pdf.js + html2canvas + jsPDF |
-| Storage | localStorage with optional Supabase sync |
-| Email | Not implemented in the current codebase |
-| Fonts | Syne · DM Sans · DM Mono · Inter (document templates) |
-| Deployment | Vercel-ready; no deployed URL committed in the repo |
+| --- | --- |
+| Framework | Next.js 14 App Router + React 18 + TypeScript |
+| Styling | Tailwind CSS + custom CSS variables in `app/globals.css` |
+| PDF | `html2pdf.js` + `html2canvas` + `jsPDF` |
+| Storage | Browser `localStorage` with repository wrappers and optional Supabase sync |
+| Auth | Supabase browser client with magic-link OTP authentication |
+| Email | Resend route handler at `/api/send-invoice` plus local sender settings |
+| Deployment | Vercel-friendly Next.js app on a custom domain |
+| Fonts | CSS font variables for DM Sans, Syne, and DM Mono with bundled font assets in `app/fonts/` |
 
-## Project Structure
+---
 
-```text
-.
-├── app/                          # App Router pages and global layout
-│   ├── (app)/
-│   │   ├── clients/page.tsx      # Saved client address book
-│   │   ├── company-profile/page.tsx
-│   │   ├── dashboard/page.tsx
-│   │   ├── documents/page.tsx    # Combined invoice + PO listing
-│   │   ├── invoice/
-│   │   │   ├── new/page.tsx
-│   │   │   └── [id]/edit/page.tsx
-│   │   ├── purchase-order/
-│   │   │   ├── new/page.tsx
-│   │   │   └── [id]/edit/page.tsx
-│   │   ├── reports/aging/page.tsx
-│   │   ├── services/page.tsx
-│   │   ├── settings/page.tsx
-│   │   └── layout.tsx
-│   ├── auth/page.tsx             # Supabase magic-link sign-in
-│   ├── share/[shareToken]/page.tsx
-│   ├── layout.tsx
-│   ├── page.tsx                  # Redirects to /dashboard
-│   └── globals.css
-├── components/
-│   ├── auth/                     # Auth provider and sync status card
-│   ├── document/                 # A4 shell, preview wrapper, PDF/print helpers
-│   ├── invoice/                  # Invoice editor, preview, and form sections
-│   ├── purchase-order/           # PO editor, preview, and form sections
-│   ├── layout/                   # App shell and sidebar
-│   └── ui/                       # Shared form, modal, badge, toast, and combobox UI
-├── lib/
-│   ├── defaults/                 # Default company profile seed
-│   ├── hooks/                    # React hooks for invoices, POs, clients, settings, etc.
-│   ├── repositories/             # Local-first repositories with optional Supabase sync
-│   ├── schemas/                  # Zod form schemas
-│   ├── storage/                  # localStorage keys, migrations, and persistence helpers
-│   ├── supabase/                 # Supabase client and generated DB types
-│   ├── types/                    # Shared app types
-│   └── utils/                    # Calculations, formatting, numbering, aging, validation
-├── data/
-│   └── sac-codes.json            # HSN/SAC master used by the combobox
-├── public/
-│   ├── .gitkeep
-│   └── fonts/inter/.gitkeep      # Placeholder for document font assets
-├── supabase/
-│   └── schema.sql                # Optional cloud schema and RLS policies
-├── package.json
-├── next.config.mjs
-├── tailwind.config.ts
-├── tsconfig.json
-└── postcss.config.mjs
-```
+## Current Features
 
-## Getting Started
+### Document Types
 
-### Prerequisites
+- **Tax Invoice**: Full GST invoice workflow with supplier, buyer, line item, totals, payment, and signature sections.
+- **Proforma Invoice**: Pre-billing invoice mode with no GST liability and no tax breakup.
+- **Bill of Supply**: Alternate invoice type for GST-exempt or composition-friendly billing scenarios.
+- **Export Invoice**: Export-oriented invoice mode available in the invoice type selector.
+- **Credit Note**: Linked credit-note flow with original invoice lookup and reason capture.
+- **Debit Note**: Alternate debit-note document type in the same invoice editor.
+- **Purchase Order**: Dedicated PO workflow with approval status, vendor details, delivery block, and authorization sections.
 
-- Node.js 18+
-- npm or yarn
+### GST Compliance
 
-### Installation
+- **GST Mode Switching**: Supports `CGST_SGST`, `IGST`, and `NO_TAX` flows with automatic tax math.
+- **State and State Code Lookup**: Reusable state/code pairing auto-fills Indian state names and two-digit codes across invoice, PO, company profile, and client forms.
+- **GSTIN Validation Input**: Structured GSTIN entry is used across supplier, buyer, vendor, and company profile forms.
+- **HSN/SAC Capture**: Invoice and PO line items support HSN/SAC entry and SAC search-assisted selection.
+- **Place of Supply Tracking**: Buyer and PO place-of-supply fields capture both state name and state code.
+- **Reverse Charge and E-Way Bill Fields**: Non-proforma invoices can capture reverse charge and optional E-way bill numbers.
+- **IRN and E-Invoice QR Support**: Optional IRN number and QR image upload are built into invoice details.
+- **Indian Amount-in-Words Formatting**: Totals convert to INR words using lakh and crore formatting.
+- **GSTR-1 Export Tools**: The reports area includes B2B, B2CS, and HSN-summary CSV exports plus ZIP export.
+
+### Client & Vendor Management
+
+- **Saved Clients Directory**: A dedicated Clients page lets users create, edit, delete, and reuse billing records.
+- **Buyer Autofill from Saved Clients**: Invoice buyer fields can be populated from saved client records.
+- **Vendor Autofill from Saved Clients**: Purchase order BILL TO details can also be filled from saved client records.
+- **Quick Save from Invoice**: The invoice form can save the current buyer back into the client directory.
+- **Company Profile Autofill**: Supplier/FROM sections can be locked to the saved company profile for faster document creation.
+
+### Service Catalogue
+
+- **Saved Service Templates**: The Services page stores reusable descriptions, SAC codes, units, default rates, and GST percentages.
+- **Add from Catalogue**: Invoice and PO line item sections can insert saved services directly into the form.
+- **SAC Code Reference Page**: `/sac-codes` provides a searchable in-app SAC reference library with copy actions and category filters.
+
+### Line Items
+
+- **Manual Line Item Entry**: Users can add unlimited rows with quantity, unit, rate, discount, and GST controls.
+- **Live Tax and Total Calculations**: Each line shows computed taxable value and tax totals as the form changes.
+- **SAC Search with GST Autofill**: Selecting a SAC result fills the code and applies its default GST rate.
+- **PO-to-Invoice Draft Mapping**: Approved final POs can seed a new invoice draft with copied line items and references.
+
+### PDF & Output
+
+- **Live A4 Preview**: Invoice and PO editors render a full document preview beside the form.
+- **PDF Download**: Documents export as PDF using browser-side generation utilities.
+- **Print View**: Printable document views are available from the action bars.
+- **Shared Viewer Download**: The shared document page includes its own PDF download action.
+
+### Sharing & Communication
+
+- **Share Link Generation**: Saved final invoices and approved final POs can generate `/share/[shareToken]` links.
+- **WhatsApp Sharing**: Documents can open a pre-filled WhatsApp share message using `wa.me`.
+- **Email Invoice Delivery**: Final invoices can open a send modal, generate a PDF, and send via the Resend route.
+- **Email Send Logging**: Invoice payloads store `lastEmailedAt` after a successful send.
+- **Share Link Revoke and Copy**: Editors include copy and revoke controls for active share links.
+
+### Dashboard & Reports
+
+- **Dashboard KPIs**: The dashboard shows invoiced value, outstanding value, overdue value, unpaid value, and PO status counts.
+- **Recent Documents Feed**: Dashboard cards surface recent invoices and purchase orders.
+- **Unified Documents Page**: `/documents` merges invoices and POs with filters, duplication, deletion, conversion, and WhatsApp actions.
+- **Drafts Workspace**: `/drafts` separates draft invoices and draft purchase orders for fast recovery.
+- **Aging Report**: `/reports/aging` groups outstanding invoices into Current, 0-30, 31-60, 61-90, and 90+ buckets.
+- **GSTR-1 Summary Screen**: `/reports/gstr1` groups invoices into B2B, B2C Large, B2C Small, Credit Notes, and Export Invoices.
+
+### Workflow Automation
+
+- **Auto-Number Suggestions**: New invoices and POs use configurable numbering with FY-aware sequence generation.
+- **Sequence Incrementation on First Save**: Numbering repositories bump invoice and PO counters after first persisted save.
+- **Draft Auto-Save**: Open invoice and PO forms auto-save draft state on a timer.
+- **Session Recovery**: Unsaved in-progress form data is cached in session storage and can be restored.
+- **Keyboard Save Shortcut**: `Ctrl/Cmd + S` triggers a draft save from both editors.
+- **PO to Invoice Conversion**: Final approved purchase orders can be marked processed and converted into an invoice draft.
+
+### Data & Storage
+
+- **Local-First Repository Layer**: All repositories save to local storage first, then optionally sync to Supabase.
+- **Optional Cloud Sync**: Signed-in users can load and persist invoices, POs, clients, services, settings, and company profile to Supabase.
+- **Storage Migrations**: A migration helper normalizes legacy client and service records on app boot.
+- **Auth Status and Sync UI**: The sidebar and auth page expose cloud-sync availability and sign-in state.
+
+### UI & Experience
+
+- **Responsive App Shell**: The app uses a sidebar shell on desktop and compact bottom navigation on mobile.
+- **Theme Toggle**: Light and dark themes are persisted per browser.
+- **Collapsible Sidebar**: Desktop navigation width is remembered in local storage.
+- **Toasts and Modals**: Shared feedback and confirmation patterns are used across the app.
+- **File Upload Inputs**: Logo, signature, QR, and IRN images can be attached from forms.
+
+---
+
+## Routes & Pages
+
+| Route | Description |
+| --- | --- |
+| `/` | Redirects the root URL to the dashboard. |
+| `/dashboard` | Dashboard with revenue, outstanding, overdue, PO status, recent documents, and quick actions. |
+| `/documents` | Unified listing for saved invoices and purchase orders with filters and actions. |
+| `/drafts` | Draft recovery page for invoice and purchase-order drafts. |
+| `/clients` | Saved client management page. |
+| `/services` | Saved service catalogue management page. |
+| `/sac-codes` | SAC reference page with live search, category filters, and copy actions. |
+| `/company-profile` | Company profile form for business identity, bank details, logo, and defaults. |
+| `/settings` | Numbering, document defaults, display options, and email sender settings. |
+| `/reports/aging` | Aging report page with bucket totals and CSV export. |
+| `/reports/gstr1` | GSTR-1 export page with summaries, warnings, CSV downloads, and ZIP export. |
+| `/invoice/new` | New invoice editor. |
+| `/invoice/[id]/edit` | Existing invoice editor. |
+| `/purchase-order/new` | New purchase-order editor. |
+| `/purchase-order/[id]/edit` | Existing purchase-order editor. |
+| `/auth` | Supabase magic-link sign-in page. |
+| `/auth/callback` | Post-auth redirect route that forwards users back to the dashboard. |
+| `/share/[shareToken]` | Shared document viewer for invoices and purchase orders. |
+| `/api/send-invoice` | POST API route used by the email invoice flow. |
+
+---
+
+## Data Models
+
+`GSTMode`, `DocumentStatus`, `PaymentStatus`, `POStatus`, and `PaymentMode` are the core status unions that drive tax mode, draft/final state, invoice payment tracking, PO approval flow, and payment instrument selection throughout the UI and repositories.
+
+`Address` stores structured Indian postal details with `line1`, `line2`, `floor`, `unit`, `building`, `road`, `landmark`, `locality`, `district`, `city`, `state`, `stateCode`, `pincode`, and `country`. It is reused in company, invoice, PO, client, shipping, and delivery models.
+
+`ContactInfo` captures optional `email`, `phone`, and `website` values and is embedded in supplier, buyer, vendor, and company records.
+
+`BankDetails` models payment collection information such as `accountName`, `accountNumber`, `bankName`, `branch`, `branchName`, `branchAddress`, `ifscCode`, `micrCode`, `accountOpeningDate`, `upiId`, `paymentLink`, and `upiQrImageBase64`.
+
+`SignatureInfo` represents signatory presentation fields including `signatoryName`, `designation`, and `signatureImageBase64`.
+
+`InvoiceLineItem` represents one invoice row with `description`, `hsnSac`, `quantity`, `unit`, `rate`, `discountPercent`, `gstRate`, and all computed totals such as `gross`, `discountAmount`, `taxableValue`, `cgst`, `sgst`, `igst`, and `lineTotal`.
+
+`InvoiceTotals` stores the calculated document summary for invoices: `subtotal`, `totalDiscount`, `totalTaxableValue`, `totalCGST`, `totalSGST`, `totalIGST`, `cess`, `otherCharges`, `roundOff`, `grandTotal`, and `amountInWords`.
+
+`CreditNoteReference` links a tax invoice to related credit notes through `creditNoteId`, `creditNoteNumber`, `creditNoteDate`, and `creditAmount`.
+
+`SupplierInfo` stores the invoice seller block with `name`, `address`, `gstin`, `stateCode`, `contact`, optional `pan`, and optional `logoImageBase64`.
+
+`BuyerInfo` stores the invoice BILL TO block with `name`, `billingAddress`, optional `gstin`, optional `contact`, and explicit `placeOfSupply` plus `placeOfSupplyCode`.
+
+`ShippingInfo` stores optional ship-to details with `sameAsBilling`, `name`, partial `address`, `contactPerson`, and `contactPhone`.
+
+`Invoice` is the primary billing model. It combines document identity fields such as `documentType`, `invoiceType`, `invoiceNumber`, `invoiceDate`, and `dueDate`; GST fields such as `reverseCharge`, `ewayBillNumber`, `irnNumber`, and `irnQrImageBase64`; nested `supplier`, `buyer`, `shipping`, `lineItems`, and `totals`; payment and TDS tracking fields; sharing fields such as `shareToken` and `lastEmailedAt`; and lifecycle fields such as `status`, `createdAt`, and `updatedAt`.
+
+`POLineItem` is the PO equivalent of an invoice row and stores `description`, optional `hsnSac`, `quantity`, `unit`, `rate`, `discountPercent`, `gstRate`, and computed `gross`, `discountAmount`, `taxableValue`, `taxAmount`, and `lineTotal`.
+
+`POTotals` stores PO-level totals using `subtotal`, `totalDiscount`, `totalTaxableValue`, `totalTax`, `otherCharges`, `roundOff`, `grandTotal`, and `amountInWords`.
+
+`POBuyerInfo` represents the PO FROM block with `name`, `address`, `gstin`, `stateCode`, optional `contact`, and optional `logoImageBase64`.
+
+`POVendorInfo` represents the PO BILL TO block with `name`, `address`, optional `gstin`, optional `contactPerson`, optional `contact`, and optional `vendorCode`.
+
+`PODeliveryInfo` models ship/delivery details with `address`, optional `contactPerson`, `contactPhone`, `instructions`, `modeOfDispatch`, `freightTerms`, and `transportResponsibility`.
+
+`POCommercialTerms` stores commercial clauses including `warrantyTerms`, `inspectionTerms`, `returnPolicy`, `cancellationPolicy`, `notes`, and `termsAndConditions`.
+
+`PurchaseOrder` is the primary procurement document model. It includes identity fields such as `poNumber`, `poDate`, `validUntil`, `deliveryDate`, and `quotationReference`; business fields such as `projectDescription`, `placeOfSupply`, `paymentTerms`, and `deliveryTerms`; nested buyer, vendor, delivery, line item, total, and authorization blocks; sharing state; PO approval status; document status; and timestamps.
+
+`BusinessProfile` is the saved company profile used to prefill documents. It stores company names, GST registration data, `address`, `contact`, optional `logoImageBase64`, optional `bankDetails`, default signatory and signature assets, default terms and declaration text, default prefixes, and `updatedAt`.
+
+`SavedClient` is the reusable buyer/vendor directory model with `name`, flattened address fields, `state`, `stateCode`, `gstin`, `email`, `phone`, `placeOfSupply`, `placeOfSupplyCode`, and timestamps.
+
+`SavedService` is the reusable service catalogue model with `description`, `sacCode`, `unit`, `defaultRate`, `defaultGstPercent`, and `createdAt`.
+
+`NumberingConfig` defines one numbering stream using `prefix`, `separator`, `includeYear`, `paddingLength`, and `currentSequence`.
+
+`DocumentTemplateSettings` stores cross-document settings such as invoice and PO numbering, default GST mode, default currency, date format, default notes, terms, declaration text, display toggles, `storedFinancialYear`, and `updatedAt`.
+
+`EmailSettings` stores the sender configuration saved locally for email delivery: `fromName`, `fromEmail`, and `signature`.
+
+`SACCode` defines the in-app SAC reference records with `code`, `description`, `category`, `defaultGstRate`, and keyword `tags`; `HsnSacCodeEntry` remains as a legacy helper shape for the older combobox component.
+
+Internal helper models such as `GSTSplit`, `RawInvoiceLineItem`, `RawPOLineItem`, `DocumentNumberingState`, `RepositoryResult`, and `InvoiceReferenceOption` support calculations, repository responses, numbering sync, and linked-invoice search.
+
+---
+
+## Storage Architecture
+
+The app uses a local-first repository pattern. Every repository writes to browser storage immediately so the app works offline and without authentication; if Supabase is configured and the user is signed in, that same save then attempts a cloud upsert. Reads follow the reverse pattern: load from cloud when auth is available, then mirror the cloud result back into local storage; otherwise fall back to local storage.
+
+Images are treated differently from structured data. Invoice logos, QR codes, and signatures are intentionally stripped before invoice and PO cloud writes and then merged back in from local storage on reads, which keeps the cloud schema simple but also means image sync is intentionally incomplete today.
+
+### Local Storage Keys
+
+| Key | Purpose |
+| --- | --- |
+| `di_invoices` | Primary invoice collection. |
+| `di_purchase_orders` | Primary purchase-order collection. |
+| `di_gstin_company_profile` | Main stored company profile object. |
+| `di_company_profile` | Legacy/mirrored company profile key used by form-prefill helpers. |
+| `di_clients` | Saved client directory. |
+| `di_services` | Saved service catalogue. |
+| `di_gstin_settings` | Document settings payload. |
+| `di_email_settings` | Local sender details for Resend email delivery. |
+| `di_gstin_schema_version` | Local migration version marker. |
+| `di_conversion_draft` | Invoice conversion handoff payload. |
+| `di_gstin_saved_clients` | Legacy client-storage key still read by migrations. |
+| `di_gstin_invoices` | Legacy invoice-storage key still read by storage helpers. |
+| `di_gstin_purchase_orders` | Legacy purchase-order key still read by storage helpers. |
+| `di_nav_collapsed` | Sidebar collapse preference. |
+| `di_theme` | Theme preference. |
+
+### Session Storage Keys
+
+| Key | Purpose |
+| --- | --- |
+| `di_invoice_wip` | Recoverable unsaved invoice form state. |
+| `di_po_wip` | Recoverable unsaved purchase-order form state. |
+
+### Additional Browser Keys
+
+| Key | Purpose |
+| --- | --- |
+| `invoice_split_ratio` | Persisted invoice editor split-pane width. |
+| `po_split_ratio` | Persisted PO editor split-pane width. |
+| `invoice_conversion_draft` | Non-prefixed legacy invoice conversion draft key retained for compatibility. |
+
+### Supabase Tables
+
+| Table | Purpose |
+| --- | --- |
+| `profiles` | Signed-in user company profile. |
+| `clients` | Saved client directory rows. |
+| `invoices` | Invoice records plus JSON `full_data`. |
+| `purchase_orders` | Purchase-order records plus JSON `full_data`. |
+| `services` | Saved service catalogue rows. |
+| `settings` | Settings JSON payload per user. |
+| `document_numbering` | Isolated numbering state per user. |
+
+---
+
+## Getting Started (Local)
+
+1. Install dependencies:
 
 ```bash
-git clone git@github.com:vineeth-arch/di-GSTIN-Generator.git
-cd DI-GSTIN-INVOICE-GENERATOR
 npm install
+```
+
+2. Create a `.env.local` file if you want cloud sync or email delivery.
+
+3. Start the development server:
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+4. Open [http://localhost:3000](http://localhost:3000).
 
-### Environment Variables
+5. Optional verification commands:
 
-Create a `.env.local` file in the root:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://wdjnhtpzlqmsuoqlzypm.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_ddUAOqJz83J2Kkxbr7IcQg_LV0FvCbD
+```bash
+npm run type-check
+npm run build
 ```
 
-The app runs fully on localStorage without any environment variables. Supabase is an optional enhancement for auth and sync, and no email delivery environment variables are referenced in the current codebase.
+---
+
+## Environment Variables
+
+| Variable | What it does | Required |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Enables the browser Supabase client used for auth and cloud sync. | Optional for local-only mode; required for cloud sync. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public Supabase anon key used by the browser client. | Optional for local-only mode; required for cloud sync. |
+| `RESEND_API_KEY` | Enables `/api/send-invoice` to send invoice emails through Resend. | Optional for core app use; required for email delivery. |
+
+---
 
 ## How to Use
 
 ### First-Time Setup
 
-1. Open Company Profile and enter your business name, GSTIN, address, contact details, bank details, and optional logo/signature.
-2. Open Services and add recurring service templates with SAC codes, default rates, units, and GST percentages.
-3. Open Clients and add regular buyers so invoice billing details can be reused from the dropdown.
+Open `/company-profile` and enter your company identity, GSTIN, address, contact details, bank details, and optional logo/signature assets. Then add common clients in `/clients` and common services in `/services` so new documents can be filled much faster.
 
 ### Creating an Invoice
 
-1. Go to `/invoice/new` and choose the invoice type you want to create from the Invoice Details section.
-2. On a fresh invoice, keep the default company-profile checkbox enabled to auto-fill and lock the supplier section.
-3. Select a saved client or enter buyer details manually, including place of supply and optional GSTIN.
-4. Add line items manually or insert saved services from the catalogue, then pick the GST mode and tax rates you need.
-5. Complete payment, notes, and signature sections, then save as Draft or Save as Final.
+Open `/invoice/new`, choose the invoice type, review the suggested document number, and keep the company-profile autofill toggle on if you want the saved supplier block locked in. Fill buyer details, place of supply, line items, payment details, notes, and signature details, then save as draft or finalize the invoice.
 
 ### Creating a Purchase Order
 
-1. Go to `/purchase-order/new` and fill the PO number, dates, status, payment terms, and delivery terms.
-2. Keep the default company-profile checkbox enabled to auto-fill the PO supplier/FROM section if you want to use your own company details.
-3. Enter vendor details, delivery details, line items, totals, commercial terms, and authorization details.
-4. Save the PO as Draft or Save as Final to create an editable saved document.
+Open `/purchase-order/new`, confirm the suggested PO number, and fill the PO details, vendor details, delivery block, line items, commercial terms, and authorization names/signatures. Save it as a draft while negotiating or finalize it when it is ready for approval or processing.
 
-### Converting a PO to Invoice
+### Converting PO to Invoice
 
-1. Open a saved purchase order at `/purchase-order/[id]/edit`.
-2. Click **Convert to Invoice** in the action bar.
-3. Confirm whether the PO should stay **Approved** or be marked **Processed**.
-4. The app opens `/invoice/new` with buyer details, line items, PO reference, project description, and notes pre-filled.
+Only final POs marked `Approved` can be converted. From the PO editor or the documents page, trigger conversion to create an invoice draft that carries over the vendor as buyer, PO reference, project description, notes, line items, and place-of-supply details.
 
-### Downloading or Sharing a Document
+### Tracking Payments
 
-1. Use **Download PDF** or **Print** from the invoice or PO editor action bar to export the current preview.
-2. Final invoices also show a **Share** action that creates a local share link at `/share/[shareToken]`.
-3. Copy or revoke that invoice share link from the share modal as needed.
+In the invoice editor, expand Payment Details to record payment status, received amount, received date, payment mode, and transaction reference. If TDS applies, the form can also capture section, rate, deducted amount, and the effective received value.
 
-### Tracking Payment Status
+### Exporting for GST Returns
 
-1. Open an invoice and expand **Payment Details**.
-2. Set the payment status manually or record payment received date, amount received, payment mode, and transaction reference.
-3. Enable **TDS Applicable** when needed to track section, rate, deducted amount, and net received values.
+Use `/reports/aging` for receivables aging and `/reports/gstr1` for GST-return exports. The GSTR-1 page can filter by Indian financial year and month, show validation warnings, and export B2B, B2CS, HSN-summary, or ZIP bundles.
 
-## Data Storage
+### Signing In for Cloud Sync
 
-By default, all working data is stored in your browser’s localStorage. This means:
+If Supabase env vars are configured, open `/auth` and request a magic link. After sign-in, the repositories can sync company profile data, invoices, POs, clients, services, and settings between local storage and Supabase.
 
-- ✅ No account is required for local-only use.
-- ✅ Data stays private to the current browser by default.
-- ✅ The full app works without Supabase credentials.
-- ⚠️ Data does not sync across devices unless Supabase is configured and you sign in.
-- ⚠️ Clearing browser data will erase local documents and settings.
-
-### localStorage Keys Used
-
-| Key | Contents |
-|---|---|
-| `di_gstin_invoices` | All saved invoices in local mode. |
-| `di_gstin_purchase_orders` | All saved purchase orders in local mode. |
-| `di_clients` | Saved client address book records. |
-| `di_services` | Saved service catalogue entries. |
-| `di_company_profile` | Preferred company profile key used for new-form autofill. |
-| `di_gstin_company_profile` | Legacy/mirrored company profile storage key. |
-| `di_gstin_saved_clients` | Legacy saved-clients key read by the migration layer. |
-| `di_gstin_settings` | Document settings such as numbering, defaults, and display options. |
-| `di_gstin_schema_version` | Local storage migration version marker. |
-| `di_conversion_draft` | Temporary PO/proforma-to-invoice handoff draft. |
-| `di_nav_collapsed` | Sidebar collapsed/expanded preference. |
-| `di_theme` | Light/dark theme preference. |
-| `invoice_conversion_draft` | Legacy invoice conversion draft key kept for compatibility. |
-| `invoice_split_ratio` | Stored invoice editor form/preview split-pane ratio. |
+---
 
 ## Planned Features
 
-The codebase does not include a formal roadmap file, but the following forward-looking path is explicitly implied by the existing auth flow, repositories, and Supabase schema.
+The roadmap below comes from the current project brief, but this README keeps it code-accurate. Email delivery via Resend, TDS tracking, and linked credit-note support already exist in the codebase, so the remaining items from the brief are listed here as the active backlog.
 
-### Cloud Sync & Multi-Device
+### Immediate Next (Ready to build)
 
-- **Supabase-backed persistence** — Database tables, repositories, and RLS policies already exist under `supabase/schema.sql`.
-- **Magic-link authentication** — `/auth` is wired for Supabase OTP sign-in to unlock cloud sync.
-- **Local-to-cloud migration** — The auth status card already exposes a one-click sync of local data into Supabase.
+- **Razorpay payment link embed**: A generic payment-link field exists today, but there is no Razorpay-specific embed or checkout experience yet.
+- **Recurring / retainer invoice scheduling**: Draft and numbering logic exist, but there is no scheduler or recurrence engine.
+- **Expense recording with billable tagging**: No expense capture or billable-cost workflow exists today.
+- **Proforma to Tax Invoice conversion**: Proforma documents exist, but there is no one-click conversion flow to a tax invoice.
 
-## GST Invoice Compliance Notes
+### Phase 2 (Requires Supabase auth)
 
-This generator is designed around the core GST invoice fields the code currently captures, including:
+- **Automated payment reminders**: No scheduled reminder engine exists yet.
+- **CA / accountant read-only access**: The current auth model is single-user and owner-scoped.
+- **Multi-GSTIN / multi-entity support**: The app currently assumes one company profile at a time.
+- **Data export (Excel / CSV full export)**: Reporting exports exist, but there is no full-dataset export of all business data.
+- **GST liability monthly summary**: Aging and GSTR-1 exports exist, but there is no monthly liability summary.
 
-- Mandatory supplier and recipient identity fields
-- Supplier and recipient GSTIN capture
-- HSN/SAC codes per line item
-- CGST/SGST and IGST breakup support
-- Place of supply state and state code
-- Reverse charge declaration
-- IRN and e-invoice QR image fields
+### Phase 3 (MicroSaaS expansion)
 
-Note: This tool assists with document generation and tax formatting. Always verify your final documents and filing workflow with your CA or tax advisor.
+- **UAE VAT invoice mode (AED, 5% VAT)**: All tax logic, wording, and exports are currently India/GST-specific.
+- **WhatsApp Business API integration**: The app currently uses `wa.me` share links, not the Business API.
+- **Client portal (per-client invoice view)**: Shared pages exist, but not a client-authenticated portal.
+- **Razorpay webhook auto-payment update**: Payment status is still manually maintained.
+- **Mobile PWA**: The app is responsive, but there is no PWA manifest/install path.
 
-## Logo and Assets
+### Future (Long term)
 
-The current template shell loads the brand logo from:
+- **Quotation / estimate tool**: Proforma is available, but there is no dedicated estimate workflow.
+- **Project-based billing grouping**: Project description fields exist, but there is no grouped project billing system.
+- **Retainer management dashboard**: No retainer health or schedule dashboard exists yet.
+- **Vendor bill tracking (AP side)**: Purchase orders exist, but accounts-payable bill tracking does not.
+- **Tally / Zoho Books export**: No accounting-export integrations exist yet.
 
-1. `public/images/logo.png`
+---
 
-This file is committed in the repository. You can also upload a logo directly from the Company Profile page, and that uploaded image is embedded into invoice and PO templates through saved profile data.
+## GST Compliance Notes
 
-## Contributing
+The current invoice model and preview templates cover the core data fields typically expected for GST-ready invoices under Rule 46: supplier and recipient details, GSTINs, serial number, issue date, line item descriptions, SAC/HSN capture, quantity, rate, taxable value, tax breakup, place of supply, reverse charge flag, totals, and signatory details. The app also supports alternate document types such as credit notes, debit notes, bills of supply, export invoices, and proforma invoices.
 
-This is a private internal tool built by Design Innsaeit. It is not open for public contributions at this time.
+This is still a product-level implementation, not legal advice. Before production use, document wording, tax treatment, and filing outputs should be reviewed by a CA or GST practitioner for your exact business, registration type, and transaction patterns.
 
-## License
+---
 
-Private. All rights reserved.  
-© 2026 Design Innsaeit.
+## Logo & Assets
+
+Static brand assets live in `public/`, with the current checked-in files including `public/images/logo.png` and `public/Header logo.png`. User-uploaded logos, signatures, and QR images are typically stored as base64 payloads inside browser storage and injected into document previews from the company profile or document record.
+
+For new static assets, prefer descriptive lowercase file names such as `logo-primary.png`, `logo-mark.svg`, or `invoice-watermark.png`. Keep long-lived shared assets in `public/images/` so they can be referenced consistently from document templates.
+
+---
+
+## License & Credits
+
+Private project. Design Innsaeit. Mumbai.
+
+---
 
 ## Built By
 
-**Design Innsaeit**  
-Brand Identity · Packaging Design · Creative Consultancy
-
-Mumbai, India  
-vineeth@designinnsaeit.com
+Design Innsaeit  
+Brand Identity · Packaging Design · Creative Consultancy  
+Mumbai · designinnsaeit.com

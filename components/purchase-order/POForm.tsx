@@ -166,7 +166,6 @@ export function POForm({
         control={control}
         register={register}
         errors={errors}
-        onSelectSavedClient={applySavedClient}
         showCompanyProfileControls={isNewDocument}
         hasSavedProfile={isNewDocument && Boolean(storedCompanyProfile)}
         useCompanyProfile={isNewDocument && Boolean(storedCompanyProfile) ? useCompanyProfile : false}

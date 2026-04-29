@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
@@ -9,13 +8,11 @@ import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass } from "@/components/ui/FormField";
 import { GSTINInput } from "@/components/ui/GSTINInput";
 import { FileUpload } from "@/components/ui/FileUpload";
-import type { SavedClient } from "@/lib/types/client";
 
 interface Props {
   control: Control<POFormValues>;
   register: UseFormRegister<POFormValues>;
   errors: FieldErrors<POFormValues>;
-  onSelectSavedClient: (client: SavedClient | null) => void;
   showCompanyProfileControls: boolean;
   hasSavedProfile: boolean;
   useCompanyProfile: boolean;
@@ -27,30 +24,12 @@ export function POBuyerSection({
   control,
   register,
   errors,
-  onSelectSavedClient,
   showCompanyProfileControls,
   hasSavedProfile,
   useCompanyProfile,
   companyName,
   onUseCompanyProfileChange,
 }: Props) {
-  const [savedClients, setSavedClients] = useState<SavedClient[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState("");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    try {
-      const raw = window.localStorage.getItem("di_clients");
-      const parsed = raw ? JSON.parse(raw) : [];
-      setSavedClients(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setSavedClients([]);
-    }
-  }, []);
-
-  const hasClients = savedClients.length > 0;
-
   return (
     <FormSection title="Supplier Details">
       {showCompanyProfileControls && !hasSavedProfile ? (
@@ -92,32 +71,6 @@ export function POBuyerSection({
 
       <fieldset disabled={showCompanyProfileControls && hasSavedProfile && useCompanyProfile} className={showCompanyProfileControls && hasSavedProfile && useCompanyProfile ? "space-y-0 opacity-60" : "space-y-0"}>
         <div className="grid grid-cols-2 gap-3">
-          <FormField label="Select saved client" className="col-span-2">
-            <select
-              className={inputClass}
-              value={selectedClientId}
-              disabled={!hasClients || (hasSavedProfile && useCompanyProfile)}
-              onChange={(e) => {
-                const nextValue = e.target.value;
-                setSelectedClientId(nextValue);
-                if (!nextValue || nextValue === "__clear__") {
-                  onSelectSavedClient(null);
-                  return;
-                }
-                onSelectSavedClient(savedClients.find((client) => client.id === nextValue) ?? null);
-              }}
-            >
-              <option value="">
-                {hasClients ? "Select a saved client..." : "No saved clients — add one in Clients"}
-              </option>
-              {hasClients && <option value="__clear__">Clear selection</option>}
-              {savedClients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}{client.gstin ? ` • ${client.gstin}` : ""}
-                </option>
-              ))}
-            </select>
-          </FormField>
           <FormField label="Company Name" required error={errors.buyer?.name?.message} className="col-span-2">
             <input type="text" className={inputClass} {...register("buyer.name")} />
           </FormField>

@@ -1,4 +1,15 @@
-import type { Address, ContactInfo, BankDetails, GSTMode, DocumentStatus, PaymentMode, PaymentStatus, SignatureInfo, GSTCollectionMode } from "./common";
+import type {
+  Address,
+  ContactInfo,
+  BankDetails,
+  GSTMode,
+  DocumentStatus,
+  PaymentMode,
+  PaymentStatus,
+  SignatureInfo,
+  GSTCollectionMode,
+  CollectionState,
+} from "./common";
 
 export type InvoiceType =
   | "PROFORMA"
@@ -118,11 +129,14 @@ export interface Invoice {
   baseClearedAmount: number;
   baseClearedDate?: string;
   gstCollectionMode: GSTCollectionMode;
-  gstCleared: boolean;
-  gstClearedAmount: number;
-  gstClearedDate?: string;
+  gstRecoveredAmount: number;
+  gstRecoveredDate?: string;
+  collectionState?: CollectionState;
   invoiceClearedDate?: string;
   settlementNotes?: string;
+  gstCleared?: boolean;
+  gstClearedAmount?: number;
+  gstClearedDate?: string;
   tdsApplicable: boolean;
   tdsSection: string;
   tdsRate: number;

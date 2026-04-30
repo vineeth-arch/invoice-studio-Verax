@@ -57,6 +57,7 @@ function buildDefaultValues(settings: DocumentTemplateSettings | null, profile: 
     lineItems: [],
     otherCharges: 0,
     poStatus: "Under Approval",
+    poStatusDate: new Date().toISOString().slice(0, 10),
     buyer: { name: "", address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" }, gstin: "", stateCode: "" },
     vendor: { name: "", address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" } },
     delivery: { address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" } },

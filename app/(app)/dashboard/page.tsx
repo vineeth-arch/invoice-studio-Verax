@@ -6,9 +6,10 @@ import {
   ArrowUpRight,
   BriefcaseBusiness,
   CheckCircle2,
-  Clock,
   Download,
   FileText,
+  Landmark,
+  ReceiptIndianRupee,
   ShoppingCart,
   Users,
   Wallet,
@@ -16,12 +17,27 @@ import {
 import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
 import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
+import { useSettings } from "@/lib/hooks/useSettings";
 import { formatCurrencyINR } from "@/lib/utils/formatting";
-import { StatusBadge } from "@/components/ui/Badge";
+import { PaymentStatusBadge, POStatusBadge } from "@/components/ui/Badge";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
-import { buildDashboardSnapshot, exportDashboardWorkbook, getAvailableMonths, getMonthLabel, toMonthKey } from "@/lib/utils/dashboardReconciliation";
+import {
+  buildDashboardSnapshot,
+  exportDashboardWorkbook,
+  getAvailableMonths,
+  getMonthLabel,
+  toMonthKey,
+} from "@/lib/utils/dashboardReconciliation";
+import { getGSTPlanningEntry, upsertGSTPlanningEntry } from "@/lib/utils/gstPlanning";
+import { InvoiceSettlementModal } from "@/components/operations/InvoiceSettlementModal";
+import { POStatusModal } from "@/components/operations/POStatusModal";
+import { GSTPlanningModal } from "@/components/operations/GSTPlanningModal";
+import type { Invoice } from "@/lib/types/invoice";
+import type { PurchaseOrder } from "@/lib/types/purchase-order";
+import type { GSTPlanningEntry } from "@/lib/types/settings";
+import { useToast } from "@/lib/hooks/useToast";
 
 function StatCard({
   label,
@@ -37,10 +53,7 @@ function StatCard({
   accentText: string;
 }) {
   return (
-    <div
-      className="rounded-bento flex min-h-[130px] flex-col justify-between p-6"
-      style={{ background: accentBg, border: "1px solid var(--border)" }}
-    >
+    <div className="rounded-bento flex min-h-[130px] flex-col justify-between p-6" style={{ background: accentBg, border: "1px solid var(--border)" }}>
       <p className="text-xs font-medium uppercase tracking-widest" style={{ color: accentText, opacity: 0.75 }}>
         {label}
       </p>
@@ -48,11 +61,11 @@ function StatCard({
         <div className="mt-3 font-mono text-2xl font-bold leading-none" style={{ color: accentText }}>
           {value}
         </div>
-        {sub && (
+        {sub ? (
           <p className="mt-1.5 text-xs font-medium" style={{ color: accentText, opacity: 0.7 }}>
             {sub}
           </p>
-        )}
+        ) : null}
       </div>
     </div>
   );
@@ -86,12 +99,21 @@ function ActionPill({
 
 export default function DashboardPage() {
   const { configured, user } = useAuth();
-  const { invoices, loading: invLoading } = useInvoices();
-  const { purchaseOrders, loading: poLoading } = usePurchaseOrders();
+  const { invoices, loading: invLoading, saveInvoice } = useInvoices();
+  const { purchaseOrders, loading: poLoading, savePurchaseOrder } = usePurchaseOrders();
+  const { settings, saveSettings } = useSettings();
   const { profile } = useCompanyProfile();
+  const { addToast } = useToast();
   const [showSyncBanner, setShowSyncBanner] = useState(true);
-  const monthOptions = useMemo(() => getAvailableMonths(invoices), [invoices]);
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [settlementInvoiceId, setSettlementInvoiceId] = useState<string | null>(null);
+  const [poStatusId, setPoStatusId] = useState<string | null>(null);
+  const [isGSTPlanningOpen, setIsGSTPlanningOpen] = useState(false);
+
+  const monthOptions = useMemo(
+    () => getAvailableMonths(invoices, purchaseOrders, settings),
+    [invoices, purchaseOrders, settings],
+  );
 
   useEffect(() => {
     if (!selectedMonth) {
@@ -101,7 +123,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     const hash = window.location.hash;
     if (hash && hash.includes("access_token")) {
       const supabase = getSupabaseBrowserClient();
@@ -111,46 +132,78 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const finalInvoices = useMemo(
-    () => invoices.filter((invoice) => invoice.status === "FINAL" || invoice.status === "PAID"),
-    [invoices],
-  );
-
   const snapshot = useMemo(
-    () => buildDashboardSnapshot(invoices, selectedMonth || monthOptions[0] || toMonthKey(new Date().toISOString())),
-    [invoices, monthOptions, selectedMonth],
+    () => buildDashboardSnapshot(invoices, purchaseOrders, settings, selectedMonth || monthOptions[0] || toMonthKey(new Date().toISOString())),
+    [invoices, purchaseOrders, settings, selectedMonth, monthOptions],
   );
 
-  const outstandingInvoices = finalInvoices.filter((i) => i.paymentStatus !== "Paid");
-  const overdueInvoices = finalInvoices.filter((i) => i.paymentStatus === "Overdue");
-  const poUnderApproval = purchaseOrders.filter((p) => p.poStatus === "Under Approval").length;
-  const poApproved = purchaseOrders.filter((p) => p.poStatus === "Approved").length;
-  const poProcessed = purchaseOrders.filter((p) => p.poStatus === "Processed").length;
+  const settlementInvoice = useMemo(
+    () => invoices.find((invoice) => invoice.id === settlementInvoiceId) ?? null,
+    [invoices, settlementInvoiceId],
+  );
+  const statusPurchaseOrder = useMemo(
+    () => purchaseOrders.find((po) => po.id === poStatusId) ?? null,
+    [purchaseOrders, poStatusId],
+  );
+  const selectedPlanningRow = useMemo(
+    () => snapshot.gstPlanningRows.find((row) => row.month === snapshot.selectedMonth),
+    [snapshot],
+  );
+  const planningEntry = useMemo(
+    () => getGSTPlanningEntry(settings?.gstPlanningEntries, snapshot.selectedMonth),
+    [settings?.gstPlanningEntries, snapshot.selectedMonth],
+  );
 
-  const recent = [
-    ...invoices.map((i) => ({
-      id: i.id,
-      type: "invoice" as const,
-      number: i.invoiceNumber,
-      party: i.buyer.name,
-      date: i.invoiceDate,
-      amount: i.totals.grandTotal,
-      status: i.status,
-    })),
-    ...purchaseOrders.map((p) => ({
-      id: p.id,
-      type: "po" as const,
-      number: p.poNumber,
-      party: p.vendor.name,
-      date: p.poDate,
-      amount: p.totals.grandTotal,
-      status: p.status,
-    })),
-  ]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 5);
+  const recent = useMemo(
+    () =>
+      [
+        ...invoices.map((invoice) => ({
+          id: invoice.id,
+          type: "invoice" as const,
+          number: invoice.invoiceNumber,
+          party: invoice.buyer.name,
+          date: invoice.invoiceDate,
+          amount: invoice.totals.grandTotal,
+        })),
+        ...purchaseOrders.map((po) => ({
+          id: po.id,
+          type: "po" as const,
+          number: po.poNumber,
+          party: po.vendor.name,
+          date: po.poDate,
+          amount: po.totals.grandTotal,
+        })),
+      ]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 5),
+    [invoices, purchaseOrders],
+  );
 
-  if (invLoading || poLoading) {
+  const handleSettlementSave = async (invoice: Invoice) => {
+    const result = await saveInvoice(invoice);
+    return { success: result.success, error: result.error };
+  };
+
+  const handlePOStatusSave = async (po: PurchaseOrder) => {
+    const result = await savePurchaseOrder(po);
+    return { success: result.success, error: result.error };
+  };
+
+  const handleGSTPlanningSave = async (entry: GSTPlanningEntry) => {
+    if (!settings) return;
+    const nextSettings = {
+      ...settings,
+      gstPlanningEntries: upsertGSTPlanningEntry(settings.gstPlanningEntries, entry),
+    };
+    const result = await saveSettings(nextSettings);
+    if (result.success) {
+      addToast("GST planning updated.", "success");
+      return;
+    }
+    addToast(result.error ?? "Failed to save GST planning.", "error");
+  };
+
+  if (invLoading || poLoading || !settings) {
     return (
       <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>
         Loading…
@@ -160,11 +213,8 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-[1280px] p-5 md:p-7">
-      {configured && !user && showSyncBanner && (
-        <div
-          className="mb-5 rounded-bento px-5 py-4"
-          style={{ background: "var(--accent-yellow-muted)", border: "1px solid var(--accent-yellow)" }}
-        >
+      {configured && !user && showSyncBanner ? (
+        <div className="mb-5 rounded-bento px-5 py-4" style={{ background: "var(--accent-yellow-muted)", border: "1px solid var(--accent-yellow)" }}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-sm font-semibold" style={{ color: "var(--accent-yellow-text)" }}>
@@ -192,7 +242,7 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
@@ -200,27 +250,29 @@ export default function DashboardPage() {
             {profile ? profile.companyName : "Dashboard"}
           </h1>
           <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-            Settlement view for {getMonthLabel(selectedMonth)}
+            Cashflow and recovery view for {getMonthLabel(snapshot.selectedMonth)}
           </p>
         </div>
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
           <select
             className="rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2"
             style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
-            value={selectedMonth}
+            value={snapshot.selectedMonth}
             onChange={(event) => setSelectedMonth(event.target.value)}
           >
             {monthOptions.length === 0 ? (
-              <option value={selectedMonth}>{getMonthLabel(selectedMonth)}</option>
+              <option value={snapshot.selectedMonth}>{getMonthLabel(snapshot.selectedMonth)}</option>
             ) : (
               monthOptions.map((month) => (
-                <option key={month} value={month}>
-                  {getMonthLabel(month)}
-                </option>
+                <option key={month} value={month}>{getMonthLabel(month)}</option>
               ))
             )}
           </select>
-          <Button variant="secondary" onClick={() => exportDashboardWorkbook(selectedMonth, snapshot)}>
+          <Button variant="secondary" onClick={() => setIsGSTPlanningOpen(true)}>
+            <Landmark className="h-4 w-4" />
+            Update GST Plan
+          </Button>
+          <Button variant="secondary" onClick={() => exportDashboardWorkbook(snapshot.selectedMonth, snapshot)}>
             <Download className="h-4 w-4" />
             Export Excel
           </Button>
@@ -236,74 +288,81 @@ export default function DashboardPage() {
           accentText="#111111"
         />
         <StatCard
-          label="Base Cleared This Month"
-          value={formatCurrencyINR(snapshot.baseClearedThisMonth)}
-          sub={`Avg ${snapshot.avgBaseClearanceDays} days to clear`}
+          label="Base Cash Collected"
+          value={formatCurrencyINR(snapshot.baseCashCollectedThisMonth)}
+          sub={`${snapshot.openInvoicesAwaitingBaseClearance} invoices still awaiting base`}
           accentBg="var(--accent-mint-muted)"
           accentText="var(--accent-mint-text)"
         />
         <StatCard
-          label="GST Cleared This Month"
-          value={formatCurrencyINR(snapshot.gstClearedThisMonth)}
-          sub={`${snapshot.awaitingGstCount} invoices still awaiting GST`}
+          label="GST Recovered From Clients"
+          value={formatCurrencyINR(snapshot.gstRecoveredThisMonth)}
+          sub={`${snapshot.baseClearedGstPendingCount} invoices base-cleared but GST pending`}
           accentBg="var(--accent-purple)"
           accentText="#FFFFFF"
         />
         <StatCard
-          label="Deferred GST Pending"
-          value={formatCurrencyINR(snapshot.deferredGstPendingTotal)}
-          sub={`${snapshot.basePaidGstPendingCount} base-paid invoices pending GST`}
+          label="GST Paid To Government"
+          value={formatCurrencyINR(snapshot.gstPaidToGovernmentThisMonth)}
+          sub={planningEntry?.gstPaidDate ? `Paid on ${planningEntry.gstPaidDate}` : "No payment recorded yet"}
           accentBg="var(--accent-coral)"
           accentText="#FFFFFF"
         />
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr,1fr]">
+      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="GST Pending From Clients"
+          value={formatCurrencyINR(snapshot.gstPendingFromClientsTotal)}
+          accentBg="var(--surface)"
+          accentText="var(--text-primary)"
+        />
+        <StatCard
+          label="GST Payable Outstanding"
+          value={formatCurrencyINR(snapshot.gstPayableOutstanding)}
+          accentBg="var(--surface)"
+          accentText="var(--text-primary)"
+        />
+        <StatCard
+          label="Net Cash After GST"
+          value={formatCurrencyINR(snapshot.netCashAfterGstOutflow)}
+          accentBg="var(--surface)"
+          accentText="var(--text-primary)"
+        />
+        <StatCard
+          label="Overdue Base Collections"
+          value={String(snapshot.overdueBaseCount)}
+          accentBg="var(--surface)"
+          accentText="var(--text-primary)"
+        />
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.25fr,1fr]">
         <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Wallet className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+              <Landmark className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
               <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
-                Clearance KPIs
+                GST Planning
               </h2>
             </div>
+            <Button variant="secondary" size="sm" onClick={() => setIsGSTPlanningOpen(true)}>
+              Edit Month
+            </Button>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {[
-              {
-                label: "Invoices Fully Cleared",
-                value: String(snapshot.fullyClearedCountThisMonth),
-                sub: formatCurrencyINR(snapshot.fullyClearedValueThisMonth),
-              },
-              {
-                label: "Deferred Opening",
-                value: formatCurrencyINR(snapshot.deferredOpeningPending),
-                sub: "Pending at month start",
-              },
-              {
-                label: "Deferred Closing",
-                value: formatCurrencyINR(snapshot.deferredClosingPending),
-                sub: "Pending at month end",
-              },
-              {
-                label: "Avg Full Clearance",
-                value: `${snapshot.avgFullClearanceDays} days`,
-                sub: "Invoice to final settlement",
-              },
+              { label: "Opening Payable", value: formatCurrencyINR(selectedPlanningRow?.openingGstPayable ?? 0) },
+              { label: "Accrued This Month", value: formatCurrencyINR(selectedPlanningRow?.gstAccruedThisMonth ?? 0) },
+              { label: "Recovered From Clients", value: formatCurrencyINR(selectedPlanningRow?.gstRecoveredFromClientsThisMonth ?? 0) },
+              { label: "Closing Payable", value: formatCurrencyINR(selectedPlanningRow?.closingGstPayable ?? snapshot.gstPayableOutstanding) },
             ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-2xl p-4"
-                style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
-              >
+              <div key={item.label} className="rounded-2xl p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}>
                 <div className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
                   {item.label}
                 </div>
                 <div className="mt-2 font-mono text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
                   {item.value}
-                </div>
-                <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-                  {item.sub}
                 </div>
               </div>
             ))}
@@ -323,25 +382,24 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.5fr,1fr]">
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr,1fr]">
         <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+              <Wallet className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
               <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
-                GST Clearance Tracker
+                Pending Invoice Recovery
               </h2>
             </div>
             <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
-              {snapshot.deferredRows.length} tracked invoices
+              {snapshot.pendingInvoiceRows.length} open invoice follow-ups
             </span>
           </div>
-
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  {["Invoice", "Client", "Invoice Date", "Base Cleared", "GST Amount", "GST Cleared", "GST Pending", "Invoice Cleared", "Status"].map((heading) => (
+                  {["Invoice", "Client", "Base Pending", "GST Pending", "State", "Action"].map((heading) => (
                     <th key={heading} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                       {heading}
                     </th>
@@ -349,29 +407,29 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {snapshot.deferredRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-400">
-                      No deferred GST invoices yet.
+                {snapshot.pendingInvoiceRows.slice(0, 8).map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-3 py-3 font-mono text-xs text-slate-900">{row.invoiceNumber}</td>
+                    <td className="px-3 py-3 text-slate-700">{row.client}</td>
+                    <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.baseExpected - row.baseClearedAmount)}</td>
+                    <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.gstPendingFromClient)}</td>
+                    <td className="px-3 py-3">
+                      <PaymentStatusBadge status={row.paymentStatus as Invoice["paymentStatus"]} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <Button size="sm" variant="secondary" onClick={() => setSettlementInvoiceId(row.id)}>
+                        Update Settlement
+                      </Button>
                     </td>
                   </tr>
-                ) : (
-                  snapshot.deferredRows.slice(0, 10).map((row) => (
-                    <tr key={row.id}>
-                      <td className="px-3 py-3 font-mono text-xs text-slate-900">{row.invoiceNumber}</td>
-                      <td className="px-3 py-3 text-slate-700">{row.client}</td>
-                      <td className="px-3 py-3 text-slate-600">{row.invoiceDate}</td>
-                      <td className="px-3 py-3 text-slate-900">{formatCurrencyINR(row.baseClearedAmount)}</td>
-                      <td className="px-3 py-3 text-slate-600">{formatCurrencyINR(row.gstAmount)}</td>
-                      <td className="px-3 py-3 text-slate-600">{formatCurrencyINR(row.gstClearedAmount)}</td>
-                      <td className="px-3 py-3 font-semibold text-slate-900">{formatCurrencyINR(row.gstPending)}</td>
-                      <td className="px-3 py-3 text-slate-600">{row.invoiceClearedDate || "Pending"}</td>
-                      <td className="px-3 py-3">
-                        <StatusBadge status={row.paymentStatus === "Paid" ? "PAID" : "FINAL"} />
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
+                {snapshot.pendingInvoiceRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-400">
+                      No pending invoice recovery for this month.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -380,69 +438,60 @@ export default function DashboardPage() {
         <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+              <ReceiptIndianRupee className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
               <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
                 Recent
               </h2>
             </div>
-            <Link
-              href="/documents"
-              className="flex items-center gap-1 text-xs font-medium transition-colors hover:opacity-80"
-              style={{ color: "var(--accent-yellow)" }}
-            >
+            <Link href="/documents" className="flex items-center gap-1 text-xs font-medium transition-colors hover:opacity-80" style={{ color: "var(--accent-yellow)" }}>
               View all <ArrowUpRight className="h-3 w-3" />
             </Link>
           </div>
           <div className="mt-4 space-y-2">
-            {recent.length === 0 ? (
-              <p className="py-4 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-                No documents yet.
-              </p>
-            ) : (
-              recent.map((doc) => (
-                <Link
-                  key={doc.id}
-                  href={`/${doc.type === "invoice" ? "invoice" : "purchase-order"}/${doc.id}/edit`}
-                  className="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-theme-surface-raised"
-                  style={{ background: "var(--surface-raised)" }}
-                >
-                  <div className="min-w-0">
-                    <p className="font-mono text-xs font-medium" style={{ color: "var(--text-primary)" }}>
-                      {doc.number}
-                    </p>
-                    <p className="truncate text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                      {doc.party}
-                    </p>
-                  </div>
-                  <div className="ml-3 flex items-center gap-2">
-                    <span className="font-mono text-xs font-medium" style={{ color: "var(--text-primary)" }}>
-                      {formatCurrencyINR(doc.amount)}
-                    </span>
-                    <StatusBadge status={doc.status} />
-                  </div>
-                </Link>
-              ))
-            )}
+            {recent.map((doc) => (
+              <Link
+                key={doc.id}
+                href={`/${doc.type === "invoice" ? "invoice" : "purchase-order"}/${doc.id}/edit`}
+                className="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-theme-surface-raised"
+                style={{ background: "var(--surface-raised)" }}
+              >
+                <div className="min-w-0">
+                  <p className="font-mono text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+                    {doc.number}
+                  </p>
+                  <p className="truncate text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                    {doc.party}
+                  </p>
+                </div>
+                <div className="ml-3">
+                  <span className="font-mono text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+                    {formatCurrencyINR(doc.amount)}
+                  </span>
+                </div>
+              </Link>
+            ))}
           </div>
         </section>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.3fr,1fr]">
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr,1fr]">
         <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
-              Client GST Summary
-            </h2>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+              <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
+                Open PO Approvals
+              </h2>
+            </div>
             <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
-              Pending GST by client
+              {snapshot.openPurchaseOrderRows.length} POs need follow-up
             </span>
           </div>
-
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  {["Client", "Billed", "Base Cleared", "GST Cleared", "Pending Base", "Pending GST"].map((heading) => (
+                  {["PO", "Vendor", "PO Status", "Status Date", "Action"].map((heading) => (
                     <th key={heading} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                       {heading}
                     </th>
@@ -450,24 +499,26 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {snapshot.clientSummaryRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-400">
-                      No reconciliation data for this month.
+                {snapshot.openPurchaseOrderRows.slice(0, 8).map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-3 py-3 font-mono text-xs text-slate-900">{row.poNumber}</td>
+                    <td className="px-3 py-3 text-slate-700">{row.vendor}</td>
+                    <td className="px-3 py-3"><POStatusBadge status={row.poStatus as PurchaseOrder["poStatus"]} /></td>
+                    <td className="px-3 py-3 text-slate-700">{row.poStatusDate || "Pending"}</td>
+                    <td className="px-3 py-3">
+                      <Button size="sm" variant="secondary" onClick={() => setPoStatusId(row.id)}>
+                        Update PO Status
+                      </Button>
                     </td>
                   </tr>
-                ) : (
-                  snapshot.clientSummaryRows.slice(0, 8).map((row) => (
-                    <tr key={row.client}>
-                      <td className="px-3 py-3 font-medium text-slate-900">{row.client}</td>
-                      <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.billedAmount)}</td>
-                      <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.baseClearedAmount)}</td>
-                      <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.gstClearedAmount)}</td>
-                      <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.pendingBaseAmount)}</td>
-                      <td className="px-3 py-3 font-semibold text-slate-900">{formatCurrencyINR(row.pendingGstAmount)}</td>
-                    </tr>
-                  ))
-                )}
+                ))}
+                {snapshot.openPurchaseOrderRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-400">
+                      No open PO approvals for this month.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -475,33 +526,55 @@ export default function DashboardPage() {
 
         <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
-            Operations Snapshot
+            Client GST Summary
           </h2>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            {[
-              { label: "Outstanding Invoices", value: String(outstandingInvoices.length) },
-              { label: "Overdue Invoices", value: String(overdueInvoices.length) },
-              { label: "PO Under Approval", value: String(poUnderApproval) },
-              { label: "PO Approved", value: String(poApproved) },
-              { label: "PO Processed", value: String(poProcessed) },
-              { label: "Invoices Awaiting GST", value: String(snapshot.awaitingGstCount) },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-xl p-4 text-center"
-                style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
-              >
-                <div className="font-mono text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-                  {item.value}
-                </div>
-                <div className="mt-1 text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
-                  {item.label}
+          <div className="mt-4 space-y-3">
+            {snapshot.clientSummaryRows.slice(0, 6).map((row) => (
+              <div key={row.client} className="rounded-xl p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium" style={{ color: "var(--text-primary)" }}>{row.client}</p>
+                    <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                      Pending base {formatCurrencyINR(row.pendingBaseAmount)} • Pending GST {formatCurrencyINR(row.pendingGstAmount)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {formatCurrencyINR(row.billedAmount)}
+                    </p>
+                    <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                      {row.invoiceCount} invoice{row.invoiceCount === 1 ? "" : "s"}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </section>
       </div>
+
+      <InvoiceSettlementModal
+        invoice={settlementInvoice}
+        open={Boolean(settlementInvoice)}
+        onClose={() => setSettlementInvoiceId(null)}
+        onSave={handleSettlementSave}
+      />
+      <POStatusModal
+        purchaseOrder={statusPurchaseOrder}
+        open={Boolean(statusPurchaseOrder)}
+        onClose={() => setPoStatusId(null)}
+        onSave={handlePOStatusSave}
+      />
+      <GSTPlanningModal
+        month={snapshot.selectedMonth}
+        open={isGSTPlanningOpen}
+        entry={planningEntry}
+        openingGstPayable={selectedPlanningRow?.openingGstPayable ?? 0}
+        gstAccruedThisMonth={selectedPlanningRow?.gstAccruedThisMonth ?? 0}
+        gstRecoveredFromClientsThisMonth={selectedPlanningRow?.gstRecoveredFromClientsThisMonth ?? 0}
+        onClose={() => setIsGSTPlanningOpen(false)}
+        onSave={handleGSTPlanningSave}
+      />
     </div>
   );
 }

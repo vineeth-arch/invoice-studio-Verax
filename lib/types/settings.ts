@@ -2,6 +2,14 @@ import type { GSTMode } from "./common";
 
 export type DateFormat = "DD MMM YYYY" | "DD/MM/YYYY" | "YYYY-MM-DD";
 
+export interface GSTPlanningEntry {
+  month: string;
+  gstPaidToGovernment: number;
+  gstPaidDate?: string;
+  notes?: string;
+  updatedAt?: string;
+}
+
 export interface NumberingConfig {
   prefix: string;
   separator: string;
@@ -23,6 +31,7 @@ export interface DocumentTemplateSettings {
   showSignature: boolean;
   showBankDetails: boolean;
   showQRCode: boolean;
+  gstPlanningEntries: GSTPlanningEntry[];
   storedFinancialYear: string;
   updatedAt: string;
 }

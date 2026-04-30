@@ -90,9 +90,8 @@ export const invoiceSchema = z.object({
   baseClearedAmount: z.preprocess(Number, z.number().min(0).default(0)),
   baseClearedDate: z.string().optional(),
   gstCollectionMode: z.enum(["standard", "deferred"]).default("standard"),
-  gstCleared: z.boolean().default(false),
-  gstClearedAmount: z.preprocess(Number, z.number().min(0).default(0)),
-  gstClearedDate: z.string().optional(),
+  gstRecoveredAmount: z.preprocess(Number, z.number().min(0).default(0)),
+  gstRecoveredDate: z.string().optional(),
   invoiceClearedDate: z.string().optional(),
   settlementNotes: z.string().max(300, "Settlement notes must be ≤ 300 characters").optional(),
   tdsApplicable: z.boolean().default(false),
@@ -191,11 +190,11 @@ export const invoiceSchema = z.object({
         return sum + taxAmount;
       }, 0);
 
-  if (value.gstClearedAmount > Number(gstAmount.toFixed(2)) && value.gstMode !== "NO_TAX") {
+  if (value.gstRecoveredAmount > Number(gstAmount.toFixed(2)) && value.gstMode !== "NO_TAX") {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ["gstClearedAmount"],
-      message: "GST cleared amount cannot exceed GST amount on the invoice",
+      path: ["gstRecoveredAmount"],
+      message: "GST recovered amount cannot exceed GST amount on the invoice",
     });
   }
 });

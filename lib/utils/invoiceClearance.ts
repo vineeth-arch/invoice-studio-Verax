@@ -1,7 +1,13 @@
+import type { CollectionState, PaymentStatus } from "@/lib/types/common";
 import type { Invoice } from "@/lib/types/invoice";
-import type { PaymentStatus } from "@/lib/types/common";
 
 const EPSILON = 0.01;
+
+type LegacyInvoiceSettlement = Partial<Invoice> & {
+  gstClearedAmount?: number;
+  gstClearedDate?: string;
+  gstCleared?: boolean;
+};
 
 function round2(value: number) {
   return Number(value.toFixed(2));
@@ -15,7 +21,7 @@ function parseAmount(value: number | undefined) {
   return round2(Number(value) || 0);
 }
 
-function laterDate(a?: string, b?: string) {
+export function laterDate(a?: string, b?: string) {
   if (!a) return b;
   if (!b) return a;
   return a >= b ? a : b;
@@ -34,75 +40,98 @@ export function hasTaxOnInvoice(invoice: Partial<Invoice>) {
 }
 
 export function getBaseExpectedAmount(invoice: Partial<Invoice>) {
-  return round2(Math.max((invoice.totals?.grandTotal ?? 0) - getInvoiceGstAmount(invoice) - (invoice.tdsAmount ?? 0), 0));
+  return round2(
+    Math.max((invoice.totals?.grandTotal ?? 0) - getInvoiceGstAmount(invoice) - (invoice.tdsAmount ?? 0), 0)
+  );
 }
 
 export function getBaseClearedAmount(invoice: Partial<Invoice>) {
   return parseAmount(invoice.baseClearedAmount ?? invoice.paymentReceivedAmount);
 }
 
-export function getGstClearedAmount(invoice: Partial<Invoice>) {
+export function getGstRecoveredAmount(invoice: LegacyInvoiceSettlement) {
   if (!hasTaxOnInvoice(invoice)) return 0;
-  return round2(clamp(parseAmount(invoice.gstClearedAmount), 0, getInvoiceGstAmount(invoice)));
+  const rawAmount = invoice.gstRecoveredAmount ?? invoice.gstClearedAmount;
+  return round2(clamp(parseAmount(rawAmount), 0, getInvoiceGstAmount(invoice)));
 }
 
 export function getBasePendingAmount(invoice: Partial<Invoice>) {
   return round2(Math.max(getBaseExpectedAmount(invoice) - getBaseClearedAmount(invoice), 0));
 }
 
-export function getGstPendingAmount(invoice: Partial<Invoice>) {
+export function getGstPendingFromClient(invoice: LegacyInvoiceSettlement) {
   if (!hasTaxOnInvoice(invoice)) return 0;
-  return round2(Math.max(getInvoiceGstAmount(invoice) - getGstClearedAmount(invoice), 0));
+  return round2(Math.max(getInvoiceGstAmount(invoice) - getGstRecoveredAmount(invoice), 0));
 }
 
-export function getTotalClearedAmount(invoice: Partial<Invoice>) {
-  return round2(getBaseClearedAmount(invoice) + getGstClearedAmount(invoice));
+export const getGstPendingAmount = getGstPendingFromClient;
+
+export function isBaseCleared(invoice: Partial<Invoice>) {
+  return getBasePendingAmount(invoice) <= EPSILON;
 }
 
-export function isInvoiceFullyCleared(invoice: Partial<Invoice>) {
-  return getBasePendingAmount(invoice) <= EPSILON && getGstPendingAmount(invoice) <= EPSILON;
+export function isFullyRecoveredFromClient(invoice: LegacyInvoiceSettlement) {
+  return isBaseCleared(invoice) && getGstPendingFromClient(invoice) <= EPSILON;
 }
 
 export function getInvoiceClearedDate(invoice: Partial<Invoice>) {
-  if (!isInvoiceFullyCleared(invoice)) return undefined;
-  if (!hasTaxOnInvoice(invoice)) {
-    return invoice.baseClearedDate ?? invoice.paymentReceivedDate;
-  }
-  return laterDate(invoice.baseClearedDate ?? invoice.paymentReceivedDate, invoice.gstClearedDate);
+  return isBaseCleared(invoice) ? (invoice.baseClearedDate ?? invoice.paymentReceivedDate) : undefined;
 }
 
-export function derivePaymentStatus(invoice: Partial<Invoice>): PaymentStatus {
-  const baseCleared = getBaseClearedAmount(invoice);
-  const gstCleared = getGstClearedAmount(invoice);
-  if (isInvoiceFullyCleared(invoice) && (baseCleared > 0 || gstCleared > 0 || !hasTaxOnInvoice(invoice))) {
+export function derivePaymentStatus(invoice: LegacyInvoiceSettlement): PaymentStatus {
+  const baseClearedAmount = getBaseClearedAmount(invoice);
+  if (isBaseCleared(invoice) && (baseClearedAmount > 0 || getBaseExpectedAmount(invoice) <= EPSILON)) {
     return "Paid";
   }
-  if (baseCleared > 0 || gstCleared > 0) {
+  if (baseClearedAmount > 0 || getGstRecoveredAmount(invoice) > 0) {
     return "Partial";
   }
   return "Unpaid";
 }
 
-export function normalizeInvoiceSettlement<T extends Partial<Invoice>>(invoice: T): T {
+export function deriveCollectionState(invoice: LegacyInvoiceSettlement): CollectionState {
+  const baseCleared = isBaseCleared(invoice);
+  const gstPending = getGstPendingFromClient(invoice);
+  const baseClearedAmount = getBaseClearedAmount(invoice);
+  const gstRecoveredAmount = getGstRecoveredAmount(invoice);
+
+  if (baseCleared && gstPending <= EPSILON) {
+    return "Fully Recovered From Client";
+  }
+  if (baseCleared) {
+    return "Base Cleared / GST Pending";
+  }
+  if (baseClearedAmount > 0 || gstRecoveredAmount > 0) {
+    return "Partially Recovered";
+  }
+  return "Unpaid";
+}
+
+export function normalizeInvoiceSettlement<T extends LegacyInvoiceSettlement>(invoice: T): T {
   const taxable = hasTaxOnInvoice(invoice);
   const baseClearedAmount = getBaseClearedAmount(invoice);
-  const gstClearedAmount = taxable ? getGstClearedAmount(invoice) : 0;
+  const gstRecoveredAmount = taxable ? getGstRecoveredAmount(invoice) : 0;
   const baseClearedDate = invoice.baseClearedDate ?? invoice.paymentReceivedDate;
-  const normalized: Partial<Invoice> = {
+  const gstRecoveredDate = taxable ? (invoice.gstRecoveredDate ?? invoice.gstClearedDate) : undefined;
+
+  const normalized: LegacyInvoiceSettlement = {
     ...invoice,
     baseClearedAmount,
     baseClearedDate,
     gstCollectionMode: taxable ? (invoice.gstCollectionMode ?? "standard") : "standard",
-    gstClearedAmount,
-    gstCleared: taxable ? gstClearedAmount >= getInvoiceGstAmount(invoice) - EPSILON : true,
-    gstClearedDate: taxable ? invoice.gstClearedDate : undefined,
+    gstRecoveredAmount,
+    gstRecoveredDate,
     paymentReceivedAmount: baseClearedAmount,
     paymentReceivedDate: baseClearedDate,
-    netReceived: round2(baseClearedAmount + (invoice.tdsDeducted ?? 0)),
+    netReceived: round2(baseClearedAmount + gstRecoveredAmount + (invoice.tdsDeducted ?? 0)),
+    gstClearedAmount: gstRecoveredAmount,
+    gstClearedDate: gstRecoveredDate,
+    gstCleared: taxable ? gstRecoveredAmount >= getInvoiceGstAmount(invoice) - EPSILON : true,
   };
 
   normalized.invoiceClearedDate = getInvoiceClearedDate(normalized);
   normalized.paymentStatus = derivePaymentStatus(normalized);
+  normalized.collectionState = deriveCollectionState(normalized);
 
   return normalized as T;
 }

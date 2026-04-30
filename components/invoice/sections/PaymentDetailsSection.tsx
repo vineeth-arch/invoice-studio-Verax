@@ -5,9 +5,19 @@ import type { Control, UseFormRegister, UseFormSetValue } from "react-hook-form"
 import { Controller, useWatch } from "react-hook-form";
 import type { InvoiceFormValues } from "@/lib/schemas/invoice.schema";
 import { FormSection } from "@/components/ui/FormSection";
-import { FormField, inputClass } from "@/components/ui/FormField";
+import { FormField, inputClass, textareaClass } from "@/components/ui/FormField";
 import { FileUpload } from "@/components/ui/FileUpload";
 import type { PaymentMode } from "@/lib/types/common";
+import {
+  deriveCollectionState,
+  derivePaymentStatus,
+  getBaseExpectedAmount,
+  getBasePendingAmount,
+  getGstPendingFromClient,
+  getInvoiceClearedDate,
+  getInvoiceGstAmount,
+  normalizeInvoiceSettlement,
+} from "@/lib/utils/invoiceClearance";
 
 const TDS_SECTIONS = [
   { value: "194J", label: "194J — Professional/technical fees (10%)", rate: 10 },
@@ -26,14 +36,8 @@ interface Props {
   isProforma: boolean;
 }
 
-function formatAmount(value: number) {
+function round2(value: number) {
   return Number(value.toFixed(2));
-}
-
-function laterDate(a?: string, b?: string) {
-  if (!a) return b ?? "";
-  if (!b) return a;
-  return a >= b ? a : b;
 }
 
 export function PaymentDetailsSection({ control, register, setValue, isProforma }: Props) {
@@ -48,73 +52,81 @@ export function PaymentDetailsSection({ control, register, setValue, isProforma 
   const baseClearedAmount = Number(useWatch({ control, name: "baseClearedAmount" })) || 0;
   const baseClearedDate = useWatch({ control, name: "baseClearedDate" }) ?? "";
   const gstCollectionMode = useWatch({ control, name: "gstCollectionMode" }) ?? "standard";
-  const gstClearedAmount = Number(useWatch({ control, name: "gstClearedAmount" })) || 0;
-  const gstClearedDate = useWatch({ control, name: "gstClearedDate" }) ?? "";
+  const gstRecoveredAmount = Number(useWatch({ control, name: "gstRecoveredAmount" })) || 0;
+  const gstRecoveredDate = useWatch({ control, name: "gstRecoveredDate" }) ?? "";
 
   const settlementSnapshot = useMemo(() => {
     const lineItems = watchedLineItems ?? [];
-    const totals = lineItems.reduce(
-      (acc, item) => {
-        const quantity = Number(item.quantity) || 0;
-        const rate = Number(item.rate) || 0;
-        const discountPercent = Number(item.discountPercent) || 0;
-        const gross = quantity * rate;
-        const taxable = gross - (gross * discountPercent) / 100;
-        const taxAmount = gstMode === "NO_TAX" ? 0 : taxable * ((Number(item.gstRate) || 0) / 100);
+    const taxableValue = lineItems.reduce((sum, item) => {
+      const quantity = Number(item.quantity) || 0;
+      const rate = Number(item.rate) || 0;
+      const discountPercent = Number(item.discountPercent) || 0;
+      const gross = quantity * rate;
+      return sum + (gross - (gross * discountPercent) / 100);
+    }, 0);
+    const computedGstAmount = gstMode === "NO_TAX" || isProforma
+      ? 0
+      : round2(
+          lineItems.reduce((sum, item) => {
+            const quantity = Number(item.quantity) || 0;
+            const rate = Number(item.rate) || 0;
+            const discountPercent = Number(item.discountPercent) || 0;
+            const gross = quantity * rate;
+            const taxable = gross - (gross * discountPercent) / 100;
+            return sum + taxable * ((Number(item.gstRate) || 0) / 100);
+          }, 0)
+        );
+    const grandTotal = round2(taxableValue + computedGstAmount + cess + otherCharges);
+    const gstAmount = computedGstAmount;
 
-        acc.taxable += taxable;
-        acc.gst += taxAmount;
-        acc.grandTotal += taxable + taxAmount;
-        return acc;
-      },
-      { taxable: 0, gst: 0, grandTotal: 0 }
-    );
+    const computedTdsAmount = tdsApplicable ? round2((grandTotal || 0) * (tdsRate / 100)) : 0;
 
-    const computedTdsAmount = tdsApplicable ? formatAmount((totals.grandTotal + cess + otherCharges) * (tdsRate / 100)) : 0;
-    const finalGrandTotal = formatAmount(totals.grandTotal + cess + otherCharges);
-    const finalGstAmount = formatAmount(totals.gst);
-    const baseExpectedAmount = formatAmount(Math.max(finalGrandTotal - finalGstAmount - computedTdsAmount, 0));
-    const taxableInvoice = !isProforma && gstMode !== "NO_TAX" && finalGstAmount > 0;
-    const normalizedGstClearedAmount = taxableInvoice ? formatAmount(Math.min(gstClearedAmount, finalGstAmount)) : 0;
-    const basePendingAmount = formatAmount(Math.max(baseExpectedAmount - baseClearedAmount, 0));
-    const gstPendingAmount = taxableInvoice ? formatAmount(Math.max(finalGstAmount - normalizedGstClearedAmount, 0)) : 0;
-    const invoiceFullyCleared = basePendingAmount <= 0.01 && gstPendingAmount <= 0.01;
-    const paymentStatus =
-      invoiceFullyCleared && (baseClearedAmount > 0 || normalizedGstClearedAmount > 0 || !taxableInvoice)
-        ? "Paid"
-        : baseClearedAmount > 0 || normalizedGstClearedAmount > 0
-          ? "Partial"
-          : "Unpaid";
+    const normalized = normalizeInvoiceSettlement({
+      gstMode: isProforma ? "NO_TAX" : gstMode,
+      totals: {
+        grandTotal,
+        totalCGST: gstMode === "CGST_SGST" ? gstAmount / 2 : 0,
+        totalSGST: gstMode === "CGST_SGST" ? gstAmount / 2 : 0,
+        totalIGST: gstMode === "IGST" || gstMode === "CUSTOM" ? gstAmount : 0,
+      } as never,
+      tdsAmount: computedTdsAmount,
+      tdsDeducted,
+      paymentReceivedAmount: baseClearedAmount,
+      paymentReceivedDate: baseClearedDate,
+      baseClearedAmount,
+      baseClearedDate,
+      gstCollectionMode,
+      gstRecoveredAmount,
+      gstRecoveredDate,
+    });
 
     return {
+      gstAmount: getInvoiceGstAmount(normalized),
+      taxableInvoice: !isProforma && gstMode !== "NO_TAX" && gstAmount > 0,
       computedTdsAmount,
-      grandTotal: finalGrandTotal,
-      gstAmount: finalGstAmount,
-      taxableInvoice,
-      baseExpectedAmount,
-      normalizedGstClearedAmount,
-      basePendingAmount,
-      gstPendingAmount,
-      invoiceFullyCleared,
-      paymentStatus,
-      invoiceClearedDate: invoiceFullyCleared
-        ? laterDate(baseClearedDate, taxableInvoice ? gstClearedDate : undefined)
-        : "",
-      netReceived: formatAmount(baseClearedAmount + tdsDeducted),
+      baseExpectedAmount: getBaseExpectedAmount(normalized),
+      basePendingAmount: getBasePendingAmount(normalized),
+      gstPendingAmount: getGstPendingFromClient(normalized),
+      paymentStatus: derivePaymentStatus(normalized),
+      collectionState: deriveCollectionState(normalized),
+      invoiceClearedDate: getInvoiceClearedDate(normalized) ?? "",
+      normalizedGstRecoveredAmount: normalized.gstRecoveredAmount,
+      netReceived: round2(baseClearedAmount + normalized.gstRecoveredAmount + tdsDeducted),
     };
   }, [
-    baseClearedAmount,
-    baseClearedDate,
-    cess,
-    gstClearedAmount,
-    gstClearedDate,
+    watchedLineItems,
     gstMode,
     isProforma,
+    cess,
     otherCharges,
     tdsApplicable,
-    tdsDeducted,
     tdsRate,
-    watchedLineItems,
+    tdsDeducted,
+    baseClearedAmount,
+    baseClearedDate,
+    gstCollectionMode,
+    gstRecoveredAmount,
+    gstRecoveredDate,
   ]);
 
   useEffect(() => {
@@ -125,18 +137,15 @@ export function PaymentDetailsSection({ control, register, setValue, isProforma 
 
     if (!settlementSnapshot.taxableInvoice) {
       setValue("gstCollectionMode", "standard");
-      setValue("gstClearedAmount", 0);
-      setValue("gstCleared", true);
-      setValue("gstClearedDate", "");
+      setValue("gstRecoveredAmount", 0);
+      setValue("gstRecoveredDate", "");
     } else if (gstCollectionMode === "standard") {
-      setValue("gstClearedAmount", settlementSnapshot.gstAmount);
-      setValue("gstCleared", true);
-      if (!gstClearedDate && baseClearedDate) {
-        setValue("gstClearedDate", baseClearedDate);
+      setValue("gstRecoveredAmount", settlementSnapshot.gstAmount);
+      if (!gstRecoveredDate && baseClearedDate) {
+        setValue("gstRecoveredDate", baseClearedDate);
       }
     } else {
-      setValue("gstClearedAmount", settlementSnapshot.normalizedGstClearedAmount);
-      setValue("gstCleared", settlementSnapshot.gstPendingAmount <= 0.01);
+      setValue("gstRecoveredAmount", settlementSnapshot.normalizedGstRecoveredAmount);
     }
 
     setValue("invoiceClearedDate", settlementSnapshot.invoiceClearedDate);
@@ -144,10 +153,10 @@ export function PaymentDetailsSection({ control, register, setValue, isProforma 
   }, [
     baseClearedAmount,
     baseClearedDate,
-    gstClearedDate,
     gstCollectionMode,
-    settlementSnapshot,
+    gstRecoveredDate,
     setValue,
+    settlementSnapshot,
   ]);
 
   const selectedTdsPreset = TDS_SECTIONS.find((section) => section.value === tdsSection);
@@ -157,6 +166,9 @@ export function PaymentDetailsSection({ control, register, setValue, isProforma 
       <div className="grid grid-cols-2 gap-3">
         <FormField label="Payment Status (auto)">
           <input type="text" className={inputClass} value={settlementSnapshot.paymentStatus} readOnly />
+        </FormField>
+        <FormField label="Collection State (auto)">
+          <input type="text" className={inputClass} value={settlementSnapshot.collectionState} readOnly />
         </FormField>
         <FormField label="Invoice Cleared On (auto)">
           <input type="text" className={inputClass} value={settlementSnapshot.invoiceClearedDate || "Pending"} readOnly />
@@ -281,7 +293,7 @@ export function PaymentDetailsSection({ control, register, setValue, isProforma 
 
       {settlementSnapshot.taxableInvoice && (
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">GST Clearance</div>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">GST Recovery From Client</div>
           <div className="grid grid-cols-2 gap-3">
             <FormField label="GST Recovery Mode">
               <select className={inputClass} {...register("gstCollectionMode")}>
@@ -292,24 +304,24 @@ export function PaymentDetailsSection({ control, register, setValue, isProforma 
             <FormField label="GST Amount on Invoice">
               <input type="number" min="0" step="any" className={inputClass} value={settlementSnapshot.gstAmount} readOnly />
             </FormField>
-            <FormField label="GST Cleared Amount">
+            <FormField label="GST Recovered Amount">
               <input
                 type="number"
                 min="0"
                 max={settlementSnapshot.gstAmount}
                 step="any"
                 className={inputClass}
-                {...register("gstClearedAmount")}
+                {...register("gstRecoveredAmount")}
                 readOnly={gstCollectionMode === "standard"}
               />
             </FormField>
-            <FormField label="GST Pending">
+            <FormField label="GST Pending From Client">
               <input type="number" min="0" step="any" className={inputClass} value={settlementSnapshot.gstPendingAmount} readOnly />
             </FormField>
-            <FormField label="GST Cleared Date">
-              <input type="date" className={inputClass} {...register("gstClearedDate")} />
+            <FormField label="GST Recovered Date">
+              <input type="date" className={inputClass} {...register("gstRecoveredDate")} />
             </FormField>
-            <FormField label="GST Cleared">
+            <FormField label="GST Fully Recovered">
               <input
                 type="text"
                 className={inputClass}
@@ -323,8 +335,8 @@ export function PaymentDetailsSection({ control, register, setValue, isProforma 
 
       <FormField label="Settlement Notes (internal only)">
         <textarea
-          className={`${inputClass} min-h-[92px]`}
-          placeholder="Add any internal accounting notes for this invoice settlement"
+          className={textareaClass}
+          placeholder="Add internal notes for base clearance, GST follow-up, or reconciliation."
           {...register("settlementNotes")}
         />
       </FormField>

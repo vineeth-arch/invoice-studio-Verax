@@ -97,6 +97,8 @@ export interface PurchaseOrder {
   vendorAcceptanceSignature?: SignatureInfo;
   shareToken?: string;
   poStatus: POStatus;
+  poStatusDate?: string;
+  poStatusNote?: string;
   status: DocumentStatus;
   createdAt: string;
   updatedAt: string;

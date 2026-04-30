@@ -12,6 +12,10 @@ import { FormSection } from "@/components/ui/FormSection";
 import { FormField, inputClass, selectClass, textareaClass } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { generateDocumentNumber } from "@/lib/utils/numbering";
+import { GSTPlanningModal } from "@/components/operations/GSTPlanningModal";
+import { getMonthLabel, toMonthKey } from "@/lib/utils/dashboardReconciliation";
+import { getGSTPlanningEntry, normalizeGSTPlanningEntries, upsertGSTPlanningEntry } from "@/lib/utils/gstPlanning";
+import type { GSTPlanningEntry } from "@/lib/types/settings";
 
 export default function SettingsPage() {
   const { settings, loading, saveSettings } = useSettings();
@@ -19,6 +23,8 @@ export default function SettingsPage() {
   const { settings: emailSettings, loading: emailLoading, saveSettings: saveEmailSettings } = useEmailSettings(profile?.companyName);
   const { addToast } = useToast();
   const [emailForm, setEmailForm] = useState<EmailSettings>({ fromName: "", fromEmail: "", emailSignature: "" });
+  const [planningMonth, setPlanningMonth] = useState(toMonthKey(new Date().toISOString()));
+  const [isPlanningOpen, setIsPlanningOpen] = useState(false);
 
   const { register, handleSubmit, watch, reset, formState: { isSubmitting } } = useForm<DocumentTemplateSettings>();
 
@@ -39,7 +45,11 @@ export default function SettingsPage() {
     : "";
 
   const onSubmit = async (values: DocumentTemplateSettings) => {
-    const result = await saveSettings(values);
+    const result = await saveSettings({
+      ...(settings ?? values),
+      ...values,
+      gstPlanningEntries: settings?.gstPlanningEntries ?? [],
+    });
     if (result.success) addToast("Settings saved!", "success");
     else addToast(result.error ?? "Failed to save settings.", "error");
   };
@@ -50,7 +60,20 @@ export default function SettingsPage() {
     else addToast(result.error ?? "Failed to save email settings.", "error");
   };
 
+  const handleGSTPlanningSave = async (entry: GSTPlanningEntry) => {
+    if (!settings) return;
+    const result = await saveSettings({
+      ...settings,
+      gstPlanningEntries: upsertGSTPlanningEntry(settings.gstPlanningEntries, entry),
+    });
+    if (result.success) addToast("GST planning entry saved!", "success");
+    else addToast(result.error ?? "Failed to save GST planning entry.", "error");
+  };
+
   if (loading || emailLoading) return <div className="p-8 text-slate-400">Loading...</div>;
+
+  const planningEntries = normalizeGSTPlanningEntries(settings?.gstPlanningEntries);
+  const selectedPlanningEntry = getGSTPlanningEntry(settings?.gstPlanningEntries, planningMonth);
 
   return (
     <div className="p-6 max-w-2xl">
@@ -194,6 +217,65 @@ export default function SettingsPage() {
           </div>
         </FormSection>
       </div>
+
+      <div className="mt-8">
+        <FormSection title="GST Planning History">
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-slate-500">Maintain month-level GST payment records for cashflow planning and CA exports.</p>
+              <div className="flex gap-3">
+                <input
+                  type="month"
+                  className={inputClass}
+                  value={planningMonth}
+                  onChange={(event) => setPlanningMonth(event.target.value)}
+                />
+                <Button type="button" onClick={() => setIsPlanningOpen(true)}>
+                  Edit Month
+                </Button>
+              </div>
+            </div>
+
+            {planningEntries.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                No GST planning entries yet. Start with the current month.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      {["Month", "GST Paid", "Paid Date", "Notes"].map((heading) => (
+                        <th key={heading} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {planningEntries.map((entry) => (
+                      <tr key={entry.month}>
+                        <td className="px-3 py-3 font-medium text-slate-900">{getMonthLabel(entry.month)}</td>
+                        <td className="px-3 py-3 text-slate-700">{entry.gstPaidToGovernment.toFixed(2)}</td>
+                        <td className="px-3 py-3 text-slate-700">{entry.gstPaidDate || "Pending"}</td>
+                        <td className="px-3 py-3 text-slate-700">{entry.notes || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </FormSection>
+      </div>
+
+      <GSTPlanningModal
+        month={planningMonth}
+        open={isPlanningOpen}
+        entry={selectedPlanningEntry}
+        onClose={() => setIsPlanningOpen(false)}
+        onSave={handleGSTPlanningSave}
+      />
     </div>
   );
 }

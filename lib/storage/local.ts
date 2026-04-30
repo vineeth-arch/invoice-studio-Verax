@@ -361,6 +361,7 @@ const DEFAULT_SETTINGS: DocumentTemplateSettings = {
   showSignature: true,
   showBankDetails: true,
   showQRCode: true,
+  gstPlanningEntries: [],
   storedFinancialYear: getFinancialYear(),
   updatedAt: new Date().toISOString(),
 };

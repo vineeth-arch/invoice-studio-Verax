@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
@@ -13,6 +13,8 @@ import type { PurchaseOrder } from "@/lib/types/purchase-order";
 import { saveInvoiceConversionDraft } from "@/lib/storage/local";
 import { buildInvoiceDraftFromPurchaseOrder, canConvertPurchaseOrder } from "@/lib/utils/poToInvoice";
 import { buildShareUrl, buildWhatsappMessage, buildWhatsappUrl } from "@/lib/utils/documentSharing";
+import { InvoiceSettlementModal } from "@/components/operations/InvoiceSettlementModal";
+import { POStatusModal } from "@/components/operations/POStatusModal";
 
 export default function DocumentsPage() {
   const router = useRouter();
@@ -20,6 +22,17 @@ export default function DocumentsPage() {
   const { purchaseOrders, loading: poLoading, deletePurchaseOrder, savePurchaseOrder } = usePurchaseOrders();
   const { profile } = useCompanyProfile();
   const { addToast } = useToast();
+  const [settlementInvoiceId, setSettlementInvoiceId] = useState<string | null>(null);
+  const [poStatusId, setPoStatusId] = useState<string | null>(null);
+
+  const settlementInvoice = useMemo(
+    () => invoices.find((invoice) => invoice.id === settlementInvoiceId) ?? null,
+    [invoices, settlementInvoiceId],
+  );
+  const statusPurchaseOrder = useMemo(
+    () => purchaseOrders.find((po) => po.id === poStatusId) ?? null,
+    [purchaseOrders, poStatusId],
+  );
 
   const handleDelete = useCallback(async (id: string, type: "invoice" | "po") => {
     const result = await Promise.resolve(type === "invoice" ? deleteInvoice(id) : deletePurchaseOrder(id));
@@ -59,7 +72,7 @@ export default function DocumentsPage() {
       return;
     }
 
-    const updateResult = await savePurchaseOrder({ ...po, poStatus: "Processed" });
+    const updateResult = await savePurchaseOrder({ ...po, poStatus: "Processed", poStatusDate: new Date().toISOString().slice(0, 10) });
     if (!updateResult.success) {
       addToast(updateResult.error ?? "Failed to update PO status.", "error");
       return;
@@ -115,6 +128,16 @@ export default function DocumentsPage() {
     window.open(buildWhatsappUrl(message), "_blank", "noopener,noreferrer");
   }, [addToast, invoices, profile?.companyName, purchaseOrders, saveInvoice, savePurchaseOrder]);
 
+  const handleSettlementSave = useCallback(async (invoice: Invoice) => {
+    const result = await saveInvoice(invoice);
+    return { success: result.success, error: result.error };
+  }, [saveInvoice]);
+
+  const handlePOStatusSave = useCallback(async (po: PurchaseOrder) => {
+    const result = await savePurchaseOrder(po);
+    return { success: result.success, error: result.error };
+  }, [savePurchaseOrder]);
+
   if (invLoading || poLoading) {
     return (
       <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>
@@ -143,6 +166,21 @@ export default function DocumentsPage() {
         onDuplicate={handleDuplicate}
         onConvert={handleConvert}
         onShareWhatsApp={handleShareWhatsApp}
+        onUpdateSettlement={(id) => setSettlementInvoiceId(id)}
+        onUpdatePOStatus={(id) => setPoStatusId(id)}
+      />
+
+      <InvoiceSettlementModal
+        invoice={settlementInvoice}
+        open={Boolean(settlementInvoice)}
+        onClose={() => setSettlementInvoiceId(null)}
+        onSave={handleSettlementSave}
+      />
+      <POStatusModal
+        purchaseOrder={statusPurchaseOrder}
+        open={Boolean(statusPurchaseOrder)}
+        onClose={() => setPoStatusId(null)}
+        onSave={handlePOStatusSave}
       />
     </div>
   );

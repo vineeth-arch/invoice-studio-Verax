@@ -107,6 +107,8 @@ export const purchaseOrderSchema = z.object({
   }).optional(),
 
   poStatus: z.enum(["Under Approval", "Approved", "Processed"]).default("Under Approval"),
+  poStatusDate: z.string().optional(),
+  poStatusNote: z.string().max(300, "PO status note must be ≤ 300 characters").optional(),
   status: z.enum(["DRAFT", "FINAL", "PAID", "CANCELLED"]).default("DRAFT"),
 });
 

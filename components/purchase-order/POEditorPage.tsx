@@ -180,7 +180,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
         return;
       }
 
-      const result = await savePurchaseOrder({ ...existingPO, poStatus: "Processed" });
+      const result = await savePurchaseOrder({ ...existingPO, poStatus: "Processed", poStatusDate: new Date().toISOString().slice(0, 10) });
       if (!result.success) {
         addToast(result.error ?? "Failed to update PO status.", "error");
         return;

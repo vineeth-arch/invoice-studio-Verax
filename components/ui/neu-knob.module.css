@@ -1,0 +1,96 @@
+.outer {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Neumorphic knob base */
+.knob {
+  position: relative;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    #edf1f6 0%,
+    #d0d8e4 45%,
+    #c0cad4 70%,
+    #a8b4c2 100%
+  );
+  box-shadow: var(--shadow-knob);
+  cursor: grab;
+  touch-action: none;
+  flex-shrink: 0;
+  /* Prevent text selection while dragging */
+  user-select: none;
+}
+
+.knob:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.knob:active {
+  cursor: grabbing;
+}
+
+/* Concentric inset groove ring */
+.groove {
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  box-shadow:
+    inset 2px 2px 5px rgba(163, 177, 198, 0.8),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+}
+
+/* Indicator line from centre toward edge */
+.indicator {
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  width: 2px;
+  /* height set inline to reach ~40% from centre toward rim */
+  border-radius: 1px;
+  background: var(--accent);
+  transform-origin: bottom center;
+  transform: translateX(-50%);
+  pointer-events: none;
+  box-shadow: 0 0 4px var(--accent-glow);
+  /* Pivot dot */
+}
+
+.pivot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.label {
+  font-family: 'Instrument Sans', system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  text-align: center;
+}
+
+.valueDisplay {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-mid);
+  font-variant-numeric: tabular-nums;
+}

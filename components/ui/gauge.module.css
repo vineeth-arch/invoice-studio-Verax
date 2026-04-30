@@ -1,0 +1,86 @@
+.container {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.svg {
+  overflow: visible;
+  display: block;
+}
+
+/* Outer bezel ring gradient — polished chrome effect */
+.bezel {
+  fill: url(#bezelGrad);
+}
+
+/* Glass face */
+.face {
+  fill: url(#faceGrad);
+}
+
+/* Reflection highlight arc at top of bezel */
+.reflection {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.45);
+  stroke-width: 4;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+/* Tick marks */
+.tickMajor {
+  stroke: var(--text-mid);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.tickMinor {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+
+/* Scale labels */
+.scaleLabel {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 8px;
+  fill: var(--muted);
+  dominant-baseline: middle;
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Needle */
+.needle {
+  stroke-linecap: round;
+  transform-origin: center;
+}
+
+.needleShaft {
+  stroke-width: 2;
+}
+
+.needlePivot {
+  fill: var(--text-mid);
+}
+
+/* Label and unit text below gauge */
+.gaugeLabel {
+  font-family: 'Instrument Sans', system-ui, sans-serif;
+  font-size: 10px;
+  fill: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.outerWrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}

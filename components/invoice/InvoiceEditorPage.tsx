@@ -26,6 +26,7 @@ import { calculateLineItem, calculateInvoiceTotals } from "@/lib/utils/calculati
 import { buildShareUrl, buildWhatsappMessage, buildWhatsappUrl } from "@/lib/utils/documentSharing";
 import { Mail } from "lucide-react";
 import { DOCUMENT_TYPE_FROM_INVOICE_TYPE, getDisplayInvoiceNumber, isProformaInvoice, resolveInvoiceType } from "@/lib/utils/invoiceTypes";
+import { normalizeInvoiceSettlement } from "@/lib/utils/invoiceClearance";
 
 interface InvoiceEditorPageProps {
   invoiceId?: string;
@@ -145,7 +146,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
       const totals = calculateInvoiceTotals(items, Number(values.cess) || 0, Number(values.otherCharges) || 0);
       const isProforma = values.invoiceType === "PROFORMA";
 
-      const invoice = {
+      const invoice = normalizeInvoiceSettlement({
         ...existingInvoice,
         ...(values as unknown as Partial<Invoice>),
         id: draftId,
@@ -162,7 +163,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
         irnQrImageBase64: isProforma ? undefined : values.irnQrImageBase64,
         status,
         shareToken: existingInvoice?.shareToken,
-      } as Partial<Invoice>;
+      } as Partial<Invoice>);
 
       setPreviewInvoice((current) => ({ ...current, ...invoice, status }));
 

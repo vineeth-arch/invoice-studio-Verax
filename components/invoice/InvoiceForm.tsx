@@ -31,6 +31,7 @@ import { resolveInvoiceType } from "@/lib/utils/invoiceTypes";
 import type { InvoiceReferenceOption } from "@/components/ui/InvoiceReferenceCombobox";
 import { getStoredCompanyProfileForForms } from "@/lib/utils/companyProfileStorage";
 import { hasNonEmptyValue, INVOICE_WIP_SESSION_KEY } from "@/lib/utils/drafts";
+import { normalizeInvoiceSettlement } from "@/lib/utils/invoiceClearance";
 
 interface InvoiceFormProps {
   initialValues?: Partial<Invoice>;
@@ -64,6 +65,14 @@ function buildDefaultValues(
     otherCharges: 0,
     status: "DRAFT",
     paymentStatus: "Unpaid",
+    baseClearedAmount: 0,
+    baseClearedDate: "",
+    gstCollectionMode: "standard",
+    gstCleared: false,
+    gstClearedAmount: 0,
+    gstClearedDate: "",
+    invoiceClearedDate: "",
+    settlementNotes: "",
     tdsApplicable: false,
     tdsSection: "194J",
     tdsRate: 10,
@@ -125,7 +134,7 @@ export function InvoiceForm({
 
   const defaultValues = useMemo(
     () => initialValues
-      ? { ...buildDefaultValues(settings, companyProfile, suggested), ...initialValues }
+      ? normalizeInvoiceSettlement({ ...buildDefaultValues(settings, companyProfile, suggested), ...initialValues } as Partial<Invoice>)
       : buildDefaultValues(settings, companyProfile, suggested),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []

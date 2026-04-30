@@ -87,6 +87,14 @@ export const invoiceSchema = z.object({
     upiQrImageBase64: z.string().optional(),
   }).optional(),
   paymentStatus: z.enum(["Unpaid", "Partial", "Paid", "Overdue"]).default("Unpaid"),
+  baseClearedAmount: z.preprocess(Number, z.number().min(0).default(0)),
+  baseClearedDate: z.string().optional(),
+  gstCollectionMode: z.enum(["standard", "deferred"]).default("standard"),
+  gstCleared: z.boolean().default(false),
+  gstClearedAmount: z.preprocess(Number, z.number().min(0).default(0)),
+  gstClearedDate: z.string().optional(),
+  invoiceClearedDate: z.string().optional(),
+  settlementNotes: z.string().max(300, "Settlement notes must be ≤ 300 characters").optional(),
   tdsApplicable: z.boolean().default(false),
   tdsSection: z.string().default("194J"),
   tdsRate: z.preprocess(Number, z.number().min(0).default(10)),
@@ -170,6 +178,26 @@ export const invoiceSchema = z.object({
       });
     }
   });
+
+  const gstAmount = value.gstMode === "NO_TAX"
+    ? 0
+    : value.lineItems.reduce((sum, item) => {
+        const quantity = Number(item.quantity) || 0;
+        const rate = Number(item.rate) || 0;
+        const discountPercent = Number(item.discountPercent) || 0;
+        const gross = quantity * rate;
+        const taxable = gross - (gross * discountPercent) / 100;
+        const taxAmount = taxable * ((Number(item.gstRate) || 0) / 100);
+        return sum + taxAmount;
+      }, 0);
+
+  if (value.gstClearedAmount > Number(gstAmount.toFixed(2)) && value.gstMode !== "NO_TAX") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["gstClearedAmount"],
+      message: "GST cleared amount cannot exceed GST amount on the invoice",
+    });
+  }
 });
 
 export type InvoiceFormValues = z.infer<typeof invoiceSchema>;

@@ -5,12 +5,13 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import type { Database, Json } from "@/lib/supabase/types";
 import * as local from "@/lib/storage/local";
 import { getCloudContext, toRepositoryError, type RepositoryResult } from "./_shared";
+import { normalizeInvoiceSettlement } from "@/lib/utils/invoiceClearance";
 
 type InvoiceRow = Database["public"]["Tables"]["invoices"]["Row"];
 
 function sanitizeInvoiceForCloud(invoice: Invoice): Invoice {
   return {
-    ...invoice,
+    ...normalizeInvoiceSettlement(invoice),
     irnQrImageBase64: undefined,
     supplier: {
       ...invoice.supplier,
@@ -80,7 +81,7 @@ function toCloudInvoice(invoice: Invoice, userId: string): Database["public"]["T
 
 function fromCloudInvoice(row: InvoiceRow, localInvoice?: Invoice | null): Invoice {
   const base = row.full_data as unknown as Invoice;
-  return mergeInvoiceImages({
+  return normalizeInvoiceSettlement(mergeInvoiceImages({
     ...base,
     id: row.id,
     shareToken: row.share_token ?? base.shareToken,
@@ -95,7 +96,7 @@ function fromCloudInvoice(row: InvoiceRow, localInvoice?: Invoice | null): Invoi
     },
     updatedAt: row.updated_at,
     createdAt: row.created_at,
-  }, localInvoice);
+  }, localInvoice));
 }
 
 export const invoicesRepository = {

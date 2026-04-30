@@ -1,4 +1,5 @@
 export type GSTMode = "CGST_SGST" | "IGST" | "NO_TAX" | "CUSTOM";
+export type GSTCollectionMode = "standard" | "deferred";
 
 export type DocumentStatus = "DRAFT" | "FINAL" | "PAID" | "CANCELLED";
 export type PaymentStatus = "Unpaid" | "Partial" | "Paid" | "Overdue";

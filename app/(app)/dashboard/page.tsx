@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowUpRight,
+  BriefcaseBusiness,
+  CheckCircle2,
+  Clock,
+  Download,
   FileText,
   ShoppingCart,
   Users,
-  BriefcaseBusiness,
-  ArrowUpRight,
-  Clock,
-  X,
+  Wallet,
 } from "lucide-react";
 import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
@@ -18,8 +20,9 @@ import { formatCurrencyINR } from "@/lib/utils/formatting";
 import { StatusBadge } from "@/components/ui/Badge";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/Button";
+import { buildDashboardSnapshot, exportDashboardWorkbook, getAvailableMonths, getMonthLabel, toMonthKey } from "@/lib/utils/dashboardReconciliation";
 
-/* ── Bento stat card ── */
 function StatCard({
   label,
   value,
@@ -35,18 +38,18 @@ function StatCard({
 }) {
   return (
     <div
-      className="rounded-bento p-6 flex flex-col justify-between min-h-[130px]"
+      className="rounded-bento flex min-h-[130px] flex-col justify-between p-6"
       style={{ background: accentBg, border: "1px solid var(--border)" }}
     >
       <p className="text-xs font-medium uppercase tracking-widest" style={{ color: accentText, opacity: 0.75 }}>
         {label}
       </p>
       <div>
-        <div className="font-mono text-2xl font-bold leading-none mt-3" style={{ color: accentText }}>
+        <div className="mt-3 font-mono text-2xl font-bold leading-none" style={{ color: accentText }}>
           {value}
         </div>
         {sub && (
-          <p className="text-xs mt-1.5 font-medium" style={{ color: accentText, opacity: 0.65 }}>
+          <p className="mt-1.5 text-xs font-medium" style={{ color: accentText, opacity: 0.7 }}>
             {sub}
           </p>
         )}
@@ -55,7 +58,6 @@ function StatCard({
   );
 }
 
-/* ── Quick action pill button ── */
 function ActionPill({
   href,
   icon: Icon,
@@ -72,7 +74,7 @@ function ActionPill({
   return (
     <Link href={href}>
       <div
-        className="flex items-center gap-3 px-5 py-3.5 rounded-[24px] font-medium text-sm transition-transform duration-150 hover:scale-[1.02] cursor-pointer"
+        className="flex cursor-pointer items-center gap-3 rounded-[24px] px-5 py-3.5 text-sm font-medium transition-transform duration-150 hover:scale-[1.02]"
         style={{ background: bg, color: fg }}
       >
         <Icon className="h-4 w-4 shrink-0" />
@@ -88,6 +90,14 @@ export default function DashboardPage() {
   const { purchaseOrders, loading: poLoading } = usePurchaseOrders();
   const { profile } = useCompanyProfile();
   const [showSyncBanner, setShowSyncBanner] = useState(true);
+  const monthOptions = useMemo(() => getAvailableMonths(invoices), [invoices]);
+  const [selectedMonth, setSelectedMonth] = useState("");
+
+  useEffect(() => {
+    if (!selectedMonth) {
+      setSelectedMonth(monthOptions[0] ?? toMonthKey(new Date().toISOString()) ?? "");
+    }
+  }, [monthOptions, selectedMonth]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -101,20 +111,18 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const finalInvoices = invoices.filter((i) => i.status === "FINAL" || i.status === "PAID");
-  const totalInvoiced = finalInvoices.reduce((s, i) => s + i.totals.grandTotal, 0);
-
-  const outstandingInvoices = invoices.filter(
-    (i) => i.status === "FINAL" && i.paymentStatus !== "Paid"
+  const finalInvoices = useMemo(
+    () => invoices.filter((invoice) => invoice.status === "FINAL" || invoice.status === "PAID"),
+    [invoices],
   );
-  const outstandingAmt = outstandingInvoices.reduce((s, i) => s + i.totals.grandTotal, 0);
 
-  const overdueInvoices = invoices.filter((i) => i.paymentStatus === "Overdue");
-  const overdueAmt = overdueInvoices.reduce((s, i) => s + i.totals.grandTotal, 0);
+  const snapshot = useMemo(
+    () => buildDashboardSnapshot(invoices, selectedMonth || monthOptions[0] || toMonthKey(new Date().toISOString())),
+    [invoices, monthOptions, selectedMonth],
+  );
 
-  const unpaidInvoices = invoices.filter((i) => i.paymentStatus === "Unpaid" || i.paymentStatus === "Partial");
-  const unpaidAmt = unpaidInvoices.reduce((s, i) => s + i.totals.grandTotal, 0);
-
+  const outstandingInvoices = finalInvoices.filter((i) => i.paymentStatus !== "Paid");
+  const overdueInvoices = finalInvoices.filter((i) => i.paymentStatus === "Overdue");
   const poUnderApproval = purchaseOrders.filter((p) => p.poStatus === "Under Approval").length;
   const poApproved = purchaseOrders.filter((p) => p.poStatus === "Approved").length;
   const poProcessed = purchaseOrders.filter((p) => p.poStatus === "Processed").length;
@@ -128,8 +136,6 @@ export default function DashboardPage() {
       date: i.invoiceDate,
       amount: i.totals.grandTotal,
       status: i.status,
-      paymentStatus: i.paymentStatus,
-      poStatus: undefined as undefined,
     })),
     ...purchaseOrders.map((p) => ({
       id: p.id,
@@ -139,8 +145,6 @@ export default function DashboardPage() {
       date: p.poDate,
       amount: p.totals.grandTotal,
       status: p.status,
-      paymentStatus: undefined as undefined,
-      poStatus: p.poStatus,
     })),
   ]
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -155,7 +159,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-5 md:p-7 max-w-[1200px]">
+    <div className="max-w-[1280px] p-5 md:p-7">
       {configured && !user && showSyncBanner && (
         <div
           className="mb-5 rounded-bento px-5 py-4"
@@ -184,112 +188,200 @@ export default function DashboardPage() {
               style={{ color: "var(--accent-yellow-text)" }}
               aria-label="Dismiss sign-in banner"
             >
-              <X className="h-4 w-4" />
+              ×
             </button>
           </div>
         </div>
       )}
 
-      {/* Page header */}
-      <div className="mb-7">
-        <h1 className="font-display text-[28px] font-extrabold leading-tight" style={{ color: "var(--text-primary)" }}>
-          {profile ? profile.companyName : "Dashboard"}
-        </h1>
-        <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-          {new Date().toLocaleDateString("en-IN", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-        </p>
+      <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="font-display text-[28px] font-extrabold leading-tight" style={{ color: "var(--text-primary)" }}>
+            {profile ? profile.companyName : "Dashboard"}
+          </h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+            Settlement view for {getMonthLabel(selectedMonth)}
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <select
+            className="rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2"
+            style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
+            value={selectedMonth}
+            onChange={(event) => setSelectedMonth(event.target.value)}
+          >
+            {monthOptions.length === 0 ? (
+              <option value={selectedMonth}>{getMonthLabel(selectedMonth)}</option>
+            ) : (
+              monthOptions.map((month) => (
+                <option key={month} value={month}>
+                  {getMonthLabel(month)}
+                </option>
+              ))
+            )}
+          </select>
+          <Button variant="secondary" onClick={() => exportDashboardWorkbook(selectedMonth, snapshot)}>
+            <Download className="h-4 w-4" />
+            Export Excel
+          </Button>
+        </div>
       </div>
 
-      {/* ── Bento Grid ── */}
-      <div className="bento-grid">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Billed This Month"
+          value={formatCurrencyINR(snapshot.billedThisMonth)}
+          sub={`${snapshot.invoiceRegisterRows.length} issued invoices`}
+          accentBg="var(--accent-yellow)"
+          accentText="#111111"
+        />
+        <StatCard
+          label="Base Cleared This Month"
+          value={formatCurrencyINR(snapshot.baseClearedThisMonth)}
+          sub={`Avg ${snapshot.avgBaseClearanceDays} days to clear`}
+          accentBg="var(--accent-mint-muted)"
+          accentText="var(--accent-mint-text)"
+        />
+        <StatCard
+          label="GST Cleared This Month"
+          value={formatCurrencyINR(snapshot.gstClearedThisMonth)}
+          sub={`${snapshot.awaitingGstCount} invoices still awaiting GST`}
+          accentBg="var(--accent-purple)"
+          accentText="#FFFFFF"
+        />
+        <StatCard
+          label="Deferred GST Pending"
+          value={formatCurrencyINR(snapshot.deferredGstPendingTotal)}
+          sub={`${snapshot.basePaidGstPendingCount} base-paid invoices pending GST`}
+          accentBg="var(--accent-coral)"
+          accentText="#FFFFFF"
+        />
+      </div>
 
-        {/* Stat 1 — Total Invoiced (yellow) */}
-        <div style={{ gridArea: "stat1" }}>
-          <StatCard
-            label="Total Invoiced"
-            value={formatCurrencyINR(totalInvoiced)}
-            sub={`${finalInvoices.length} final invoices`}
-            accentBg="var(--accent-yellow)"
-            accentText="#111111"
-          />
-        </div>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr,1fr]">
+        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+              <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
+                Clearance KPIs
+              </h2>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                label: "Invoices Fully Cleared",
+                value: String(snapshot.fullyClearedCountThisMonth),
+                sub: formatCurrencyINR(snapshot.fullyClearedValueThisMonth),
+              },
+              {
+                label: "Deferred Opening",
+                value: formatCurrencyINR(snapshot.deferredOpeningPending),
+                sub: "Pending at month start",
+              },
+              {
+                label: "Deferred Closing",
+                value: formatCurrencyINR(snapshot.deferredClosingPending),
+                sub: "Pending at month end",
+              },
+              {
+                label: "Avg Full Clearance",
+                value: `${snapshot.avgFullClearanceDays} days`,
+                sub: "Invoice to final settlement",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-2xl p-4"
+                style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
+              >
+                <div className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+                  {item.label}
+                </div>
+                <div className="mt-2 font-mono text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+                  {item.value}
+                </div>
+                <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>
+                  {item.sub}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
-        {/* Stat 2 — Outstanding (purple) */}
-        <div style={{ gridArea: "stat2" }}>
-          <StatCard
-            label="Outstanding"
-            value={formatCurrencyINR(outstandingAmt)}
-            sub={`${outstandingInvoices.length} pending payment`}
-            accentBg="var(--accent-purple)"
-            accentText="#FFFFFF"
-          />
-        </div>
-
-        {/* Stat 3 — Overdue (coral) */}
-        <div style={{ gridArea: "stat3" }}>
-          <StatCard
-            label="Overdue"
-            value={formatCurrencyINR(overdueAmt)}
-            sub={`${overdueInvoices.length} overdue invoices`}
-            accentBg="var(--accent-coral)"
-            accentText="#FFFFFF"
-          />
-        </div>
-
-        {/* Quick Actions */}
-        <div
-          className="rounded-bento p-6 flex flex-col gap-3"
-          style={{ gridArea: "actions", background: "var(--surface)", border: "1px solid var(--border)" }}
-        >
-          <h2 className="font-display font-bold text-[18px] mb-1" style={{ color: "var(--text-primary)" }}>
+        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+          <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
             Quick Actions
           </h2>
-          <div className="grid grid-cols-2 gap-3">
-            <ActionPill
-              href="/invoice/new"
-              icon={FileText}
-              label="New Invoice"
-              bg="var(--accent-yellow)"
-              fg="#111111"
-            />
-            <ActionPill
-              href="/purchase-order/new"
-              icon={ShoppingCart}
-              label="New PO"
-              bg="var(--accent-purple)"
-              fg="#FFFFFF"
-            />
-            <ActionPill
-              href="/clients"
-              icon={Users}
-              label="New Client"
-              bg="var(--accent-mint-muted)"
-              fg="var(--accent-mint-text)"
-            />
-            <ActionPill
-              href="/services"
-              icon={BriefcaseBusiness}
-              label="New Service"
-              bg="var(--accent-coral-muted)"
-              fg="var(--accent-coral-text)"
-            />
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <ActionPill href="/invoice/new" icon={FileText} label="New Invoice" bg="var(--accent-yellow)" fg="#111111" />
+            <ActionPill href="/purchase-order/new" icon={ShoppingCart} label="New PO" bg="var(--accent-purple)" fg="#FFFFFF" />
+            <ActionPill href="/clients" icon={Users} label="New Client" bg="var(--accent-mint-muted)" fg="var(--accent-mint-text)" />
+            <ActionPill href="/services" icon={BriefcaseBusiness} label="New Service" bg="var(--accent-coral-muted)" fg="var(--accent-coral-text)" />
           </div>
-        </div>
+        </section>
+      </div>
 
-        {/* Recent Documents */}
-        <div
-          className="rounded-bento p-6 flex flex-col gap-3 overflow-hidden"
-          style={{ gridArea: "recent", background: "var(--surface)", border: "1px solid var(--border)" }}
-        >
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.5fr,1fr]">
+        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
+              <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
+                GST Clearance Tracker
+              </h2>
+            </div>
+            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+              {snapshot.deferredRows.length} tracked invoices
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  {["Invoice", "Client", "Invoice Date", "Base Cleared", "GST Amount", "GST Cleared", "GST Pending", "Invoice Cleared", "Status"].map((heading) => (
+                    <th key={heading} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {snapshot.deferredRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-4 py-6 text-center text-sm text-slate-400">
+                      No deferred GST invoices yet.
+                    </td>
+                  </tr>
+                ) : (
+                  snapshot.deferredRows.slice(0, 10).map((row) => (
+                    <tr key={row.id}>
+                      <td className="px-3 py-3 font-mono text-xs text-slate-900">{row.invoiceNumber}</td>
+                      <td className="px-3 py-3 text-slate-700">{row.client}</td>
+                      <td className="px-3 py-3 text-slate-600">{row.invoiceDate}</td>
+                      <td className="px-3 py-3 text-slate-900">{formatCurrencyINR(row.baseClearedAmount)}</td>
+                      <td className="px-3 py-3 text-slate-600">{formatCurrencyINR(row.gstAmount)}</td>
+                      <td className="px-3 py-3 text-slate-600">{formatCurrencyINR(row.gstClearedAmount)}</td>
+                      <td className="px-3 py-3 font-semibold text-slate-900">{formatCurrencyINR(row.gstPending)}</td>
+                      <td className="px-3 py-3 text-slate-600">{row.invoiceClearedDate || "Pending"}</td>
+                      <td className="px-3 py-3">
+                        <StatusBadge status={row.paymentStatus === "Paid" ? "PAID" : "FINAL"} />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-              <h2 className="font-display font-bold text-[18px]" style={{ color: "var(--text-primary)" }}>
+              <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
                 Recent
               </h2>
             </div>
@@ -301,121 +393,115 @@ export default function DashboardPage() {
               View all <ArrowUpRight className="h-3 w-3" />
             </Link>
           </div>
-
-          {recent.length === 0 ? (
-            <p className="text-sm py-4 text-center" style={{ color: "var(--text-muted)" }}>
-              No documents yet.
-            </p>
-          ) : (
-            <div className="space-y-2 overflow-y-auto" style={{ maxHeight: 260 }}>
-              {recent.map((doc) => (
+          <div className="mt-4 space-y-2">
+            {recent.length === 0 ? (
+              <p className="py-4 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+                No documents yet.
+              </p>
+            ) : (
+              recent.map((doc) => (
                 <Link
                   key={doc.id}
                   href={`/${doc.type === "invoice" ? "invoice" : "purchase-order"}/${doc.id}/edit`}
-                  className="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-theme-surface-raised group"
+                  className="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-theme-surface-raised"
                   style={{ background: "var(--surface-raised)" }}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span
-                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0"
-                      style={{
-                        background: doc.type === "invoice" ? "var(--accent-yellow-muted)" : "var(--accent-purple-muted)",
-                        color: doc.type === "invoice" ? "var(--accent-yellow-text)" : "var(--accent-purple-text)",
-                      }}
-                    >
-                      {doc.type === "invoice" ? "INV" : "PO"}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-mono text-xs font-medium truncate" style={{ color: "var(--text-primary)" }}>
-                        {doc.number}
-                      </p>
-                      <p className="text-[11px] truncate" style={{ color: "var(--text-secondary)" }}>
-                        {doc.party}
-                      </p>
-                    </div>
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+                      {doc.number}
+                    </p>
+                    <p className="truncate text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                      {doc.party}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                  <div className="ml-3 flex items-center gap-2">
                     <span className="font-mono text-xs font-medium" style={{ color: "var(--text-primary)" }}>
                       {formatCurrencyINR(doc.amount)}
                     </span>
                     <StatusBadge status={doc.status} />
                   </div>
                 </Link>
-              ))}
-            </div>
-          )}
-        </div>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
 
-        {/* Unpaid Invoices */}
-        <div
-          className="rounded-bento p-6 flex flex-col justify-between"
-          style={{ gridArea: "unpaid", background: "var(--surface)", border: "1px solid var(--border)" }}
-        >
-          <div>
-            <h2 className="font-display font-bold text-[18px]" style={{ color: "var(--text-primary)" }}>
-              Unpaid
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.3fr,1fr]">
+        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
+              Client GST Summary
             </h2>
-            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
-              Invoices pending payment
-            </p>
+            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+              Pending GST by client
+            </span>
           </div>
-          <div className="mt-4">
-            <div className="font-mono text-3xl font-bold" style={{ color: "var(--accent-yellow)" }}>
-              {unpaidInvoices.length}
-            </div>
-            <div className="font-mono text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-              {formatCurrencyINR(unpaidAmt)}
-            </div>
-          </div>
-        </div>
 
-        {/* PO Status Summary */}
-        <div
-          className="rounded-bento p-6"
-          style={{ gridArea: "po-summary", background: "var(--surface)", border: "1px solid var(--border)" }}
-        >
-          <h2 className="font-display font-bold text-[18px] mb-4" style={{ color: "var(--text-primary)" }}>
-            PO Status Summary
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  {["Client", "Billed", "Base Cleared", "GST Cleared", "Pending Base", "Pending GST"].map((heading) => (
+                    <th key={heading} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {snapshot.clientSummaryRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-400">
+                      No reconciliation data for this month.
+                    </td>
+                  </tr>
+                ) : (
+                  snapshot.clientSummaryRows.slice(0, 8).map((row) => (
+                    <tr key={row.client}>
+                      <td className="px-3 py-3 font-medium text-slate-900">{row.client}</td>
+                      <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.billedAmount)}</td>
+                      <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.baseClearedAmount)}</td>
+                      <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.gstClearedAmount)}</td>
+                      <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.pendingBaseAmount)}</td>
+                      <td className="px-3 py-3 font-semibold text-slate-900">{formatCurrencyINR(row.pendingGstAmount)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+          <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
+            Operations Snapshot
           </h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-3">
             {[
-              { label: "Under Approval", count: poUnderApproval, bg: "var(--accent-yellow-muted)", fg: "var(--accent-yellow-text)" },
-              { label: "Approved", count: poApproved, bg: "var(--accent-mint-muted)", fg: "var(--accent-mint-text)" },
-              { label: "Processed", count: poProcessed, bg: "var(--accent-purple-muted)", fg: "var(--accent-purple-text)" },
-            ].map(({ label, count, bg, fg }) => (
-              <div key={label} className="rounded-xl p-4 text-center" style={{ background: bg }}>
-                <div className="font-mono text-2xl font-bold" style={{ color: fg }}>{count}</div>
-                <div className="text-[11px] font-medium mt-1" style={{ color: fg, opacity: 0.8 }}>{label}</div>
+              { label: "Outstanding Invoices", value: String(outstandingInvoices.length) },
+              { label: "Overdue Invoices", value: String(overdueInvoices.length) },
+              { label: "PO Under Approval", value: String(poUnderApproval) },
+              { label: "PO Approved", value: String(poApproved) },
+              { label: "PO Processed", value: String(poProcessed) },
+              { label: "Invoices Awaiting GST", value: String(snapshot.awaitingGstCount) },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-xl p-4 text-center"
+                style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}
+              >
+                <div className="font-mono text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+                  {item.value}
+                </div>
+                <div className="mt-1 text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>
+                  {item.label}
+                </div>
               </div>
             ))}
           </div>
-        </div>
-
+        </section>
       </div>
-
-      {/* Company profile prompt */}
-      {!profile && (
-        <div
-          className="mt-5 rounded-bento px-6 py-5 flex items-center justify-between"
-          style={{ background: "var(--accent-yellow-muted)", border: "1px solid var(--accent-yellow)" }}
-        >
-          <div>
-            <p className="text-sm font-semibold" style={{ color: "var(--accent-yellow-text)" }}>
-              Set up your company profile
-            </p>
-            <p className="text-xs mt-0.5" style={{ color: "var(--accent-yellow-text)", opacity: 0.75 }}>
-              Prefill your details automatically in every invoice and PO
-            </p>
-          </div>
-          <Link
-            href="/company-profile"
-            className="text-sm font-semibold px-4 py-2 rounded-xl transition-opacity hover:opacity-80"
-            style={{ background: "var(--accent-yellow)", color: "#111111" }}
-          >
-            Set up now
-          </Link>
-        </div>
-      )}
     </div>
   );
 }

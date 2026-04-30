@@ -13,6 +13,7 @@ import { getFinancialYear } from "@/lib/utils/numbering";
 import { resolveDocumentType, resolveInvoiceType } from "@/lib/utils/invoiceTypes";
 import { withAutoOverdueStatus } from "@/lib/utils/aging";
 import { emitDraftsChangedEvent } from "@/lib/utils/drafts";
+import { normalizeInvoiceSettlement } from "@/lib/utils/invoiceClearance";
 
 type SaveResult = { success: boolean; error?: string };
 
@@ -80,7 +81,7 @@ export function getInvoices(): Invoice[] {
 
   return invoices.map((invoice) =>
     withAutoOverdueStatus({
-      ...invoice,
+      ...normalizeInvoiceSettlement(invoice),
       documentType: resolveDocumentType(invoice),
       invoiceType: resolveInvoiceType(invoice),
     } as Invoice)
@@ -100,7 +101,7 @@ export function saveInvoice(invoice: Partial<Invoice> & { id?: string }): SaveRe
   const now = new Date().toISOString();
   const existingIdx = invoice.id ? invoices.findIndex((i) => i.id === invoice.id) : -1;
   const normalizedInvoice = {
-    ...invoice,
+    ...normalizeInvoiceSettlement(invoice),
     documentType: resolveDocumentType(invoice),
     invoiceType: resolveInvoiceType(invoice),
   } as Partial<Invoice>;

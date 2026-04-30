@@ -91,11 +91,23 @@ The app is local-first by default, so it works even without auth or backend setu
 ### Dashboard & Reports
 
 - **Dashboard KPIs**: The dashboard shows invoiced value, outstanding value, overdue value, unpaid value, and PO status counts.
+- **Month-Scoped Dashboard View**: A month selector scopes KPIs, GST planning, settlement activity, and PO tracker to a selected billing period.
 - **Recent Documents Feed**: Dashboard cards surface recent invoices and purchase orders.
+- **GST Planning Section**: Dashboard card showing opening GST payable, accrued from invoices, recovered from clients, and closing payable for the selected month, with an "Update GST Plan" action to record government payments.
+- **Client GST Summary**: Dashboard section aggregating billed, cleared, and pending amounts per client for the selected month.
+- **Open PO Approvals Tracker**: Dashboard section listing purchase orders pending approval with an inline quick-status update action.
+- **Reconciliation Workbook Export**: "Export Excel" from the dashboard generates a multi-sheet `.xlsx` covering Summary, Invoice Register, Settlement Register, GST Planning, PO Status Tracker, and Client Summary.
 - **Unified Documents Page**: `/documents` merges invoices and POs with filters, duplication, deletion, conversion, and WhatsApp actions.
 - **Drafts Workspace**: `/drafts` separates draft invoices and draft purchase orders for fast recovery.
 - **Aging Report**: `/reports/aging` groups outstanding invoices into Current, 0-30, 31-60, 61-90, and 90+ buckets.
 - **GSTR-1 Summary Screen**: `/reports/gstr1` groups invoices into B2B, B2C Large, B2C Small, Credit Notes, and Export Invoices.
+
+### Financial Operations
+
+- **Invoice Settlement Tracking**: Per-invoice clearance tracking separates the base (principal) amount and GST recovery into independent fields — `baseClearedAmount`, `baseClearedDate`, `gstCollectionMode` (standard or deferred), `gstRecoveredAmount`, `gstRecoveredDate`, and `settlementNotes`. A derived collection state progresses through Unpaid → Partially Recovered → Base Cleared / GST Pending → Fully Recovered From Client.
+- **Invoice Settlement Modal**: Quick-update dialog accessible from the dashboard's Pending Invoices section. Records base and GST clearance without opening the full invoice editor.
+- **GST Cashflow Planning**: Monthly compliance tracker that calculates opening payable (carry-forward from prior months), adds GST accrued from invoices issued in the period, subtracts GST recovered from clients, and lets users record payments made to the government with a date and notes. Stored as `gstPlanningEntries[]` in document settings.
+- **PO Status Quick Updates**: Lightweight approval and processing status updates for purchase orders (`Under Approval → Approved → Processed`) from the dashboard without opening the full PO editor. Records status date and an internal note alongside each transition.
 
 ### Workflow Automation
 
@@ -173,7 +185,7 @@ The app is local-first by default, so it works even without auth or backend setu
 
 `ShippingInfo` stores optional ship-to details with `sameAsBilling`, `name`, partial `address`, `contactPerson`, and `contactPhone`.
 
-`Invoice` is the primary billing model. It combines document identity fields such as `documentType`, `invoiceType`, `invoiceNumber`, `invoiceDate`, and `dueDate`; GST fields such as `reverseCharge`, `ewayBillNumber`, `irnNumber`, and `irnQrImageBase64`; nested `supplier`, `buyer`, `shipping`, `lineItems`, and `totals`; payment and TDS tracking fields; sharing fields such as `shareToken` and `lastEmailedAt`; and lifecycle fields such as `status`, `createdAt`, and `updatedAt`.
+`Invoice` is the primary billing model. It combines document identity fields such as `documentType`, `invoiceType`, `invoiceNumber`, `invoiceDate`, and `dueDate`; GST fields such as `reverseCharge`, `ewayBillNumber`, `irnNumber`, and `irnQrImageBase64`; nested `supplier`, `buyer`, `shipping`, `lineItems`, and `totals`; payment and TDS tracking fields; sharing fields such as `shareToken` and `lastEmailedAt`; settlement tracking fields `baseClearedAmount`, `baseClearedDate`, `gstCollectionMode`, `gstRecoveredAmount`, `gstRecoveredDate`, `invoiceClearedDate`, and `settlementNotes`; and lifecycle fields such as `status`, `createdAt`, and `updatedAt`.
 
 `POLineItem` is the PO equivalent of an invoice row and stores `description`, optional `hsnSac`, `quantity`, `unit`, `rate`, `discountPercent`, `gstRate`, and computed `gross`, `discountAmount`, `taxableValue`, `taxAmount`, and `lineTotal`.
 
@@ -187,7 +199,7 @@ The app is local-first by default, so it works even without auth or backend setu
 
 `POCommercialTerms` stores commercial clauses including `warrantyTerms`, `inspectionTerms`, `returnPolicy`, `cancellationPolicy`, `notes`, and `termsAndConditions`.
 
-`PurchaseOrder` is the primary procurement document model. It includes identity fields such as `poNumber`, `poDate`, `validUntil`, `deliveryDate`, and `quotationReference`; business fields such as `projectDescription`, `placeOfSupply`, `paymentTerms`, and `deliveryTerms`; nested buyer, vendor, delivery, line item, total, and authorization blocks; sharing state; PO approval status; document status; and timestamps.
+`PurchaseOrder` is the primary procurement document model. It includes identity fields such as `poNumber`, `poDate`, `validUntil`, `deliveryDate`, and `quotationReference`; business fields such as `projectDescription`, `placeOfSupply`, `paymentTerms`, and `deliveryTerms`; nested buyer, vendor, delivery, line item, total, and authorization blocks; sharing state; PO approval status; document status; quick-status tracking fields `poStatus` ("Under Approval" | "Approved" | "Processed"), `poStatusDate`, and `poStatusNote`; and timestamps.
 
 `BusinessProfile` is the saved company profile used to prefill documents. It stores company names, GST registration data, `address`, `contact`, optional `logoImageBase64`, optional `bankDetails`, default signatory and signature assets, default terms and declaration text, default prefixes, and `updatedAt`.
 
@@ -197,7 +209,9 @@ The app is local-first by default, so it works even without auth or backend setu
 
 `NumberingConfig` defines one numbering stream using `prefix`, `separator`, `includeYear`, `paddingLength`, and `currentSequence`.
 
-`DocumentTemplateSettings` stores cross-document settings such as invoice and PO numbering, default GST mode, default currency, date format, default notes, terms, declaration text, display toggles, `storedFinancialYear`, and `updatedAt`.
+`DocumentTemplateSettings` stores cross-document settings such as invoice and PO numbering, default GST mode, default currency, date format, default notes, terms, declaration text, display toggles, `storedFinancialYear`, `gstPlanningEntries`, and `updatedAt`.
+
+`GSTPlanningEntry` is the per-month GST compliance record stored inside `DocumentTemplateSettings`. Fields: `month` (YYYY-MM string), `gstPaidToGovernment`, optional `gstPaidDate`, optional `notes`, and optional `updatedAt`. The array drives the GST Cashflow Planning section on the dashboard.
 
 `EmailSettings` stores the sender configuration saved locally for email delivery: `fromName`, `fromEmail`, and `signature`.
 
@@ -327,6 +341,10 @@ In the invoice editor, expand Payment Details to record payment status, received
 
 Use `/reports/aging` for receivables aging and `/reports/gstr1` for GST-return exports. The GSTR-1 page can filter by Indian financial year and month, show validation warnings, and export B2B, B2CS, HSN-summary, or ZIP bundles.
 
+### Tracking Settlements and GST Cashflow
+
+Open the dashboard and use the month selector to pick the billing period you want to review. The Pending Invoices section lists outstanding invoices for that month. Click the settlement icon on any row to open the Invoice Settlement Modal, where you can record the base amount received, the date it cleared, whether GST was collected in standard or deferred mode, and the GST amount and date recovered. Click "Update GST Plan" on the GST Planning card to log the government payment you made for the month along with a date and notes. The dashboard recalculates the opening payable, accrued, recovered, and closing balances automatically. Use the Open PO Approvals section to advance a PO from Under Approval to Approved or Processed without opening the full editor. When you are ready to hand off records to an accountant, click "Export Excel" to download the reconciliation workbook for the selected month, which contains an Invoice Register, Settlement Register, GST Planning sheet, PO Status Tracker, Client Summary, and a one-page Summary.
+
 ### Signing In for Cloud Sync
 
 If Supabase env vars are configured, open `/auth` and request a magic link. After sign-in, the repositories can sync company profile data, invoices, POs, clients, services, and settings between local storage and Supabase.
@@ -349,8 +367,8 @@ The roadmap below comes from the current project brief, but this README keeps it
 - **Automated payment reminders**: No scheduled reminder engine exists yet.
 - **CA / accountant read-only access**: The current auth model is single-user and owner-scoped.
 - **Multi-GSTIN / multi-entity support**: The app currently assumes one company profile at a time.
-- **Data export (Excel / CSV full export)**: Reporting exports exist, but there is no full-dataset export of all business data.
-- **GST liability monthly summary**: Aging and GSTR-1 exports exist, but there is no monthly liability summary.
+- **Full data export (Excel / CSV)**: A reconciliation workbook export now covers invoices, settlements, GST planning, PO status, and client summaries for any selected month. A one-click export of all-time business data (all clients, services, settings, and company profile) is not yet built.
+- **Filing-grade GST liability report**: A monthly GST cashflow planning tracker exists on the dashboard. A full filing-grade liability summary with tax type breakdowns and GSTR-3B guidance is not yet built.
 
 ### Phase 3 (MicroSaaS expansion)
 

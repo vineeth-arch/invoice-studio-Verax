@@ -2,10 +2,11 @@
 
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRightLeft } from "lucide-react";
+import { ArrowRightLeft, Mail } from "lucide-react";
 import { A4PreviewWrapper } from "@/components/document/A4PreviewWrapper";
 import { PDFExportButton } from "@/components/document/PDFExportButton";
 import { PrintButton } from "@/components/document/PrintButton";
+import { SendEmailModal } from "@/components/document/SendEmailModal";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
@@ -43,6 +44,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isShareActionLoading, setIsShareActionLoading] = useState(false);
+  const [isSendEmailModalOpen, setIsSendEmailModalOpen] = useState(false);
   const [shareToken, setShareToken] = useState("");
   const [shareUrl, setShareUrl] = useState("");
   const [activeTab, setActiveTab] = useState<"form" | "preview">("form");
@@ -90,6 +92,15 @@ export function POEditorPage({ poId }: POEditorPageProps) {
 
   useEffect(() => {
     setShareToken(existingPO?.shareToken ?? "");
+  }, [existingPO?.shareToken]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !existingPO?.shareToken) {
+      setShareUrl("");
+      return;
+    }
+
+    setShareUrl(buildShareUrl(window.location.origin, existingPO.shareToken));
   }, [existingPO?.shareToken]);
 
   useEffect(() => {
@@ -371,6 +382,12 @@ export function POEditorPage({ poId }: POEditorPageProps) {
               Share
             </Button>
           )}
+          {existingPO && (
+            <Button variant="outline" onClick={() => setIsSendEmailModalOpen(true)}>
+              <Mail className="h-4 w-4" />
+              Email
+            </Button>
+          )}
           {canShare && (
             <Button
               type="button"
@@ -517,6 +534,24 @@ export function POEditorPage({ poId }: POEditorPageProps) {
           </p>
         </div>
       </Modal>
+
+      {existingPO && (
+        <SendEmailModal
+          open={isSendEmailModalOpen}
+          onClose={() => setIsSendEmailModalOpen(false)}
+          documentType="po"
+          invoiceNumber={existingPO.poNumber}
+          clientName={existingPO.vendor?.name ?? ""}
+          clientEmail={existingPO.vendor?.contact?.email}
+          amount={existingPO.totals?.grandTotal?.toLocaleString("en-IN") ?? "0"}
+          dueDate={existingPO.deliveryDate}
+          senderName={existingPO.buyer?.name ?? ""}
+          senderEmail={existingPO.buyer?.contact?.email ?? ""}
+          shareUrl={shareUrl || undefined}
+          previewRef={previewRef}
+          filename={pdfFilename}
+        />
+      )}
     </div>
   );
 }

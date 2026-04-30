@@ -3,16 +3,15 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useRouter } from "next/navigation";
-import { EmailInvoiceModal } from "@/components/invoice/EmailInvoiceModal";
 import { A4PreviewWrapper } from "@/components/document/A4PreviewWrapper";
 import { PDFExportButton } from "@/components/document/PDFExportButton";
 import { PrintButton } from "@/components/document/PrintButton";
+import { SendEmailModal } from "@/components/document/SendEmailModal";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { WhatsAppIcon } from "@/components/ui/WhatsAppIcon";
 import { InvoiceForm } from "./InvoiceForm";
 import { InvoicePreview } from "./InvoicePreview";
-import { useEmailSettings } from "@/lib/hooks/useEmailSettings";
 import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
 import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
@@ -25,13 +24,11 @@ import type { Invoice } from "@/lib/types/invoice";
 import type { GSTMode } from "@/lib/types/common";
 import { calculateLineItem, calculateInvoiceTotals } from "@/lib/utils/calculations";
 import { buildShareUrl, buildWhatsappMessage, buildWhatsappUrl } from "@/lib/utils/documentSharing";
-import { blobToBase64, generatePdfBlob } from "@/lib/utils/pdf";
-import { formatCurrencyINR } from "@/lib/utils/formatting";
+import { Mail } from "lucide-react";
 import { DOCUMENT_TYPE_FROM_INVOICE_TYPE, getDisplayInvoiceNumber, isProformaInvoice, resolveInvoiceType } from "@/lib/utils/invoiceTypes";
 
 interface InvoiceEditorPageProps {
   invoiceId?: string;
-  emailEnabled?: boolean;
 }
 
 const SPLIT_RATIO_KEY = "invoice_split_ratio";
@@ -39,7 +36,7 @@ const DEFAULT_SPLIT_RATIO = 0.5;
 const MIN_FORM_WIDTH = 380;
 const MIN_PREVIEW_WIDTH = 320;
 
-export function InvoiceEditorPage({ invoiceId, emailEnabled = false }: InvoiceEditorPageProps) {
+export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
   const router = useRouter();
   const previewRef = useRef<HTMLDivElement>(null);
   const splitPaneRef = useRef<HTMLDivElement>(null);
@@ -50,7 +47,7 @@ export function InvoiceEditorPage({ invoiceId, emailEnabled = false }: InvoiceEd
   const [isSaving, setIsSaving] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isShareActionLoading, setIsShareActionLoading] = useState(false);
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isSendEmailModalOpen, setIsSendEmailModalOpen] = useState(false);
   const [shareToken, setShareToken] = useState("");
   const [shareUrl, setShareUrl] = useState("");
   const [activeTab, setActiveTab] = useState<"form" | "preview">("form");
@@ -63,7 +60,6 @@ export function InvoiceEditorPage({ invoiceId, emailEnabled = false }: InvoiceEd
   const { purchaseOrders } = usePurchaseOrders();
   const { profile } = useCompanyProfile();
   const { settings } = useSettings();
-  const { settings: emailSettings } = useEmailSettings(profile?.companyName);
   const { addToast } = useToast();
 
   const existingInvoice = invoiceId
@@ -104,6 +100,15 @@ export function InvoiceEditorPage({ invoiceId, emailEnabled = false }: InvoiceEd
 
   useEffect(() => {
     setShareToken(existingInvoice?.shareToken ?? "");
+  }, [existingInvoice?.shareToken]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !existingInvoice?.shareToken) {
+      setShareUrl("");
+      return;
+    }
+
+    setShareUrl(buildShareUrl(window.location.origin, existingInvoice.shareToken));
   }, [existingInvoice?.shareToken]);
 
   useEffect(() => {
@@ -319,86 +324,6 @@ export function InvoiceEditorPage({ invoiceId, emailEnabled = false }: InvoiceEd
     }
   }, [addToast, existingInvoice, saveInvoice, shareToken]);
 
-  const handleSendInvoice = useCallback(async ({
-    to,
-    cc,
-    subject,
-    message,
-  }: {
-    to: string;
-    cc: string;
-    subject: string;
-    message: string;
-  }) => {
-    if (!existingInvoice || !previewRef.current) {
-      throw new Error("Invoice preview unavailable.");
-    }
-
-    if (!emailEnabled) {
-      addToast("Configure email in Settings.", "error");
-      throw new Error("Email disabled");
-    }
-
-    if (!emailSettings.fromEmail.trim()) {
-      addToast("Add a verified From Email in Settings before sending.", "error");
-      throw new Error("Missing sender email");
-    }
-
-    const shareLink = await ensureShareLink();
-    if (!shareLink) {
-      throw new Error("Share link unavailable");
-    }
-
-    try {
-      const pdfBlob = await generatePdfBlob(
-        previewRef.current,
-        `INV-${existingInvoice.invoiceNumber ?? "draft"}-${existingInvoice.buyer?.name ?? "client"}`
-      );
-      const pdfBase64 = await blobToBase64(pdfBlob);
-      const response = await fetch("/api/send-invoice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to,
-          cc,
-          subject,
-          message,
-          invoiceNumber: getDisplayInvoiceNumber(existingInvoice),
-          clientName: existingInvoice.buyer?.name ?? "",
-          amount: formatCurrencyINR(existingInvoice.totals?.grandTotal ?? 0),
-          dueDate: existingInvoice.dueDate ?? "",
-          senderName: emailSettings.fromName.trim() || profile?.companyName || existingInvoice.supplier?.name || "Invoice Studio",
-          senderEmail: emailSettings.fromEmail.trim(),
-          shareUrl: shareLink.url,
-          pdfBase64,
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok || !data.success) {
-        addToast(data.error ?? "Failed to send invoice email.", "error");
-        throw new Error(data.error ?? "Email send failed");
-      }
-
-      const lastEmailedAt = new Date().toISOString();
-      const result = await saveInvoice({
-        ...existingInvoice,
-        shareToken: shareLink.token,
-        lastEmailedAt,
-      });
-      if (!result.success) {
-        addToast("Invoice sent, but email timestamp could not be saved locally.", "info");
-      }
-
-      addToast(`Invoice sent to ${to}`, "success");
-    } catch (error) {
-      if (!(error instanceof Error && error.message === "Email disabled")) {
-        console.error("[InvoiceEditorPage] send invoice error", error);
-      }
-      throw error;
-    }
-  }, [addToast, emailEnabled, emailSettings.fromEmail, emailSettings.fromName, ensureShareLink, existingInvoice, profile?.companyName, saveInvoice]);
-
   const handleConvertToTaxInvoice = useCallback(() => {
     if (!existingInvoice) return;
 
@@ -498,6 +423,12 @@ export function InvoiceEditorPage({ invoiceId, emailEnabled = false }: InvoiceEd
               Share
             </Button>
           )}
+          {existingInvoice && (
+            <Button variant="outline" onClick={() => setIsSendEmailModalOpen(true)}>
+              <Mail className="h-4 w-4" />
+              Email
+            </Button>
+          )}
           {canShare && (
             <Button
               type="button"
@@ -508,17 +439,6 @@ export function InvoiceEditorPage({ invoiceId, emailEnabled = false }: InvoiceEd
               {!isShareActionLoading && <WhatsAppIcon />}
               Share on WhatsApp
             </Button>
-          )}
-          {canShare && (
-            <span title={emailEnabled ? undefined : "Configure email in Settings"}>
-              <Button
-                variant="outline"
-                onClick={() => setIsEmailModalOpen(true)}
-                disabled={!emailEnabled}
-              >
-                Email Invoice
-              </Button>
-            </span>
           )}
           <PDFExportButton previewRef={previewRef} filename={pdfFilename} onGeneratingChange={setIsGeneratingPDF} />
           <PrintButton contentRef={previewRef} />
@@ -618,16 +538,20 @@ export function InvoiceEditorPage({ invoiceId, emailEnabled = false }: InvoiceEd
       </Modal>
 
       {existingInvoice && (
-        <EmailInvoiceModal
-          open={isEmailModalOpen}
-          onClose={() => setIsEmailModalOpen(false)}
-          onSend={handleSendInvoice}
+        <SendEmailModal
+          open={isSendEmailModalOpen}
+          onClose={() => setIsSendEmailModalOpen(false)}
+          documentType={isProformaInvoice(existingInvoice) ? "proforma" : "invoice"}
           invoiceNumber={getDisplayInvoiceNumber(existingInvoice)}
-          amountLabel={formatCurrencyINR(existingInvoice.totals?.grandTotal ?? 0)}
-          companyName={profile?.companyName ?? existingInvoice.supplier?.name ?? "Invoice Studio"}
           clientName={existingInvoice.buyer?.name ?? ""}
-          defaultRecipient={existingInvoice.buyer?.contact?.email ?? ""}
-          emailSettings={emailSettings}
+          clientEmail={existingInvoice.buyer?.contact?.email}
+          amount={existingInvoice.totals?.grandTotal?.toLocaleString("en-IN") ?? "0"}
+          dueDate={existingInvoice.dueDate}
+          senderName={existingInvoice.supplier?.name ?? ""}
+          senderEmail={existingInvoice.supplier?.contact?.email ?? ""}
+          shareUrl={shareUrl || undefined}
+          previewRef={previewRef}
+          filename={pdfFilename}
         />
       )}
     </div>

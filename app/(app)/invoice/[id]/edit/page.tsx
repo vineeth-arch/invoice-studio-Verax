@@ -5,5 +5,5 @@ interface Props {
 }
 
 export default function EditInvoicePage({ params }: Props) {
-  return <InvoiceEditorPage invoiceId={params.id} emailEnabled={Boolean(process.env.RESEND_API_KEY)} />;
+  return <InvoiceEditorPage invoiceId={params.id} />;
 }

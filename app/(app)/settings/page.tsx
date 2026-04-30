@@ -18,7 +18,7 @@ export default function SettingsPage() {
   const { profile } = useCompanyProfile();
   const { settings: emailSettings, loading: emailLoading, saveSettings: saveEmailSettings } = useEmailSettings(profile?.companyName);
   const { addToast } = useToast();
-  const [emailForm, setEmailForm] = useState<EmailSettings>({ fromName: "", fromEmail: "", signature: "" });
+  const [emailForm, setEmailForm] = useState<EmailSettings>({ fromName: "", fromEmail: "", emailSignature: "" });
 
   const { register, handleSubmit, watch, reset, formState: { isSubmitting } } = useForm<DocumentTemplateSettings>();
 
@@ -150,33 +150,40 @@ export default function SettingsPage() {
       </form>
 
       <div className="mt-8">
-        <FormSection title="Email Configuration">
+        <FormSection title="Email Settings">
           <div className="space-y-3">
-            <FormField label="From Name">
+            <p className="text-sm text-slate-500">Configure how emails are sent from this app</p>
+            <FormField
+              label="Sender Name"
+              hint="Name shown in recipient's inbox"
+            >
               <input
                 type="text"
                 className={inputClass}
                 value={emailForm.fromName}
                 onChange={(event) => setEmailForm((current) => ({ ...current, fromName: event.target.value }))}
-                placeholder={profile?.companyName ?? "Your company name"}
+                placeholder="Design Innsaeit"
               />
             </FormField>
-            <FormField label="From Email" hint="Must be a verified sender in Resend.">
+            <FormField
+              label="Sender Email"
+              hint="Verify this email in Resend dashboard for best deliverability"
+            >
               <input
                 type="email"
                 className={inputClass}
                 value={emailForm.fromEmail}
                 onChange={(event) => setEmailForm((current) => ({ ...current, fromEmail: event.target.value }))}
-                placeholder="billing@yourcompany.com"
+                placeholder="vineeth@designinnsaeit.com"
               />
             </FormField>
             <FormField label="Email Signature">
               <textarea
                 className={textareaClass}
-                rows={5}
-                value={emailForm.signature}
-                onChange={(event) => setEmailForm((current) => ({ ...current, signature: event.target.value }))}
-                placeholder={"Regards,\nAccounts Team"}
+                rows={3}
+                value={emailForm.emailSignature}
+                onChange={(event) => setEmailForm((current) => ({ ...current, emailSignature: event.target.value }))}
+                placeholder={"Regards,\nVineeth V Nair\nDesign Innsaeit"}
               />
             </FormField>
             <div className="flex justify-end">

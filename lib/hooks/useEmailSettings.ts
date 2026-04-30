@@ -7,23 +7,23 @@ const EMAIL_SETTINGS_KEY = "di_email_settings";
 
 function readEmailSettings(): EmailSettings {
   if (typeof window === "undefined") {
-    return { fromName: "", fromEmail: "", signature: "" };
+    return { fromName: "", fromEmail: "", emailSignature: "" };
   }
 
   try {
     const raw = window.localStorage.getItem(EMAIL_SETTINGS_KEY);
     if (!raw) {
-      return { fromName: "", fromEmail: "", signature: "" };
+      return { fromName: "", fromEmail: "", emailSignature: "" };
     }
 
-    const parsed = JSON.parse(raw) as Partial<EmailSettings>;
+    const parsed = JSON.parse(raw) as Partial<EmailSettings> & { signature?: string };
     return {
       fromName: parsed.fromName ?? "",
       fromEmail: parsed.fromEmail ?? "",
-      signature: parsed.signature ?? "",
+      emailSignature: parsed.emailSignature ?? parsed.signature ?? "",
     };
   } catch {
-    return { fromName: "", fromEmail: "", signature: "" };
+    return { fromName: "", fromEmail: "", emailSignature: "" };
   }
 }
 
@@ -44,7 +44,7 @@ export function useEmailSettings(defaultFromName?: string) {
   const [settings, setSettings] = useState<EmailSettings>({
     fromName: defaultFromName ?? "",
     fromEmail: "",
-    signature: "",
+    emailSignature: "",
   });
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +53,7 @@ export function useEmailSettings(defaultFromName?: string) {
     setSettings((current) => ({
       fromName: stored.fromName || defaultFromName || current.fromName || "",
       fromEmail: stored.fromEmail,
-      signature: stored.signature,
+      emailSignature: stored.emailSignature,
     }));
     setLoading(false);
   }, [defaultFromName]);

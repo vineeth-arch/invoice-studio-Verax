@@ -1,0 +1,99 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  font-family: 'Instrument Sans', system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.trackWrap {
+  position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
+}
+
+/* Inset chrome track */
+.track {
+  position: relative;
+  flex: 1;
+  height: 16px;
+  border-radius: 8px;
+  background-color: var(--base);
+  box-shadow: var(--shadow-inset-sm);
+  overflow: hidden;
+}
+
+/* Fill bar */
+.fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 8px;
+  transition: width 200ms ease, background-color 300ms ease;
+  /* Lit-from-above highlight stripe */
+  background-image: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.35) 0px,
+    rgba(255, 255, 255, 0.35) 2px,
+    transparent 2px
+  );
+}
+
+.fill--low {
+  background-color: var(--paid);
+}
+
+.fill--mid {
+  background-color: var(--amber);
+}
+
+.fill--high {
+  background-color: var(--overdue);
+}
+
+/* Draggable handle */
+.handle {
+  position: absolute;
+  top: 50%;
+  transform: translateX(-50%) translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: var(--base);
+  box-shadow: var(--shadow-raised);
+  cursor: grab;
+  z-index: 2;
+  touch-action: none;
+  transition: box-shadow 120ms ease;
+}
+
+.handle:hover {
+  box-shadow:
+    8px 8px 18px var(--shadow-dark),
+    -8px -8px 18px var(--shadow-light);
+}
+
+.handle:active,
+.handle--dragging {
+  cursor: grabbing;
+  box-shadow: var(--shadow-inset-sm);
+}
+
+.valueLabel {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

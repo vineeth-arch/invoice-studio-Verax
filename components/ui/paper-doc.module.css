@@ -1,0 +1,122 @@
+.doc {
+  position: relative;
+  background-image: linear-gradient(145deg, #fefef8 0%, #f5f0e8 100%);
+  box-shadow: var(--shadow-paper);
+  border-radius: 4px;
+  overflow: visible;
+}
+
+/* SVG noise overlay — aged paper grain */
+.doc::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  z-index: 0;
+}
+
+/* Dog-ear fold — top-right corner */
+.doc::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(225deg, #d0d8e2 0%, #d0d8e2 50%, transparent 50%);
+  box-shadow: -2px 2px 4px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Hole punches */
+.holes {
+  position: absolute;
+  left: -20px;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  align-items: center;
+  pointer-events: none;
+}
+
+.holes::before,
+.holes::after {
+  content: '';
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--base);
+  box-shadow:
+    inset 1px 1px 3px rgba(0, 0, 0, 0.25),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+}
+
+.holeMiddle {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--base);
+  box-shadow:
+    inset 1px 1px 3px rgba(0, 0, 0, 0.25),
+    inset -1px -1px 2px rgba(255, 255, 255, 0.5);
+}
+
+/* Status stamp */
+.stamp {
+  position: absolute;
+  padding: 5px 16px;
+  border-radius: 3px;
+  font-family: 'Instrument Sans', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  opacity: 0.8;
+  border: 2.5px solid currentColor;
+  pointer-events: none;
+  transform: rotate(-12deg);
+  z-index: 2;
+}
+
+.stamp--paid {
+  color: var(--paid);
+  top: 24px;
+  right: 40px;
+  transform: rotate(-12deg);
+}
+
+.stamp--overdue {
+  color: var(--overdue);
+  top: 24px;
+  right: 40px;
+  transform: rotate(-12deg);
+}
+
+.stamp--draft {
+  color: var(--draft);
+  top: 24px;
+  right: 40px;
+  transform: rotate(-8deg);
+}
+
+/* Ruled row divider */
+.ruled {
+  border-bottom: 1px solid var(--paper-rule);
+}
+
+/* Content area — sits above noise overlay */
+.content {
+  position: relative;
+  z-index: 1;
+}

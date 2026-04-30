@@ -19,8 +19,8 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  LogIn,
   CheckCircle,
+  UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { DRAFTS_STORAGE_EVENT, getDraftCounts } from "@/lib/utils/drafts";
@@ -64,6 +64,34 @@ function isActive(href: string, pathname: string): boolean {
 function truncateEmail(email: string) {
   if (email.length <= 20) return email;
   return `${email.slice(0, 17)}...`;
+}
+
+function AccountMarker({
+  signedIn,
+  collapsed,
+}: {
+  signedIn: boolean;
+  collapsed: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "sidebar-octagon flex shrink-0 items-center justify-center border transition-colors",
+        collapsed ? "h-9 w-9" : "h-10 w-10",
+      )}
+      style={{
+        background: signedIn ? "rgba(103, 232, 249, 0.12)" : "rgba(245, 197, 24, 0.1)",
+        borderColor: signedIn ? "rgba(103, 232, 249, 0.45)" : "rgba(245, 197, 24, 0.55)",
+      }}
+      aria-hidden="true"
+    >
+      {signedIn ? (
+        <CheckCircle className="h-4 w-4 text-[#22c55e]" />
+      ) : (
+        <UserRound className="h-4 w-4" style={{ color: "var(--sidebar-item-text)" }} />
+      )}
+    </div>
+  );
 }
 
 export function Sidebar() {
@@ -164,38 +192,23 @@ export function Sidebar() {
     }
   }, [router, supabase]);
 
-  const isDark = theme === "dark";
-  const secondaryTextClass = isDark ? "text-slate-300" : "text-slate-600";
+  const secondaryTextClass = "text-[color:var(--sidebar-item-text-secondary)]";
 
   const navItemClassName = useCallback(
     (active: boolean) =>
       cn(
-        "group relative flex items-center gap-3 rounded-xl border-l-[3px] transition-all duration-150",
+        "sidebar-focusable group relative flex items-center gap-3 rounded-xl border-l-[3px] transition-all duration-150 focus-visible:bg-[var(--sidebar-item-hover-bg)]",
         collapsed ? "justify-center px-3 py-3" : "px-3 py-2.5",
         active
-          ? isDark
-            ? "bg-[rgba(245,197,24,0.15)] text-white font-semibold"
-            : "bg-[rgba(26,26,110,0.1)] text-[#1a1a6e] font-semibold"
-          : isDark
-            ? "border-transparent text-slate-100 hover:bg-[rgba(255,255,255,0.12)] hover:text-white"
-            : "border-transparent text-slate-800 hover:bg-[rgba(26,26,110,0.08)] hover:text-[#1a1a6e]",
+          ? "font-semibold"
+          : "border-transparent hover:bg-[var(--sidebar-item-hover-bg)]",
       ),
-    [collapsed, isDark],
+    [collapsed],
   );
 
   const navIconClassName = useCallback(
-    (active: boolean) =>
-      cn(
-        "h-4 w-4 shrink-0 transition-colors",
-        active
-          ? isDark
-            ? "text-[#F5C518]"
-            : "text-[#1a1a6e]"
-          : isDark
-            ? "text-slate-100 group-hover:text-white"
-            : "text-slate-700 group-hover:text-[#1a1a6e]",
-      ),
-    [isDark],
+    () => cn("h-4 w-4 shrink-0 transition-colors"),
+    [],
   );
 
   const renderCollapsedTooltip = useCallback(
@@ -203,13 +216,13 @@ export function Sidebar() {
       <span
         className={cn(
           "absolute left-[calc(100%+8px)] z-50 rounded-lg px-2 py-1 text-xs font-medium whitespace-nowrap pointer-events-none opacity-0 shadow-lg transition-opacity group-hover:opacity-100",
-          isDark ? "bg-slate-950 text-slate-50" : "bg-white text-slate-900",
         )}
+        style={{ background: "var(--sidebar-tooltip-bg)", color: "var(--sidebar-tooltip-text)" }}
       >
         {label}
       </span>
     ),
-    [isDark],
+    [],
   );
 
   if (!mounted) return null;
@@ -229,7 +242,7 @@ export function Sidebar() {
             </Link>
             <button
               onClick={toggleCollapsed}
-              className="mt-3 flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-white/10"
+              className="sidebar-focusable mt-3 flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-[var(--sidebar-item-hover-bg)]"
               style={{ color: "var(--sidebar-text-muted)" }}
               aria-label="Expand sidebar"
             >
@@ -242,13 +255,13 @@ export function Sidebar() {
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--accent-yellow)" }}>
                 <FileText className="h-5 w-5" style={{ color: "#111111" }} />
               </div>
-              <span className={cn("font-display text-[13px] font-bold leading-tight whitespace-nowrap", isDark ? "text-slate-50" : "text-slate-900")}>
+              <span className="font-display text-[13px] font-bold leading-tight whitespace-nowrap" style={{ color: "var(--sidebar-item-text)" }}>
                 Invoice Studio
               </span>
             </Link>
             <button
               onClick={toggleCollapsed}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-white/10"
+              className="sidebar-focusable flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--sidebar-item-hover-bg)]"
               style={{ color: "var(--sidebar-text-muted)" }}
               aria-label="Collapse sidebar"
             >
@@ -269,10 +282,15 @@ export function Sidebar() {
                 title={collapsed ? label : undefined}
                 className={navItemClassName(active)}
                 style={{
-                  borderLeftColor: active ? (isDark ? "#F5C518" : "#1a1a6e") : "transparent",
+                  borderLeftColor: active ? "var(--sidebar-active-border)" : "transparent",
+                  background: active ? "var(--sidebar-active-bg)" : undefined,
+                  color: active ? "var(--sidebar-active-text)" : "var(--sidebar-item-text)",
                 }}
               >
-                <Icon className={navIconClassName(active)} />
+                <Icon
+                  className={navIconClassName()}
+                  style={{ color: active ? "var(--sidebar-active-icon)" : "var(--sidebar-item-icon)" }}
+                />
                 {!collapsed && (
                   <>
                     <span className="truncate text-sm font-medium">{label}</span>
@@ -293,10 +311,15 @@ export function Sidebar() {
             title={collapsed ? "Settings" : undefined}
             className={navItemClassName(isActive("/settings", pathname))}
             style={{
-              borderLeftColor: isActive("/settings", pathname) ? (isDark ? "#F5C518" : "#1a1a6e") : "transparent",
+              borderLeftColor: isActive("/settings", pathname) ? "var(--sidebar-active-border)" : "transparent",
+              background: isActive("/settings", pathname) ? "var(--sidebar-active-bg)" : undefined,
+              color: isActive("/settings", pathname) ? "var(--sidebar-active-text)" : "var(--sidebar-item-text)",
             }}
           >
-            <Settings className={navIconClassName(isActive("/settings", pathname))} />
+            <Settings
+              className={navIconClassName()}
+              style={{ color: isActive("/settings", pathname) ? "var(--sidebar-active-icon)" : "var(--sidebar-item-icon)" }}
+            />
             {!collapsed && <span className="truncate text-sm font-medium">Settings</span>}
             {collapsed && renderCollapsedTooltip("Settings")}
           </Link>
@@ -316,10 +339,15 @@ export function Sidebar() {
                 title={collapsed ? label : undefined}
                 className={navItemClassName(active)}
                 style={{
-                  borderLeftColor: active ? (isDark ? "#F5C518" : "#1a1a6e") : "transparent",
+                  borderLeftColor: active ? "var(--sidebar-active-border)" : "transparent",
+                  background: active ? "var(--sidebar-active-bg)" : undefined,
+                  color: active ? "var(--sidebar-active-text)" : "var(--sidebar-item-text)",
                 }}
               >
-                <Icon className={navIconClassName(active)} />
+                <Icon
+                  className={navIconClassName()}
+                  style={{ color: active ? "var(--sidebar-active-icon)" : "var(--sidebar-item-icon)" }}
+                />
                 {!collapsed && <span className="truncate text-sm font-medium">{label}</span>}
                 {collapsed && renderCollapsedTooltip(label)}
               </Link>
@@ -335,14 +363,13 @@ export function Sidebar() {
                 onClick={() => setShowAccountMenu((prev) => !prev)}
                 title={collapsed ? `Signed In${user.email ? ` · ${user.email}` : ""}` : undefined}
                 className={cn(
-                  "group relative flex w-full items-center gap-3 rounded-xl border-l-[3px] transition-all duration-150",
+                  "sidebar-focusable group relative flex w-full items-center gap-3 rounded-xl border-l-[3px] transition-all duration-150 hover:bg-[var(--sidebar-item-hover-bg)]",
                   collapsed ? "justify-center px-3 py-3" : "px-3 py-2.5",
-                  isDark
-                    ? "border-transparent text-slate-100 hover:bg-[rgba(255,255,255,0.12)] hover:text-white"
-                    : "border-transparent text-slate-800 hover:bg-[rgba(26,26,110,0.08)] hover:text-[#1a1a6e]",
+                  "border-transparent",
                 )}
+                style={{ color: "var(--sidebar-item-text)", background: "var(--sidebar-account-bg)" }}
               >
-                <CheckCircle className="h-4 w-4 shrink-0 text-[#22c55e]" />
+                <AccountMarker signedIn collapsed={collapsed} />
                 {!collapsed && (
                   <div className="min-w-0 text-left">
                     <div className="text-sm font-semibold">Signed In</div>
@@ -358,18 +385,16 @@ export function Sidebar() {
                 href="/auth"
                 title={collapsed ? "Sign In / Sync" : undefined}
                 className={cn(
-                  "group relative flex items-center gap-3 rounded-xl border-l-[3px] transition-all duration-150",
+                  "sidebar-focusable group relative flex items-center gap-3 rounded-xl border-l-[3px] transition-all duration-150 hover:bg-[var(--sidebar-item-hover-bg)]",
                   collapsed ? "justify-center px-3 py-3" : "px-3 py-2.5",
-                  isDark
-                    ? "text-slate-100 hover:bg-[rgba(255,255,255,0.12)] hover:text-white"
-                    : "text-slate-800 hover:bg-[rgba(26,26,110,0.08)] hover:text-[#1a1a6e]",
                 )}
                 style={{
                   borderLeftColor: "#F5C518",
-                  background: isDark ? "rgba(245,197,24,0.08)" : "rgba(245,197,24,0.12)",
+                  background: "var(--sidebar-account-bg)",
+                  color: "var(--sidebar-item-text)",
                 }}
               >
-                <LogIn className={cn("h-4 w-4 shrink-0", isDark ? "text-slate-100 group-hover:text-white" : "text-slate-700 group-hover:text-[#1a1a6e]")} />
+                <AccountMarker signedIn={false} collapsed={collapsed} />
                 {!collapsed && (
                   <div className="min-w-0 text-left">
                     <div className="text-sm font-semibold">Sign In / Sync</div>
@@ -385,10 +410,10 @@ export function Sidebar() {
                 className={cn(
                   "absolute z-50 rounded-xl border p-3 shadow-xl",
                   collapsed ? "left-[calc(100%+8px)] top-0 w-64" : "bottom-[calc(100%+8px)] left-0 right-0",
-                  isDark ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white",
                 )}
+                style={{ borderColor: "var(--border-strong)", background: "var(--surface)" }}
               >
-                <p className={cn("truncate text-sm font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
+                <p className="truncate text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
                   {user.email ?? "Signed in"}
                 </p>
                 <button
@@ -396,9 +421,9 @@ export function Sidebar() {
                   onClick={() => void handleSignOut()}
                   disabled={isSigningOut}
                   className={cn(
-                    "mt-3 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60",
-                    isDark ? "bg-white/10 text-white hover:bg-white/15" : "bg-slate-100 text-slate-900 hover:bg-slate-200",
+                    "sidebar-focusable mt-3 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60",
                   )}
+                  style={{ background: "var(--surface-raised)", color: "var(--text-primary)" }}
                 >
                   {isSigningOut ? "Signing out..." : "Sign Out"}
                 </button>
@@ -409,22 +434,19 @@ export function Sidebar() {
           <button
             onClick={toggleTheme}
             className={cn(
-              "flex w-full items-center gap-3 rounded-xl border-l-[3px] transition-colors",
+              "sidebar-focusable flex w-full items-center gap-3 rounded-xl border-l-[3px] transition-colors hover:bg-[var(--sidebar-item-hover-bg)]",
               collapsed ? "justify-center px-3 py-3" : "px-3 py-2.5",
-              isDark
-                ? "text-slate-100 hover:bg-[rgba(255,255,255,0.12)] hover:text-white"
-                : "text-slate-800 hover:bg-[rgba(26,26,110,0.08)] hover:text-[#1a1a6e]",
             )}
-            style={{ borderLeftColor: "transparent" }}
+            style={{ borderLeftColor: "transparent", color: "var(--sidebar-item-text)" }}
             aria-label="Toggle theme"
           >
             {theme === "dark" ? (
-              <Sun className={cn("h-4 w-4 shrink-0", isDark ? "text-slate-100" : "text-slate-700")} />
+              <Sun className="h-4 w-4 shrink-0" style={{ color: "var(--sidebar-item-icon)" }} />
             ) : (
-              <Moon className={cn("h-4 w-4 shrink-0", isDark ? "text-slate-100" : "text-slate-700")} />
+              <Moon className="h-4 w-4 shrink-0" style={{ color: "var(--sidebar-item-icon)" }} />
             )}
             {!collapsed && (
-              <span className={cn("text-sm font-medium", isDark ? "text-slate-100" : "text-slate-800")}>
+              <span className="text-sm font-medium">
                 {theme === "dark" ? "Light mode" : "Dark mode"}
               </span>
             )}
@@ -444,23 +466,23 @@ export function Sidebar() {
               href={href}
               className={cn(
                 "flex flex-col items-center gap-0.5 rounded-xl px-3 py-1 transition-colors",
-                active ? (isDark ? "text-white" : "text-[#1a1a6e]") : isDark ? "text-slate-100" : "text-slate-700",
               )}
+              style={{ color: active ? "var(--sidebar-active-text)" : "var(--sidebar-item-text)" }}
             >
-              <Icon className={cn("h-5 w-5", active && isDark ? "text-[#F5C518]" : undefined)} />
+              <Icon className="h-5 w-5" style={{ color: active ? "var(--sidebar-active-icon)" : "var(--sidebar-item-icon)" }} />
               <span className="text-[10px] font-medium">{label}</span>
             </Link>
           );
         })}
         <button
           className={cn(
-            "flex flex-col items-center gap-0.5 rounded-xl px-3 py-1 transition-colors",
-            isDark ? "text-slate-100" : "text-slate-700",
+            "sidebar-focusable flex flex-col items-center gap-0.5 rounded-xl px-3 py-1 transition-colors",
           )}
+          style={{ color: "var(--sidebar-item-text)" }}
           onClick={toggleTheme}
           aria-label="Toggle theme"
         >
-          {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          {theme === "dark" ? <Sun className="h-5 w-5" style={{ color: "var(--sidebar-item-icon)" }} /> : <Moon className="h-5 w-5" style={{ color: "var(--sidebar-item-icon)" }} />}
           <span className="text-[10px] font-medium">Theme</span>
         </button>
       </nav>

@@ -299,7 +299,8 @@ body {
   transition: box-shadow 120ms ease, background-color 120ms ease;
 }
 .btn-nm-primary:hover  { background-color: var(--accent-mid); box-shadow: 6px 6px 16px rgba(28,61,90,0.5), -2px -2px 10px rgba(255,255,255,0.7); }
-.btn-nm-primary:active { box-shadow: inset 3px 3px 8px rgba(0,0,0,0.3), inset -1px -1px 4px rgba(255,255,255,0.1); }
+.btn-nm-primary:active   { box-shadow: var(--shadow-inset); transform: scale(0.99); }
+.btn-nm-primary:disabled { box-shadow: 1px 1px 3px rgba(28,61,90,0.15), -1px -1px 3px rgba(255,255,255,0.4); opacity: 0.55; cursor: not-allowed; }
 
 /* ═══════════════════════════════════════════════════════════════
    FORM FIELDS
@@ -536,9 +537,6 @@ body {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-/* Toggle thumb spring — used by the physical toggle switch component */
-@keyframes thumbSlideOn  { from { transform: translateX(0); }    to { transform: translateX(22px); } }
-@keyframes thumbSlideOff { from { transform: translateX(22px); } to { transform: translateX(0); } }
 
 .animate-slide-in-bottom  { animation: slideInFromBottom 200ms ease-out forwards; }
 .animate-slide-out-bottom { animation: slideOutToBottom  150ms ease-in  forwards; }

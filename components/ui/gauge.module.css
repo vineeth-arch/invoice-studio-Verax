@@ -11,15 +11,9 @@
   display: block;
 }
 
-/* Outer bezel ring gradient — polished chrome effect */
-.bezel {
-  fill: url(#bezelGrad);
-}
-
-/* Glass face */
-.face {
-  fill: url(#faceGrad);
-}
+/* Bezel and face fills are set inline in gauge.tsx with instance-scoped gradient IDs */
+.bezel {}
+.face {}
 
 /* Reflection highlight arc at top of bezel */
 .reflection {

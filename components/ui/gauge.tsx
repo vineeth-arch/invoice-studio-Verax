@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils/cn";
 import styles from "./gauge.module.css";
 
@@ -91,8 +91,9 @@ export function Gauge({
   const sprung = useSprungValue(value, animate);
   const needleAngle = valueToAngle(sprung);
 
-  const gradId = `bezelGrad-${Math.random().toString(36).slice(2, 7)}`;
-  const faceGradId = `faceGrad-${Math.random().toString(36).slice(2, 7)}`;
+  const uid = useId();
+  const gradId = `bezelGrad-${uid.replace(/:/g, "")}`;
+  const faceGradId = `faceGrad-${uid.replace(/:/g, "")}`;
 
   const needleTip = polarToXY(CX, CY, R_FACE - 10, needleAngle);
 

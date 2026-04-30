@@ -25,7 +25,7 @@
   position: relative;
   flex: 1;
   height: 16px;
-  border-radius: 8px;
+  border-radius: var(--r-input);
   background-color: var(--base);
   box-shadow: var(--shadow-inset-sm);
   overflow: hidden;
@@ -37,7 +37,7 @@
   top: 0;
   left: 0;
   height: 100%;
-  border-radius: 8px;
+  border-radius: var(--r-input);
   transition: width 200ms ease, background-color 300ms ease;
   /* Lit-from-above highlight stripe */
   background-image: linear-gradient(
@@ -85,7 +85,7 @@
 .handle:active,
 .handle--dragging {
   cursor: grabbing;
-  box-shadow: var(--shadow-inset-sm);
+  box-shadow: var(--shadow-inset);
 }
 
 .valueLabel {

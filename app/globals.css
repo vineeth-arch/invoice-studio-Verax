@@ -256,11 +256,28 @@ body {
     rgba(255,255,255,0.6) 0%,
     transparent 55%
   );
+  /* Entrance: scale up from near-zero with ease-out-back snap */
+  transition: opacity 200ms ease-out, transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.3);
+  }
 }
 .status-light[data-status="paid"]    { background-color: var(--paid);    box-shadow: 0 0 6px 1px var(--paid-glow),    0 0 2px var(--paid); }
-.status-light[data-status="overdue"] { background-color: var(--overdue); box-shadow: 0 0 6px 1px var(--overdue-glow), 0 0 2px var(--overdue); }
+.status-light[data-status="overdue"] { background-color: var(--overdue); box-shadow: 0 0 6px 1px var(--overdue-glow), 0 0 2px var(--overdue);
+                                       animation: pulse-overdue 3s ease-in-out infinite; }
 .status-light[data-status="draft"]   { background-color: var(--draft);   box-shadow: 0 0 4px 1px var(--draft-glow); }
 .status-light[data-status="amber"]   { background-color: var(--amber);   box-shadow: 0 0 6px 1px var(--amber-glow),  0 0 2px var(--amber); }
+
+@keyframes pulse-overdue {
+  0%, 100% { box-shadow: 0 0 6px 1px var(--overdue-glow), 0 0 2px var(--overdue); }
+  50%       { box-shadow: 0 0 10px 3px var(--overdue-glow), 0 0 4px var(--overdue); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-light { transition: none; }
+  .status-light[data-status="overdue"] { animation: none; }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    BUTTONS
@@ -279,11 +296,14 @@ body {
   color: var(--text);
   cursor: pointer;
   padding: 10px 20px;
-  transition: box-shadow 120ms ease, transform 80ms ease;
+  transition: box-shadow 120ms ease, transform 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  will-change: transform;
 }
-.btn-nm:hover    { box-shadow: 8px 8px 18px var(--shadow-dark), -8px -8px 18px var(--shadow-light); }
-.btn-nm:active   { box-shadow: var(--shadow-inset); transform: scale(0.99); }
-.btn-nm:disabled { box-shadow: 1px 1px 3px var(--shadow-dark), -1px -1px 3px var(--shadow-light); color: var(--muted-light); cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) {
+  .btn-nm:hover { box-shadow: 8px 8px 18px var(--shadow-dark), -8px -8px 18px var(--shadow-light); }
+}
+.btn-nm:active   { box-shadow: var(--shadow-inset); transform: scale(0.97); }
+.btn-nm:disabled { box-shadow: 1px 1px 3px var(--shadow-dark), -1px -1px 3px var(--shadow-light); color: var(--muted-light); cursor: not-allowed; transform: none; }
 
 .btn-nm-primary {
   background-color: var(--accent);
@@ -296,11 +316,14 @@ body {
   font-weight: 600;
   cursor: pointer;
   padding: 10px 20px;
-  transition: box-shadow 120ms ease, background-color 120ms ease;
+  transition: box-shadow 120ms ease, background-color 120ms ease, transform 100ms cubic-bezier(0.23, 1, 0.32, 1);
+  will-change: transform;
 }
-.btn-nm-primary:hover  { background-color: var(--accent-mid); box-shadow: 6px 6px 16px rgba(28,61,90,0.5), -2px -2px 10px rgba(255,255,255,0.7); }
-.btn-nm-primary:active   { box-shadow: var(--shadow-inset); transform: scale(0.99); }
-.btn-nm-primary:disabled { box-shadow: 1px 1px 3px rgba(28,61,90,0.15), -1px -1px 3px rgba(255,255,255,0.4); opacity: 0.55; cursor: not-allowed; }
+@media (hover: hover) and (pointer: fine) {
+  .btn-nm-primary:hover { background-color: var(--accent-mid); box-shadow: 6px 6px 16px rgba(28,61,90,0.5), -4px -4px 10px rgba(255,255,255,0.7); }
+}
+.btn-nm-primary:active   { box-shadow: var(--shadow-inset); transform: scale(0.97); }
+.btn-nm-primary:disabled { box-shadow: 1px 1px 3px rgba(28,61,90,0.15), -1px -1px 3px rgba(255,255,255,0.4); opacity: 0.55; cursor: not-allowed; transform: none; }
 
 /* ═══════════════════════════════════════════════════════════════
    FORM FIELDS

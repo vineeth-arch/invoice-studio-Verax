@@ -134,11 +134,15 @@ export function useKnob({
     el.removeEventListener("pointermove", handlePointerMove);
     el.removeEventListener("pointerup", handlePointerUp);
     el.removeEventListener("pointercancel", handlePointerUp);
-    // Inertia decay
+    // Inertia decay — normalised to 60fps so decay rate is frame-rate independent
     let vel = velocity.current;
     let currentVal = value;
-    function decay() {
-      vel *= 0.92;
+    let lastTime = performance.now();
+    function decay(now: number) {
+      const dt = now - lastTime;
+      lastTime = now;
+      // Decay by 0.92 per 16.67ms (one 60fps frame), scaled by actual elapsed time
+      vel *= Math.pow(0.92, dt / 16.67);
       if (Math.abs(vel) < 0.1) return;
       const range = max - min;
       const vDelta = (vel / (MAX_ANGLE - MIN_ANGLE)) * range;

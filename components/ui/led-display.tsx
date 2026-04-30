@@ -43,7 +43,7 @@ export function LEDDisplay({
     const from = prevValue.current;
     const to = value;
     prevValue.current = to;
-    const duration = 800;
+    const duration = 550;
     const start = performance.now();
 
     function tick(now: number) {

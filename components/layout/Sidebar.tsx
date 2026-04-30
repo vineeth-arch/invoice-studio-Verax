@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
@@ -20,12 +20,12 @@ import {
   Sun,
   Moon,
   LogIn,
-  User,
-  LogOut,
+  CheckCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { DRAFTS_STORAGE_EVENT, getDraftCounts } from "@/lib/utils/drafts";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -61,14 +61,23 @@ function isActive(href: string, pathname: string): boolean {
   return pathname.startsWith(href);
 }
 
+function truncateEmail(email: string) {
+  if (email.length <= 20) return email;
+  return `${email.slice(0, 17)}...`;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
-  const { loading, user, signOut } = useAuth();
+  const router = useRouter();
+  const { loading, user } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [mounted, setMounted] = useState(false);
   const [draftCount, setDraftCount] = useState(0);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const [supabase] = useState(() => getSupabaseBrowserClient());
 
   const refreshDraftCount = useCallback(() => {
     setDraftCount(getDraftCounts().total);
@@ -103,6 +112,19 @@ export function Sidebar() {
     };
   }, [refreshDraftCount]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setShowAccountMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const toggleCollapsed = useCallback(() => {
     setCollapsed((prev) => {
       const next = !prev;
@@ -130,34 +152,84 @@ export function Sidebar() {
   }, []);
 
   const handleSignOut = useCallback(async () => {
+    if (!supabase) return;
+
     setIsSigningOut(true);
     try {
-      await signOut();
+      await supabase.auth.signOut();
+      setShowAccountMenu(false);
+      router.push("/auth");
     } finally {
       setIsSigningOut(false);
     }
-  }, [signOut]);
+  }, [router, supabase]);
+
+  const isDark = theme === "dark";
+  const secondaryTextClass = isDark ? "text-slate-300" : "text-slate-600";
+
+  const navItemClassName = useCallback(
+    (active: boolean) =>
+      cn(
+        "group relative flex items-center gap-3 rounded-xl border-l-[3px] transition-all duration-150",
+        collapsed ? "justify-center px-3 py-3" : "px-3 py-2.5",
+        active
+          ? isDark
+            ? "bg-[rgba(245,197,24,0.15)] text-white font-semibold"
+            : "bg-[rgba(26,26,110,0.1)] text-[#1a1a6e] font-semibold"
+          : isDark
+            ? "border-transparent text-slate-100 hover:bg-[rgba(255,255,255,0.12)] hover:text-white"
+            : "border-transparent text-slate-800 hover:bg-[rgba(26,26,110,0.08)] hover:text-[#1a1a6e]",
+      ),
+    [collapsed, isDark],
+  );
+
+  const navIconClassName = useCallback(
+    (active: boolean) =>
+      cn(
+        "h-4 w-4 shrink-0 transition-colors",
+        active
+          ? isDark
+            ? "text-[#F5C518]"
+            : "text-[#1a1a6e]"
+          : isDark
+            ? "text-slate-100 group-hover:text-white"
+            : "text-slate-700 group-hover:text-[#1a1a6e]",
+      ),
+    [isDark],
+  );
+
+  const renderCollapsedTooltip = useCallback(
+    (label: string) => (
+      <span
+        className={cn(
+          "absolute left-[calc(100%+8px)] z-50 rounded-lg px-2 py-1 text-xs font-medium whitespace-nowrap pointer-events-none opacity-0 shadow-lg transition-opacity group-hover:opacity-100",
+          isDark ? "bg-slate-950 text-slate-50" : "bg-white text-slate-900",
+        )}
+      >
+        {label}
+      </span>
+    ),
+    [isDark],
+  );
 
   if (!mounted) return null;
 
   return (
     <>
-      {/* ── Desktop Sidebar ── */}
       <aside
-        className="fixed left-0 top-0 h-screen flex-col hidden md:flex no-print z-40 bg-sidebar-bg overflow-hidden transition-[width] duration-300"
+        className="fixed left-0 top-0 z-40 hidden h-screen flex-col overflow-hidden bg-sidebar-bg transition-[width] duration-300 md:flex no-print"
         style={{ width: "var(--sidebar-width)", borderRight: "1px solid var(--border)" }}
       >
-        {/* Header */}
         {collapsed ? (
-          <div className="flex flex-col items-center py-4 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
+          <div className="flex shrink-0 flex-col items-center py-4" style={{ borderBottom: "1px solid var(--border)" }}>
             <Link href="/dashboard" aria-label="Dashboard">
-              <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ background: "var(--accent-yellow)" }}>
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "var(--accent-yellow)" }}>
                 <FileText className="h-5 w-5" style={{ color: "#111111" }} />
               </div>
             </Link>
             <button
               onClick={toggleCollapsed}
-              className="mt-3 h-6 w-6 rounded-md flex items-center justify-center transition-colors hover:bg-white/10"
+              className="mt-3 flex h-6 w-6 items-center justify-center rounded-md transition-colors hover:bg-white/10"
               style={{ color: "var(--sidebar-text-muted)" }}
               aria-label="Expand sidebar"
             >
@@ -165,18 +237,18 @@ export function Sidebar() {
             </button>
           </div>
         ) : (
-          <div className="flex items-center justify-between px-4 py-4 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
-            <Link href="/dashboard" className="flex items-center gap-2.5 min-w-0">
-              <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--accent-yellow)" }}>
+          <div className="flex shrink-0 items-center justify-between px-4 py-4" style={{ borderBottom: "1px solid var(--border)" }}>
+            <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--accent-yellow)" }}>
                 <FileText className="h-5 w-5" style={{ color: "#111111" }} />
               </div>
-              <span className="font-display font-bold text-[13px] leading-tight whitespace-nowrap" style={{ color: "var(--sidebar-text)" }}>
+              <span className={cn("font-display text-[13px] font-bold leading-tight whitespace-nowrap", isDark ? "text-slate-50" : "text-slate-900")}>
                 Invoice Studio
               </span>
             </Link>
             <button
               onClick={toggleCollapsed}
-              className="h-6 w-6 rounded-md flex items-center justify-center transition-colors hover:bg-white/10 shrink-0"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-white/10"
               style={{ color: "var(--sidebar-text-muted)" }}
               aria-label="Collapse sidebar"
             >
@@ -185,38 +257,25 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* Nav Items */}
-        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-2 py-3">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = isActive(href, pathname);
             const isDraftsItem = href === "/drafts";
+
             return (
               <Link
                 key={href}
                 href={href}
                 title={collapsed ? label : undefined}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl transition-all duration-150 relative group",
-                  collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5",
-                )}
+                className={navItemClassName(active)}
                 style={{
-                  background: active ? "var(--sidebar-active-bg)" : undefined,
-                  color: active ? "var(--accent-yellow)" : "var(--sidebar-text-muted)",
+                  borderLeftColor: active ? (isDark ? "#F5C518" : "#1a1a6e") : "transparent",
                 }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "var(--sidebar-text)"; }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = "var(--sidebar-text-muted)"; }}
               >
-                {/* Yellow left-edge accent bar */}
-                {active && (
-                  <span
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full"
-                    style={{ background: "var(--accent-yellow)" }}
-                  />
-                )}
-                <Icon className="h-4 w-4 shrink-0" />
+                <Icon className={navIconClassName(active)} />
                 {!collapsed && (
                   <>
-                    <span className="text-sm font-medium truncate">{label}</span>
+                    <span className="truncate text-sm font-medium">{label}</span>
                     {isDraftsItem && draftCount > 0 && (
                       <span className="ml-auto inline-flex min-w-6 items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                         {draftCount}
@@ -224,116 +283,30 @@ export function Sidebar() {
                     )}
                   </>
                 )}
-                {/* Tooltip when collapsed */}
-                {collapsed && (
-                  <span
-                    className="absolute left-[calc(100%+8px)] px-2 py-1 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg"
-                    style={{ background: "#111111", color: "#F0EFE9" }}
-                  >
-                    {isDraftsItem && draftCount > 0 ? `${label} [${draftCount}]` : label}
-                  </span>
-                )}
+                {collapsed && renderCollapsedTooltip(isDraftsItem && draftCount > 0 ? `${label} [${draftCount}]` : label)}
               </Link>
             );
           })}
 
-          <div className="pt-2">
-            {!collapsed ? (
-              user ? (
-                <div
-                  className="rounded-xl px-3 py-3"
-                  style={{ border: "1px solid var(--border)", background: "rgba(245, 197, 24, 0.06)" }}
-                >
-                  <Link
-                    href="/auth"
-                    className="flex items-start gap-3 transition-opacity hover:opacity-85"
-                  >
-                    <User className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--accent-yellow)" }} />
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                        Signed In ✓
-                      </div>
-                      <div className="mt-0.5 truncate text-xs" style={{ color: "var(--text-muted)" }}>
-                        {loading ? "Checking session..." : user.email}
-                      </div>
-                    </div>
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => void handleSignOut()}
-                    disabled={isSigningOut}
-                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                    {isSigningOut ? "Signing out..." : "Sign Out"}
-                  </button>
-                </div>
-              ) : (
-                <Link
-                  href="/auth"
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-150 hover:bg-white/5"
-                  style={{ color: "var(--sidebar-text-muted)" }}
-                >
-                  <LogIn className="h-4 w-4 shrink-0" />
-                  <span className="text-sm font-medium truncate">Sign In / Sync</span>
-                </Link>
-              )
-            ) : (
-              <Link
-                href="/auth"
-                title={user ? `Signed In ✓${user.email ? ` · ${user.email}` : ""}` : "Sign In / Sync"}
-                className="group relative flex items-center justify-center rounded-xl px-3 py-3 transition-all duration-150 hover:bg-white/5"
-                style={{ color: user ? "var(--accent-yellow)" : "var(--sidebar-text-muted)" }}
-              >
-                {user ? <User className="h-4 w-4 shrink-0" /> : <LogIn className="h-4 w-4 shrink-0" />}
-                <span
-                  className="absolute left-[calc(100%+8px)] px-2 py-1 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg"
-                  style={{ background: "#111111", color: "#F0EFE9" }}
-                >
-                  {user ? "Signed In ✓" : "Sign In / Sync"}
-                </span>
-              </Link>
-            )}
-          </div>
-
           <Link
             href="/settings"
             title={collapsed ? "Settings" : undefined}
-            className={cn(
-              "flex items-center gap-3 rounded-xl transition-all duration-150 relative group",
-              collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5",
-            )}
+            className={navItemClassName(isActive("/settings", pathname))}
             style={{
-              background: isActive("/settings", pathname) ? "var(--sidebar-active-bg)" : undefined,
-              color: isActive("/settings", pathname) ? "var(--accent-yellow)" : "var(--sidebar-text-muted)",
+              borderLeftColor: isActive("/settings", pathname) ? (isDark ? "#F5C518" : "#1a1a6e") : "transparent",
             }}
-            onMouseEnter={(e) => { if (!isActive("/settings", pathname)) (e.currentTarget as HTMLElement).style.color = "var(--sidebar-text)"; }}
-            onMouseLeave={(e) => { if (!isActive("/settings", pathname)) (e.currentTarget as HTMLElement).style.color = "var(--sidebar-text-muted)"; }}
           >
-            {isActive("/settings", pathname) && (
-              <span
-                className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full"
-                style={{ background: "var(--accent-yellow)" }}
-              />
-            )}
-            <Settings className="h-4 w-4 shrink-0" />
-            {!collapsed && <span className="text-sm font-medium truncate">Settings</span>}
-            {collapsed && (
-              <span
-                className="absolute left-[calc(100%+8px)] px-2 py-1 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg"
-                style={{ background: "#111111", color: "#F0EFE9" }}
-              >
-                Settings
-              </span>
-            )}
+            <Settings className={navIconClassName(isActive("/settings", pathname))} />
+            {!collapsed && <span className="truncate text-sm font-medium">Settings</span>}
+            {collapsed && renderCollapsedTooltip("Settings")}
           </Link>
 
           {!collapsed && (
-            <div className="px-3 pt-5 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--sidebar-text-muted)" }}>
+            <div className={cn("px-3 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-[0.18em]", secondaryTextClass)}>
               Reports
             </div>
           )}
+
           {REPORT_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = isActive(href, pathname);
             return (
@@ -341,70 +314,126 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 title={collapsed ? label : undefined}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl transition-all duration-150 relative group",
-                  collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5",
-                )}
+                className={navItemClassName(active)}
                 style={{
-                  background: active ? "var(--sidebar-active-bg)" : undefined,
-                  color: active ? "var(--accent-yellow)" : "var(--sidebar-text-muted)",
+                  borderLeftColor: active ? (isDark ? "#F5C518" : "#1a1a6e") : "transparent",
                 }}
-                onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLElement).style.color = "var(--sidebar-text)"; }}
-                onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLElement).style.color = "var(--sidebar-text-muted)"; }}
               >
-                {active && (
-                  <span
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 rounded-r-full"
-                    style={{ background: "var(--accent-yellow)" }}
-                  />
-                )}
-                <Icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span className="text-sm font-medium truncate">{label}</span>}
-                {collapsed && (
-                  <span
-                    className="absolute left-[calc(100%+8px)] px-2 py-1 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg"
-                    style={{ background: "#111111", color: "#F0EFE9" }}
-                  >
-                    {label}
-                  </span>
-                )}
+                <Icon className={navIconClassName(active)} />
+                {!collapsed && <span className="truncate text-sm font-medium">{label}</span>}
+                {collapsed && renderCollapsedTooltip(label)}
               </Link>
             );
           })}
         </nav>
 
-        {/* Bottom: Theme Toggle + Version */}
-        <div
-          className="px-2 py-2 space-y-1 shrink-0"
-          style={{ borderTop: "1px solid var(--border)" }}
-        >
+        <div className="shrink-0 space-y-2 px-2 py-2" style={{ borderTop: "1px solid var(--border)" }}>
+          <div className="relative" ref={accountMenuRef}>
+            {user ? (
+              <button
+                type="button"
+                onClick={() => setShowAccountMenu((prev) => !prev)}
+                title={collapsed ? `Signed In${user.email ? ` · ${user.email}` : ""}` : undefined}
+                className={cn(
+                  "group relative flex w-full items-center gap-3 rounded-xl border-l-[3px] transition-all duration-150",
+                  collapsed ? "justify-center px-3 py-3" : "px-3 py-2.5",
+                  isDark
+                    ? "border-transparent text-slate-100 hover:bg-[rgba(255,255,255,0.12)] hover:text-white"
+                    : "border-transparent text-slate-800 hover:bg-[rgba(26,26,110,0.08)] hover:text-[#1a1a6e]",
+                )}
+              >
+                <CheckCircle className="h-4 w-4 shrink-0 text-[#22c55e]" />
+                {!collapsed && (
+                  <div className="min-w-0 text-left">
+                    <div className="text-sm font-semibold">Signed In</div>
+                    <div className={cn("mt-0.5 truncate text-xs", secondaryTextClass)}>
+                      {loading ? "Checking session..." : truncateEmail(user.email ?? "No email")}
+                    </div>
+                  </div>
+                )}
+                {collapsed && renderCollapsedTooltip("Signed In")}
+              </button>
+            ) : (
+              <Link
+                href="/auth"
+                title={collapsed ? "Sign In / Sync" : undefined}
+                className={cn(
+                  "group relative flex items-center gap-3 rounded-xl border-l-[3px] transition-all duration-150",
+                  collapsed ? "justify-center px-3 py-3" : "px-3 py-2.5",
+                  isDark
+                    ? "text-slate-100 hover:bg-[rgba(255,255,255,0.12)] hover:text-white"
+                    : "text-slate-800 hover:bg-[rgba(26,26,110,0.08)] hover:text-[#1a1a6e]",
+                )}
+                style={{
+                  borderLeftColor: "#F5C518",
+                  background: isDark ? "rgba(245,197,24,0.08)" : "rgba(245,197,24,0.12)",
+                }}
+              >
+                <LogIn className={cn("h-4 w-4 shrink-0", isDark ? "text-slate-100 group-hover:text-white" : "text-slate-700 group-hover:text-[#1a1a6e]")} />
+                {!collapsed && (
+                  <div className="min-w-0 text-left">
+                    <div className="text-sm font-semibold">Sign In / Sync</div>
+                    <div className={cn("mt-0.5 text-xs", secondaryTextClass)}>Enable cloud backup</div>
+                  </div>
+                )}
+                {collapsed && renderCollapsedTooltip("Sign In / Sync")}
+              </Link>
+            )}
+
+            {user && showAccountMenu && (
+              <div
+                className={cn(
+                  "absolute z-50 rounded-xl border p-3 shadow-xl",
+                  collapsed ? "left-[calc(100%+8px)] top-0 w-64" : "bottom-[calc(100%+8px)] left-0 right-0",
+                  isDark ? "border-slate-700 bg-slate-900" : "border-slate-200 bg-white",
+                )}
+              >
+                <p className={cn("truncate text-sm font-semibold", isDark ? "text-slate-50" : "text-slate-900")}>
+                  {user.email ?? "Signed in"}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  disabled={isSigningOut}
+                  className={cn(
+                    "mt-3 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:opacity-60",
+                    isDark ? "bg-white/10 text-white hover:bg-white/15" : "bg-slate-100 text-slate-900 hover:bg-slate-200",
+                  )}
+                >
+                  {isSigningOut ? "Signing out..." : "Sign Out"}
+                </button>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={toggleTheme}
             className={cn(
-              "flex items-center gap-3 rounded-xl w-full transition-colors hover:bg-white/10",
-              collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5"
+              "flex w-full items-center gap-3 rounded-xl border-l-[3px] transition-colors",
+              collapsed ? "justify-center px-3 py-3" : "px-3 py-2.5",
+              isDark
+                ? "text-slate-100 hover:bg-[rgba(255,255,255,0.12)] hover:text-white"
+                : "text-slate-800 hover:bg-[rgba(26,26,110,0.08)] hover:text-[#1a1a6e]",
             )}
-            style={{ color: "var(--sidebar-text-muted)" }}
+            style={{ borderLeftColor: "transparent" }}
             aria-label="Toggle theme"
           >
-            {theme === "dark" ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
+            {theme === "dark" ? (
+              <Sun className={cn("h-4 w-4 shrink-0", isDark ? "text-slate-100" : "text-slate-700")} />
+            ) : (
+              <Moon className={cn("h-4 w-4 shrink-0", isDark ? "text-slate-100" : "text-slate-700")} />
+            )}
             {!collapsed && (
-              <span className="text-sm font-medium">
+              <span className={cn("text-sm font-medium", isDark ? "text-slate-100" : "text-slate-800")}>
                 {theme === "dark" ? "Light mode" : "Dark mode"}
               </span>
             )}
           </button>
-          {!collapsed && (
-            <p className="px-3 pb-1 text-[10px]" style={{ color: "var(--sidebar-text-muted)" }}>
-              v1.0 · India · INR
-            </p>
-          )}
         </div>
       </aside>
 
-      {/* ── Mobile Bottom Tab Bar ── */}
       <nav
-        className="fixed bottom-0 left-0 right-0 h-16 flex items-center justify-around px-2 no-print z-40 md:hidden"
+        className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around px-2 md:hidden no-print"
         style={{ background: "var(--sidebar-bg)", borderTop: "1px solid var(--border)" }}
       >
         {MOBILE_NAV.map(({ href, label, icon: Icon }) => {
@@ -413,17 +442,21 @@ export function Sidebar() {
             <Link
               key={href}
               href={href}
-              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors"
-              style={{ color: active ? "var(--accent-yellow)" : "var(--sidebar-text-muted)" }}
+              className={cn(
+                "flex flex-col items-center gap-0.5 rounded-xl px-3 py-1 transition-colors",
+                active ? (isDark ? "text-white" : "text-[#1a1a6e]") : isDark ? "text-slate-100" : "text-slate-700",
+              )}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className={cn("h-5 w-5", active && isDark ? "text-[#F5C518]" : undefined)} />
               <span className="text-[10px] font-medium">{label}</span>
             </Link>
           );
         })}
         <button
-          className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-colors"
-          style={{ color: "var(--sidebar-text-muted)" }}
+          className={cn(
+            "flex flex-col items-center gap-0.5 rounded-xl px-3 py-1 transition-colors",
+            isDark ? "text-slate-100" : "text-slate-700",
+          )}
           onClick={toggleTheme}
           aria-label="Toggle theme"
         >

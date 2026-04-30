@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FileText,
   ShoppingCart,
@@ -17,6 +17,7 @@ import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
 import { formatCurrencyINR } from "@/lib/utils/formatting";
 import { StatusBadge } from "@/components/ui/Badge";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 
 /* ── Bento stat card ── */
 function StatCard({
@@ -87,6 +88,18 @@ export default function DashboardPage() {
   const { purchaseOrders, loading: poLoading } = usePurchaseOrders();
   const { profile } = useCompanyProfile();
   const [showSyncBanner, setShowSyncBanner] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const hash = window.location.hash;
+    if (hash && hash.includes("access_token")) {
+      const supabase = getSupabaseBrowserClient();
+      void supabase?.auth.getSession().then(() => {
+        window.history.replaceState(null, "", window.location.pathname);
+      });
+    }
+  }, []);
 
   const finalInvoices = invoices.filter((i) => i.status === "FINAL" || i.status === "PAID");
   const totalInvoiced = finalInvoices.reduce((s, i) => s + i.totals.grandTotal, 0);

@@ -1,6 +1,7 @@
 "use client";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./types";
 
 let browserClient: SupabaseClient<Database> | null = null;
@@ -23,12 +24,8 @@ export function getSupabaseBrowserClient() {
   const { url, anonKey } = getSupabaseEnv();
   if (!url || !anonKey) return null;
 
-  browserClient = createClient<Database>(url, anonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-    },
+  browserClient = createBrowserClient<Database>(url, anonKey, {
+    isSingleton: true,
   });
 
   return browserClient;

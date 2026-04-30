@@ -1,0 +1,1993 @@
+diff --git a/components/document/PDFExportButton.tsx b/components/document/PDFExportButton.tsx
+index a727cea..a6a02b2 100644
+--- a/components/document/PDFExportButton.tsx
++++ b/components/document/PDFExportButton.tsx
+@@ -10,9 +10,10 @@ interface PDFExportButtonProps {
+   previewRef: React.RefObject<HTMLDivElement>;
+   filename: string;
+   className?: string;
++  onGeneratingChange?: (isGenerating: boolean) => void;
+ }
+ 
+-export function PDFExportButton({ previewRef, filename, className }: PDFExportButtonProps) {
++export function PDFExportButton({ previewRef, filename, className, onGeneratingChange }: PDFExportButtonProps) {
+   const [loading, setLoading] = useState(false);
+   const { addToast } = useToast();
+ 
+@@ -28,6 +29,7 @@ export function PDFExportButton({ previewRef, filename, className }: PDFExportBu
+     if (!element) return;
+ 
+     setLoading(true);
++    onGeneratingChange?.(true);
+     element.classList.add("pdf-generating");
+     const originalTransform = element.style.transform;
+     const originalWidth = element.style.width;
+@@ -85,6 +87,7 @@ export function PDFExportButton({ previewRef, filename, className }: PDFExportBu
+       element.style.transform = originalTransform;
+       element.style.width = originalWidth;
+       element.style.boxShadow = originalBoxShadow;
++      onGeneratingChange?.(false);
+       setLoading(false);
+     }
+   };
+diff --git a/components/invoice/InvoiceEditorPage.tsx b/components/invoice/InvoiceEditorPage.tsx
+index 7262a32..3fb0db7 100644
+--- a/components/invoice/InvoiceEditorPage.tsx
++++ b/components/invoice/InvoiceEditorPage.tsx
+@@ -40,6 +40,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
+   const [conversionDraft, setConversionDraft] = useState<Partial<Invoice> | null>(null);
+   const [draftReady, setDraftReady] = useState(Boolean(invoiceId));
+   const [isSaving, setIsSaving] = useState(false);
++  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+   const [isShareActionLoading, setIsShareActionLoading] = useState(false);
+   const [shareToken, setShareToken] = useState("");
+@@ -121,6 +122,8 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
+         shareToken: existingInvoice?.shareToken,
+       } as Partial<Invoice>;
+ 
++      setPreviewInvoice((current) => ({ ...current, ...invoice, status }));
++
+       const result = await saveInvoice(invoice);
+       if (result.success) {
+         const savedInvoiceId = result.id ?? invoice.id;
+@@ -332,7 +335,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
+               Share
+             </Button>
+           )}
+-          <PDFExportButton previewRef={previewRef} filename={pdfFilename} />
++          <PDFExportButton previewRef={previewRef} filename={pdfFilename} onGeneratingChange={setIsGeneratingPDF} />
+           <PrintButton contentRef={previewRef} />
+         </div>
+       </div>
+@@ -386,7 +389,7 @@ export function InvoiceEditorPage({ invoiceId }: InvoiceEditorPageProps) {
+           style={isDesktop ? { flexBasis: `${(1 - splitRatio) * 100}%` } : undefined}
+         >
+           <A4PreviewWrapper ref={previewRef} noPadding>
+-            <InvoicePreview invoice={previewInvoice} />
++            <InvoicePreview invoice={previewInvoice} isGeneratingPDF={isGeneratingPDF} />
+           </A4PreviewWrapper>
+         </div>
+       </div>
+diff --git a/components/invoice/InvoiceForm.tsx b/components/invoice/InvoiceForm.tsx
+index 2fa892c..fa1e029 100644
+--- a/components/invoice/InvoiceForm.tsx
++++ b/components/invoice/InvoiceForm.tsx
+@@ -330,7 +330,10 @@ export function InvoiceForm({
+           type="button"
+           variant="secondary"
+           loading={isSaving}
+-          onClick={handleSubmit((v) => onSave(v, "DRAFT"))}
++          onClick={() => {
++            setValue("status", "DRAFT");
++            handleSubmit((v) => onSave(v, "DRAFT"))();
++          }}
+         >
+           Save Draft
+         </Button>
+@@ -338,7 +341,10 @@ export function InvoiceForm({
+           type="button"
+           variant="primary"
+           loading={isSaving}
+-          onClick={handleSubmit((v) => onSave(v, "FINAL"))}
++          onClick={() => {
++            setValue("status", "FINAL");
++            handleSubmit((v) => onSave(v, "FINAL"))();
++          }}
+         >
+           Save as Final
+         </Button>
+diff --git a/components/invoice/InvoicePreview.tsx b/components/invoice/InvoicePreview.tsx
+index 1d89489..4760816 100644
+--- a/components/invoice/InvoicePreview.tsx
++++ b/components/invoice/InvoicePreview.tsx
+@@ -1,670 +1,132 @@
++import { DocumentTemplate } from "@/components/DocumentTemplate";
+ import type { Invoice } from "@/lib/types/invoice";
+-import { DesignInnsaeitDocumentShell } from "@/components/document/DesignInnsaeitDocumentShell";
+-import { formatCurrencyINR, formatDate, formatNumber } from "@/lib/utils/formatting";
+ import { getDisplayInvoiceNumber, isProformaInvoice, resolveInvoiceType } from "@/lib/utils/invoiceTypes";
+-import { getCreditNotesTotal, getEffectiveOutstanding } from "@/lib/utils/invoiceFinancials";
+-
+-const BRAND_PURPLE = "#2828b0";
+-const HEADER_LABEL_STYLE: React.CSSProperties = {
+-  fontSize: "10px",
+-  fontWeight: 700,
+-  letterSpacing: "1.2px",
+-  textTransform: "uppercase",
+-  color: "#6b7280",
+-  marginBottom: "10px",
+-};
+-
+-const DETAIL_TEXT_STYLE: React.CSSProperties = {
+-  fontSize: "11.5px",
+-  color: "#374151",
+-  lineHeight: 1.55,
+-};
+-
+-const DOC_VALUE_STYLE: React.CSSProperties = {
+-  fontSize: "11.5px",
+-  fontWeight: 500,
+-  color: "#111827",
+-  textAlign: "right",
+-};
+ 
+ interface InvoicePreviewProps {
+   invoice: Partial<Invoice>;
++  isGeneratingPDF?: boolean;
+ }
+ 
+-function StatusBadge({ status }: { status?: string }) {
+-  if (!status) return null;
+-  const map: Record<string, { bg: string; color: string; label: string }> = {
+-    DRAFT: { bg: "#fef3c7", color: "#92400e", label: "Draft" },
+-    FINAL: { bg: "#d1fae5", color: "#065f46", label: "Final" },
+-    PAID: { bg: "#dbeafe", color: "#1e40af", label: "Paid" },
+-    CANCELLED: { bg: "#fee2e2", color: "#991b1b", label: "Cancelled" },
+-  };
+-  const s = map[status] ?? { bg: "#f3f4f6", color: "#374151", label: status };
+-  return (
+-    <span
+-      className={status === "DRAFT" ? "draft-badge" : undefined}
+-      style={{
+-        display: "inline-block",
+-        backgroundColor: s.bg,
+-        color: s.color,
+-        fontSize: "8px",
+-        fontWeight: 600,
+-        padding: "2px 7px",
+-        borderRadius: "10px",
+-        letterSpacing: "0.5px",
+-        textTransform: "uppercase",
+-      }}
+-    >
+-      {s.label}
+-    </span>
+-  );
++function normalizeInvoiceDocumentType(invoice: Partial<Invoice>) {
++  if (isProformaInvoice(invoice)) return "proforma" as const;
++  switch (resolveInvoiceType(invoice)) {
++    case "BILL_OF_SUPPLY":
++      return "bill_of_supply" as const;
++    case "EXPORT_INVOICE":
++      return "export_invoice" as const;
++    case "CREDIT_NOTE":
++      return "credit_note" as const;
++    case "DEBIT_NOTE":
++      return "debit_note" as const;
++    default:
++      return "tax_invoice" as const;
++  }
+ }
+ 
+-function buildAddressLines(addr?: {
+-  line1?: string;
+-  line2?: string;
+-  city?: string;
+-  state?: string;
+-  pincode?: string;
+-}): string[] {
+-  if (!addr) return [];
+-  const cityStatePincode = [addr.city, addr.state, addr.pincode].filter(Boolean).join(", ");
+-  return [addr.line1, addr.line2, cityStatePincode].filter((line): line is string => Boolean(line));
++function normalizeGSTMode(mode?: Invoice["gstMode"]) {
++  switch (mode) {
++    case "IGST":
++      return "igst" as const;
++    case "NO_TAX":
++      return "none" as const;
++    case "CUSTOM":
++      return "custom" as const;
++    default:
++      return "cgst_sgst" as const;
++  }
+ }
+ 
+-function hasShippingDiff(
+-  shipping: Invoice["shipping"] | undefined,
+-  buyer: Invoice["buyer"] | undefined
+-): boolean {
+-  if (!shipping || shipping.sameAsBilling) return false;
+-  if (!shipping.address) return false;
+-  const sa = shipping.address;
+-  const ba = buyer?.billingAddress;
+-  if (!ba) return true;
+-  return sa.line1 !== ba.line1 || sa.city !== ba.city || sa.pincode !== ba.pincode;
+-}
++export function InvoicePreview({ invoice, isGeneratingPDF = false }: InvoicePreviewProps) {
++  const documentType = normalizeInvoiceDocumentType(invoice);
++  const supplier = invoice.supplier;
++  const buyer = invoice.buyer;
++  const totals = invoice.totals;
++  const paymentDetails = invoice.paymentDetails;
++  const signature = invoice.signature;
+ 
+-function DocMetaRow({ label, value }: { label: string; value?: string | null }) {
+-  if (!value) return null;
+   return (
+-    <div
+-      style={{
+-        display: "flex",
+-        justifyContent: "space-between",
+-        gap: "12px",
+-        marginBottom: "5px",
++    <DocumentTemplate
++      documentType={documentType}
++      status={invoice.status === "FINAL" ? "final" : "draft"}
++      isGeneratingPDF={isGeneratingPDF}
++      from={{
++        logo: supplier?.logoImageBase64 ?? null,
++        name: supplier?.name ?? "",
++        address1: supplier?.address?.line1 ?? "",
++        address2: supplier?.address?.line2 ?? "",
++        city: supplier?.address?.city ?? "",
++        state: supplier?.address?.state ?? "",
++        pincode: supplier?.address?.pincode ?? "",
++        gstin: supplier?.gstin ?? "",
++        phone: supplier?.contact?.phone ?? "",
++        email: supplier?.contact?.email ?? "",
+       }}
+-    >
+-      <span style={{ ...DETAIL_TEXT_STYLE, color: "#6b7280" }}>{label}</span>
+-      <span style={DOC_VALUE_STYLE}>{value}</span>
+-    </div>
+-  );
+-}
+-
+-function PartyColumn({
+-  label,
+-  name,
+-  lines,
+-  gstin,
+-  phone,
+-  email,
+-  logo,
+-  showUnregistered,
+-}: {
+-  label: string;
+-  name?: string;
+-  lines: string[];
+-  gstin?: string;
+-  phone?: string;
+-  email?: string;
+-  logo?: string;
+-  showUnregistered?: boolean;
+-}) {
+-  return (
+-    <div style={{ padding: "0 14px" }}>
+-      <div style={HEADER_LABEL_STYLE}>{label}</div>
+-      {logo && (
+-        // eslint-disable-next-line @next/next/no-img-element
+-        <img
+-          src={logo}
+-          alt={`${name || label} logo`}
+-          crossOrigin="anonymous"
+-          style={{ maxHeight: "38px", width: "auto", objectFit: "contain", marginBottom: "8px" }}
+-        />
+-      )}
+-      <div style={{ fontSize: "14.5px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>
+-        {name || "—"}
+-      </div>
+-      <div style={DETAIL_TEXT_STYLE}>
+-        {lines.map((line, index) => (
+-          <div key={`${label}-${index}`}>{line}</div>
+-        ))}
+-      </div>
+-      <div style={{ marginTop: "6px", ...DETAIL_TEXT_STYLE }}>
+-        {gstin ? (
+-          <div>
+-            <span style={{ fontWeight: 600 }}>GSTIN:</span> {gstin}
+-          </div>
+-        ) : showUnregistered ? (
+-          <div style={{ fontSize: "10.5px", color: "#6b7280" }}>Unregistered</div>
+-        ) : null}
+-        {phone && (
+-          <div>
+-            <span style={{ fontWeight: 600 }}>Phone:</span> {phone}
+-          </div>
+-        )}
+-        {email && (
+-          <div>
+-            <span style={{ fontWeight: 600 }}>Email:</span> {email}
+-          </div>
+-        )}
+-      </div>
+-    </div>
+-  );
+-}
+-
+-const DI_BANK = {
+-  accountName: "DESIGN INNSAEIT",
+-  bankName: "State Bank of India",
+-  accountNumber: "44882657226",
+-  branch: "GOREGAON (WEST) MUMBAI",
+-  ifscCode: "SBIN0001266",
+-  micr: "400002030",
+-};
+-
+-const DEFAULT_TERMS = [
+-  "Payment due as per agreed terms.",
+-  "This is a computer-generated invoice.",
+-  "Services are delivered digitally unless otherwise specified.",
+-];
+-
+-export function InvoicePreview({ invoice }: InvoicePreviewProps) {
+-  const {
+-    supplier,
+-    buyer,
+-    shipping,
+-    lineItems = [],
+-    totals,
+-    gstMode,
+-    signature,
+-    paymentDetails,
+-  } = invoice;
+-
+-  const isProforma = isProformaInvoice(invoice);
+-  const isCreditNote = resolveInvoiceType(invoice) === "CREDIT_NOTE";
+-  const isCGST = gstMode === "CGST_SGST";
+-  const isIGST = gstMode === "IGST";
+-  const showTax = !isProforma && gstMode !== "NO_TAX";
+-  const showServiceLocation = hasShippingDiff(shipping, buyer);
+-  const bank = paymentDetails?.bankName || paymentDetails?.accountNumber ? paymentDetails : null;
+-  const statusBadge = invoice.status ? <StatusBadge status={invoice.status} /> : undefined;
+-  const colCount = isProforma ? 7 : 6 + (isCGST ? 2 : 0) + (isIGST ? 1 : 0) + 1;
+-  const showTdsSummary = invoice.tdsApplicable && (invoice.tdsAmount ?? 0) > 0;
+-  const netPayableAfterTds = (totals?.grandTotal ?? 0) - (invoice.tdsAmount ?? 0);
+-
+-  return (
+-    <DesignInnsaeitDocumentShell
+-      title={isCreditNote ? "CREDIT NOTE" : isProforma ? "PROFORMA INVOICE" : "Tax Invoice"}
+-      subtitle="Design Consultancy / Creative Services"
+-      statusBadge={statusBadge}
+-      footerEmail={supplier?.contact?.email ?? ""}
+-      footerPhone={supplier?.contact?.phone ?? ""}
+-      footerTagline={supplier?.name ?? ""}
+-      documentClassName="invoice-template"
+-    >
+-      <div
+-        style={{
+-          position: "relative",
+-          minHeight: "100%",
+-          minWidth: 0,
+-          display: "flex",
+-          flexDirection: "column",
+-          justifyContent: "space-between",
+-        }}
+-      >
+-        {isProforma && (
+-          <div
+-            style={{
+-              position: "absolute",
+-              left: "50%",
+-              top: "42%",
+-              transform: "translate(-50%, -50%) rotate(-24deg)",
+-              fontSize: "28px",
+-              fontWeight: 700,
+-              letterSpacing: "2px",
+-              color: "rgba(148, 163, 184, 0.2)",
+-              pointerEvents: "none",
+-              whiteSpace: "nowrap",
+-            }}
+-          >
+-            PROFORMA - NOT A TAX DOCUMENT
+-          </div>
+-        )}
+-        <div style={{ flex: 1, padding: "16px 24px" }}>
+-          <div
+-            style={{
+-              display: "grid",
+-              gridTemplateColumns: "1fr 1fr 1fr",
+-              borderBottom: "1px solid #d1d5db",
+-              marginBottom: "14px",
+-              paddingBottom: "14px",
+-            }}
+-          >
+-            <div style={{ borderRight: "1px solid #e5e7eb" }}>
+-              <PartyColumn
+-                label="From"
+-                name={supplier?.name || "Design Innsaeit"}
+-                lines={buildAddressLines(supplier?.address)}
+-                gstin={supplier?.gstin}
+-                phone={supplier?.contact?.phone}
+-                email={supplier?.contact?.email}
+-                logo={supplier?.logoImageBase64}
+-              />
+-            </div>
+-
+-            <div style={{ borderRight: "1px solid #e5e7eb" }}>
+-              <PartyColumn
+-                label="Bill To"
+-                name={buyer?.name}
+-                lines={buildAddressLines(buyer?.billingAddress)}
+-                gstin={isProforma ? undefined : buyer?.gstin}
+-                showUnregistered
+-              />
+-            </div>
+-
+-            <div style={{ padding: "0 14px" }}>
+-              <div style={HEADER_LABEL_STYLE}>Doc Details</div>
+-              <DocMetaRow label={isProforma ? "Proforma No." : isCreditNote ? "Credit Note No." : "Invoice No."} value={getDisplayInvoiceNumber(invoice)} />
+-              <DocMetaRow label="Invoice Date" value={formatDate(invoice.invoiceDate)} />
+-              <DocMetaRow label={isProforma ? "Valid Until" : "Due Date"} value={formatDate(invoice.dueDate)} />
+-              <DocMetaRow label="PO Reference" value={invoice.poReference} />
+-              {!isProforma && <DocMetaRow label="E-Way Bill" value={invoice.ewayBillNumber} />}
+-              {isCreditNote && <DocMetaRow label="Against Invoice No." value={invoice.linkedInvoiceNumber} />}
+-
+-              {(invoice.projectDescription || buyer?.placeOfSupply) && (
+-                <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid #e5e7eb" }}>
+-                  {invoice.projectDescription && (
+-                    <div style={{ marginBottom: buyer?.placeOfSupply ? "10px" : 0 }}>
+-                      <div style={HEADER_LABEL_STYLE}>Service For / Project</div>
+-                      <div style={DETAIL_TEXT_STYLE}>{invoice.projectDescription}</div>
+-                    </div>
+-                  )}
+-                  {buyer?.placeOfSupply && (
+-                    <div>
+-                      <div style={HEADER_LABEL_STYLE}>Place of Supply</div>
+-                      <div style={DETAIL_TEXT_STYLE}>{buyer.placeOfSupply}</div>
+-                    </div>
+-                  )}
+-                </div>
+-              )}
+-            </div>
+-          </div>
+-
+-          {isCreditNote && (
+-            <div
+-              style={{
+-                marginBottom: "14px",
+-                borderRadius: "4px",
+-                border: "1px solid #fecaca",
+-                backgroundColor: "#fef2f2",
+-                padding: "8px 12px",
+-                fontSize: "9.5px",
+-              }}
+-            >
+-              <div style={{ fontWeight: 600, color: "#991b1b", marginBottom: "3px" }}>
+-                Against Invoice No: {invoice.linkedInvoiceNumber || "—"} dated {formatDate(invoice.linkedInvoiceDate)}
+-              </div>
+-              {invoice.creditReason && <div style={{ color: "#7f1d1d" }}>Reason: {invoice.creditReason}</div>}
+-            </div>
+-          )}
+-
+-          {showServiceLocation && (
+-            <div
+-              style={{
+-                backgroundColor: "#f0fdf4",
+-                border: "1px solid #bbf7d0",
+-                borderRadius: "4px",
+-                padding: "7px 12px",
+-                marginBottom: "14px",
+-                fontSize: "9.5px",
+-              }}
+-            >
+-              <div style={{ fontWeight: 600, color: "#065f46", marginBottom: "3px" }}>Service Location / Delivered To</div>
+-              <div style={{ fontWeight: 600, color: "#111827" }}>{shipping?.name}</div>
+-              {shipping?.address && (
+-                <div style={{ color: "#374151", lineHeight: 1.5 }}>
+-                  {buildAddressLines(shipping.address).map((line, index) => (
+-                    <div key={index}>{line}</div>
+-                  ))}
+-                </div>
+-              )}
+-              {shipping?.contactPerson && <div style={{ color: "#6b7280" }}>Contact: {shipping.contactPerson}</div>}
+-              {shipping?.contactPhone && <div style={{ color: "#6b7280" }}>{shipping.contactPhone}</div>}
+-            </div>
+-          )}
+-
+-          <div style={{ marginBottom: "14px" }}>
+-            <table
+-              style={{
+-                width: "100%",
+-                borderCollapse: "collapse",
+-                fontSize: "9px",
+-                tableLayout: "fixed",
+-              }}
+-            >
+-              <colgroup>
+-                <col style={{ width: "22px" }} />
+-                <col />
+-                {isProforma ? (
+-                  <>
+-                    <col style={{ width: "34px" }} />
+-                    <col style={{ width: "44px" }} />
+-                    <col style={{ width: "46px" }} />
+-                    <col style={{ width: "42px" }} />
+-                    <col style={{ width: "52px" }} />
+-                  </>
+-                ) : (
+-                  <>
+-                    <col style={{ width: "34px" }} />
+-                    <col style={{ width: "34px" }} />
+-                    <col style={{ width: "46px" }} />
+-                    <col style={{ width: "52px" }} />
+-                    <col style={{ width: "30px" }} />
+-                  </>
+-                )}
+-                {!isProforma && isCGST && <col style={{ width: "42px" }} />}
+-                {!isProforma && isCGST && <col style={{ width: "42px" }} />}
+-                {!isProforma && isIGST && <col style={{ width: "46px" }} />}
+-                <col style={{ width: "52px" }} />
+-              </colgroup>
+-              <thead>
+-                <tr style={{ backgroundColor: BRAND_PURPLE, color: "#ffffff" }}>
+-                  <th style={{ padding: "5px 4px", textAlign: "center" }}>#</th>
+-                  <th style={{ padding: "5px 4px", textAlign: "left" }}>Description of Service</th>
+-                  {isProforma ? (
+-                    <>
+-                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Qty</th>
+-                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Unit</th>
+-                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Rate</th>
+-                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Disc%</th>
+-                    </>
+-                  ) : (
+-                    <>
+-                      <th style={{ padding: "5px 4px", textAlign: "center" }}>SAC</th>
+-                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Qty</th>
+-                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Rate</th>
+-                      <th style={{ padding: "5px 4px", textAlign: "right" }}>Taxable</th>
+-                      <th style={{ padding: "5px 4px", textAlign: "center" }}>GST%</th>
+-                    </>
+-                  )}
+-                  {!isProforma && isCGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>CGST</th>}
+-                  {!isProforma && isCGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>SGST</th>}
+-                  {!isProforma && isIGST && <th style={{ padding: "5px 4px", textAlign: "right" }}>IGST</th>}
+-                  <th style={{ padding: "5px 4px", textAlign: "right" }}>{isProforma ? "Amount" : "Total"}</th>
+-                </tr>
+-              </thead>
+-              <tbody>
+-                {lineItems.length === 0 ? (
+-                  <tr>
+-                    <td
+-                      colSpan={colCount}
+-                      style={{ textAlign: "center", padding: "20px 0", color: "#9ca3af", fontStyle: "italic", fontSize: "9px" }}
+-                    >
+-                      No line items yet.
+-                    </td>
+-                  </tr>
+-                ) : (
+-                  lineItems.map((item, index) => (
+-                    <tr key={item.id} style={{ backgroundColor: index % 2 === 0 ? "#ffffff" : "#f5f3ff" }}>
+-                      <td style={{ padding: "4px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{index + 1}</td>
+-                      <td style={{ padding: "4px", borderBottom: "1px solid #e5e7eb", wordBreak: "break-word" }}>
+-                        <div style={{ fontWeight: 500, color: "#111827" }}>{item.description}</div>
+-                      </td>
+-                      {isProforma ? (
+-                        <>
+-                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.quantity, 2)}</td>
+-                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{item.unit || "—"}</td>
+-                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.rate, 2)}</td>
+-                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.discountPercent, 2)}</td>
+-                        </>
+-                      ) : (
+-                        <>
+-                          <td style={{ padding: "4px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>{item.hsnSac || "—"}</td>
+-                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.quantity, 2)}</td>
+-                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.rate, 2)}</td>
+-                          <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.taxableValue, 2)}</td>
+-                          <td style={{ padding: "4px", textAlign: "center", borderBottom: "1px solid #e5e7eb" }}>{item.gstRate}%</td>
+-                        </>
+-                      )}
+-                      {!isProforma && isCGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.cgst, 2)}</td>}
+-                      {!isProforma && isCGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.sgst, 2)}</td>}
+-                      {!isProforma && isIGST && <td style={{ padding: "4px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{formatNumber(item.igst, 2)}</td>}
+-                      <td style={{ padding: "4px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid #e5e7eb" }}>{formatNumber(isProforma ? item.taxableValue : item.lineTotal, 2)}</td>
+-                    </tr>
+-                  ))
+-                )}
+-              </tbody>
+-            </table>
+-          </div>
+-
+-          {totals && (
+-            <div className="print-keep-together" style={{ marginBottom: "14px" }}>
+-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+-                <div style={{ width: "220px", border: "1px solid #e5e7eb", borderRadius: "4px", overflow: "hidden" }}>
+-                  {(
+-                    [
+-                      ...(isProforma ? [["Subtotal", totals.subtotal], ["Discount", totals.totalDiscount]] : [["Taxable Value", totals.totalTaxableValue]]),
+-                      ...(showTax && isCGST && totals.totalCGST > 0 ? [["CGST", totals.totalCGST]] : []),
+-                      ...(showTax && isCGST && totals.totalSGST > 0 ? [["SGST / UTGST", totals.totalSGST]] : []),
+-                      ...(showTax && isIGST && totals.totalIGST > 0 ? [["IGST", totals.totalIGST]] : []),
+-                      ...(!isProforma && totals.cess > 0 ? [["Cess", totals.cess]] : []),
+-                      ...(totals.otherCharges > 0 ? [["Other Charges", totals.otherCharges]] : []),
+-                      ...(totals.roundOff !== 0 ? [["Round Off", totals.roundOff]] : []),
+-                    ] as [string, number][]
+-                  ).map(([label, value]) => (
+-                    <div
+-                      key={label}
+-                      style={{
+-                        display: "flex",
+-                        justifyContent: "space-between",
+-                        padding: "4px 10px",
+-                        borderBottom: "1px solid #f3f4f6",
+-                        fontSize: "9.5px",
+-                      }}
+-                    >
+-                      <span style={{ color: "#6b7280" }}>{label}</span>
+-                      <span style={{ color: "#111827" }}>{formatNumber(value, 2)}</span>
+-                    </div>
+-                  ))}
+-                  <div
+-                    style={{
+-                      display: "flex",
+-                      justifyContent: "space-between",
+-                      padding: "7px 10px",
+-                      backgroundColor: BRAND_PURPLE,
+-                      color: "#ffffff",
+-                    }}
+-                  >
+-                    <span style={{ fontWeight: 700, fontSize: "10.5px" }}>Grand Total</span>
+-                    <span style={{ fontWeight: 700, fontSize: "10.5px" }}>{formatCurrencyINR(totals.grandTotal)}</span>
+-                  </div>
+-                  {showTdsSummary && (
+-                    <>
+-                      <div
+-                        style={{
+-                          display: "flex",
+-                          justifyContent: "space-between",
+-                          padding: "4px 10px",
+-                          borderTop: "1px solid #f3f4f6",
+-                          fontSize: "9.5px",
+-                          backgroundColor: "#faf5ff",
+-                        }}
+-                      >
+-                        <span style={{ color: "#6b7280" }}>
+-                          TDS Deductible ({invoice.tdsSection || "194J"} @ {formatNumber(invoice.tdsRate ?? 0, 2)}%)
+-                        </span>
+-                        <span style={{ color: "#7c3aed" }}>-{formatCurrencyINR(invoice.tdsAmount ?? 0)}</span>
+-                      </div>
+-                      <div
+-                        style={{
+-                          display: "flex",
+-                          justifyContent: "space-between",
+-                          padding: "4px 10px",
+-                          fontSize: "9.5px",
+-                          backgroundColor: "#faf5ff",
+-                        }}
+-                      >
+-                        <span style={{ color: "#6b7280" }}>Net Payable After TDS</span>
+-                        <span style={{ color: "#111827", fontWeight: 600 }}>{formatCurrencyINR(netPayableAfterTds)}</span>
+-                      </div>
+-                    </>
+-                  )}
+-                </div>
+-              </div>
+-
+-              {totals.amountInWords && (
+-                <div
+-                  style={{
+-                    backgroundColor: "#f5f3ff",
+-                    border: `1px solid ${BRAND_PURPLE}33`,
+-                    borderRadius: "4px",
+-                    padding: "6px 10px",
+-                    marginTop: "8px",
+-                    fontSize: "9.5px",
+-                  }}
+-                >
+-                  <span style={{ fontWeight: 600, color: BRAND_PURPLE }}>Amount in Words: </span>
+-                  <span style={{ color: "#374151", fontStyle: "italic" }}>{totals.amountInWords}</span>
+-                </div>
+-              )}
+-            </div>
+-          )}
+-        </div>
+-
+-        <div style={{ borderTop: "1px solid #d1d5db", paddingTop: "14px", marginTop: "16px" }}>
+-          <div className="print-keep-together" style={{ marginBottom: "14px" }}>
+-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+-              <div>
+-                <div style={HEADER_LABEL_STYLE}>Bank / Payment Details</div>
+-                <div style={DETAIL_TEXT_STYLE}>
+-                  {(bank ? (
+-                    <>
+-                      {bank.accountName && <div><span style={{ fontWeight: 600 }}>Account Name:</span> {bank.accountName}</div>}
+-                      {bank.bankName && <div><span style={{ fontWeight: 600 }}>Bank:</span> {bank.bankName}</div>}
+-                      {bank.accountNumber && <div><span style={{ fontWeight: 600 }}>Account No.:</span> {bank.accountNumber}</div>}
+-                      {bank.branch && <div><span style={{ fontWeight: 600 }}>Branch:</span> {bank.branch}</div>}
+-                      {bank.ifscCode && <div><span style={{ fontWeight: 600 }}>IFSC:</span> {bank.ifscCode}</div>}
+-                      {bank.upiId && <div><span style={{ fontWeight: 600 }}>UPI:</span> {bank.upiId}</div>}
+-                    </>
+-                  ) : (
+-                    <>
+-                      <div><span style={{ fontWeight: 600 }}>Account Name:</span> {DI_BANK.accountName}</div>
+-                      <div><span style={{ fontWeight: 600 }}>Bank:</span> {DI_BANK.bankName}</div>
+-                      <div><span style={{ fontWeight: 600 }}>Account No.:</span> {DI_BANK.accountNumber}</div>
+-                      <div><span style={{ fontWeight: 600 }}>Branch:</span> {DI_BANK.branch}</div>
+-                      <div><span style={{ fontWeight: 600 }}>IFSC:</span> {DI_BANK.ifscCode}</div>
+-                      <div><span style={{ fontWeight: 600 }}>MICR:</span> {DI_BANK.micr}</div>
+-                    </>
+-                  ))}
+-                </div>
+-              </div>
+-
+-              {bank?.upiQrImageBase64 && (
+-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+-                  <img
+-                    src={bank.upiQrImageBase64}
+-                    alt="UPI QR"
+-                    crossOrigin="anonymous"
+-                    style={{ height: "72px", width: "72px", objectFit: "contain" }}
+-                  />
+-                  <span style={{ fontSize: "8px", color: "#9ca3af", marginTop: "3px" }}>Scan to pay</span>
+-                </div>
+-              )}
+-            </div>
+-          </div>
+-
+-          {(invoice.notes || invoice.termsAndConditions || invoice.declaration || !invoice.termsAndConditions) && (
+-            <div className="print-keep-together" style={{ marginBottom: "14px" }}>
+-              <div style={HEADER_LABEL_STYLE}>Notes &amp; Terms</div>
+-              {invoice.notes && (
+-                <div style={{ fontSize: "9px", color: "#374151", marginBottom: "4px" }}>
+-                  <span style={{ fontWeight: 600 }}>Notes: </span>{invoice.notes}
+-                </div>
+-              )}
+-              <div style={{ fontSize: "9px", color: "#374151" }}>
+-                {invoice.termsAndConditions ? (
+-                  <div>
+-                    <span style={{ fontWeight: 600 }}>Terms: </span>{invoice.termsAndConditions}
+-                  </div>
+-                ) : (
+-                  <ul style={{ margin: 0, paddingLeft: "14px", lineHeight: 1.6 }}>
+-                    {DEFAULT_TERMS.map((term) => (
+-                      <li key={term}>{term}</li>
+-                    ))}
+-                  </ul>
+-                )}
+-              </div>
+-              {invoice.declaration && (
+-                <div style={{ fontSize: "9px", color: "#374151", marginTop: "4px" }}>
+-                  <span style={{ fontWeight: 600 }}>Declaration: </span>{invoice.declaration}
+-                </div>
+-              )}
+-            </div>
+-          )}
+-
+-          {isProforma && (
+-            <div style={{ fontSize: "9px", color: "#6b7280", marginBottom: "14px" }}>
+-              This is a proforma invoice and not a GST tax invoice. No GST liability arises on this document.
+-            </div>
+-          )}
+-
+-          {!isCreditNote && (invoice.creditNoteRefs?.length ?? 0) > 0 && (
+-            <div className="print-keep-together" style={{ marginBottom: "14px", fontSize: "9px", color: "#374151" }}>
+-              <div style={HEADER_LABEL_STYLE}>Credit Notes Issued</div>
+-              <div>Credit Notes Issued: {(invoice.creditNoteRefs ?? []).map((ref) => ref.creditNoteNumber).join(", ")}</div>
+-              <div>Total Credits: {formatCurrencyINR(getCreditNotesTotal(invoice))}</div>
+-              <div>Net Outstanding: {formatCurrencyINR(getEffectiveOutstanding(invoice))}</div>
+-            </div>
+-          )}
+-
+-          {signature && (
+-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
+-              <div style={{ textAlign: "center", minWidth: "150px", fontSize: "9.5px" }}>
+-                {signature.signatureImageBase64 && (
+-                  // eslint-disable-next-line @next/next/no-img-element
+-                  <img
+-                    src={signature.signatureImageBase64}
+-                    alt="Signature"
+-                    crossOrigin="anonymous"
+-                    style={{ height: "36px", width: "auto", objectFit: "contain", marginBottom: "4px" }}
+-                  />
+-                )}
+-                {!isProforma && invoice.irnQrImageBase64 && !signature.signatureImageBase64 && (
+-                  // eslint-disable-next-line @next/next/no-img-element
+-                  <img
+-                    src={invoice.irnQrImageBase64}
+-                    alt="IRN QR"
+-                    crossOrigin="anonymous"
+-                    style={{ height: "52px", width: "52px", objectFit: "contain", marginBottom: "4px" }}
+-                  />
+-                )}
+-                <div
+-                  style={{
+-                    borderTop: `1px solid ${BRAND_PURPLE}`,
+-                    paddingTop: "4px",
+-                    marginTop: "2px",
+-                  }}
+-                >
+-                  <div style={{ fontWeight: 600, color: "#111827" }}>{signature.signatoryName || "Authorized Signatory"}</div>
+-                  {signature.designation && <div style={{ color: "#6b7280", fontSize: "9px" }}>{signature.designation}</div>}
+-                  <div style={{ color: "#6b7280", fontSize: "9px" }}>{supplier?.name}</div>
+-                </div>
+-              </div>
+-            </div>
+-          )}
+-        </div>
+-      </div>
+-    </DesignInnsaeitDocumentShell>
++      billTo={{
++        name: buyer?.name ?? "",
++        address1: buyer?.billingAddress?.line1 ?? "",
++        address2: buyer?.billingAddress?.line2 ?? "",
++        city: buyer?.billingAddress?.city ?? "",
++        state: buyer?.billingAddress?.state ?? "",
++        pincode: buyer?.billingAddress?.pincode ?? "",
++        gstin: documentType === "proforma" ? null : buyer?.gstin ?? null,
++      }}
++      docDetails={{
++        number: getDisplayInvoiceNumber(invoice),
++        date: invoice.invoiceDate ?? "",
++        dueDate: invoice.dueDate,
++        poReference: invoice.poReference,
++        eWayBill: invoice.ewayBillNumber,
++        projectDescription: invoice.projectDescription,
++        placeOfSupply: buyer?.placeOfSupply ?? "",
++      }}
++      lineItems={(invoice.lineItems ?? []).map((item) => ({
++        description: item.description,
++        hsnSac: item.hsnSac,
++        qty: item.quantity,
++        unit: item.unit,
++        rate: item.rate,
++        discountPercent: item.discountPercent,
++        gstPercent: item.gstRate,
++        taxableAmount: item.taxableValue,
++        cgst: item.cgst,
++        sgst: item.sgst,
++        igst: item.igst,
++        total: documentType === "proforma" ? item.taxableValue : item.lineTotal,
++      }))}
++      totals={{
++        subtotal: totals?.subtotal ?? 0,
++        totalDiscount: totals?.totalDiscount ?? 0,
++        taxableValue: totals?.totalTaxableValue ?? totals?.subtotal ?? 0,
++        cgst: totals?.totalCGST ?? 0,
++        sgst: totals?.totalSGST ?? 0,
++        igst: totals?.totalIGST ?? 0,
++        cess: totals?.cess ?? 0,
++        otherCharges: totals?.otherCharges ?? 0,
++        grandTotal: totals?.grandTotal ?? 0,
++        amountInWords: totals?.amountInWords ?? "",
++        gstMode: normalizeGSTMode(invoice.gstMode),
++      }}
++      bankDetails={paymentDetails ? {
++        accountName: paymentDetails.accountName ?? "",
++        bankName: paymentDetails.bankName ?? "",
++        accountNumber: paymentDetails.accountNumber ?? "",
++        ifsc: paymentDetails.ifscCode ?? "",
++        branch: paymentDetails.branch ?? "",
++        upiId: paymentDetails.upiId ?? "",
++      } : null}
++      termsAndConditions={invoice.termsAndConditions ?? ""}
++      notes={invoice.notes ?? ""}
++      declaration={invoice.declaration}
++      signatory={{
++        name: signature?.signatoryName ?? "",
++        designation: signature?.designation ?? "",
++        signatureImage: signature?.signatureImageBase64 ?? null,
++      }}
++      footer={{
++        email: supplier?.contact?.email ?? "",
++        phone: supplier?.contact?.phone ?? "",
++        tagline: supplier?.name ?? "",
++      }}
++    />
+   );
+ }
+diff --git a/components/invoice/sections/BuyerDetailsSection.tsx b/components/invoice/sections/BuyerDetailsSection.tsx
+index a7e274a..e61f0b6 100644
+--- a/components/invoice/sections/BuyerDetailsSection.tsx
++++ b/components/invoice/sections/BuyerDetailsSection.tsx
+@@ -49,9 +49,9 @@ export function BuyerDetailsSection({
+   const hasClients = savedClients.length > 0;
+ 
+   return (
+-    <FormSection title="Buyer Details">
++    <FormSection title="Buyer Details (BILL TO)">
+       <div className="grid grid-cols-2 gap-3">
+-        <FormField label="Select saved client" className="col-span-2">
++        <FormField label="Select saved client for BILL TO" className="col-span-2">
+           <select
+             className={inputClass}
+             value={selectedClientId}
+@@ -78,7 +78,7 @@ export function BuyerDetailsSection({
+           </select>
+         </FormField>
+ 
+-        <FormField label="Buyer Name" required error={errors.buyer?.name?.message} className="col-span-2">
++        <FormField label="Name" required error={errors.buyer?.name?.message} className="col-span-2">
+           <input type="text" className={inputClass} placeholder="Client / customer name" {...register("buyer.name")} />
+         </FormField>
+ 
+diff --git a/components/invoice/sections/SupplierDetailsSection.tsx b/components/invoice/sections/SupplierDetailsSection.tsx
+index 55530ff..692675d 100644
+--- a/components/invoice/sections/SupplierDetailsSection.tsx
++++ b/components/invoice/sections/SupplierDetailsSection.tsx
+@@ -31,10 +31,10 @@ export function SupplierDetailsSection({
+   onUseCompanyProfileChange,
+ }: Props) {
+   return (
+-    <FormSection title="Supplier Details">
++    <FormSection title="Supplier Details (FROM)">
+       {showCompanyProfileControls && !hasSavedProfile ? (
+         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+-          <div>No company profile set up yet. Set it up once and it will auto-fill here every time.</div>
++          <div>Set up your company profile once and it auto-fills here every time.</div>
+           <Link href="/company-profile" className="mt-2 inline-flex font-medium text-amber-950 underline underline-offset-2">
+             Set up company profile →
+           </Link>
+@@ -50,13 +50,13 @@ export function SupplierDetailsSection({
+             />
+             <div className="text-sm">
+               <div className="font-medium text-slate-900">
+-                {useCompanyProfile ? "Use my company profile (default)" : "Using custom supplier details"}
++                Use my company profile as FROM
+               </div>
+               {useCompanyProfile ? (
+                 <div className="text-slate-600">&quot;{companyName || "Saved company profile"}&quot;</div>
+               ) : (
+                 <div className="text-slate-500">
+-                  You are using a custom supplier. This will not affect your saved company profile.
++                  Using custom supplier. Your saved profile is unchanged.
+                 </div>
+               )}
+             </div>
+diff --git a/components/purchase-order/POEditorPage.tsx b/components/purchase-order/POEditorPage.tsx
+index c30e842..c0bee81 100644
+--- a/components/purchase-order/POEditorPage.tsx
++++ b/components/purchase-order/POEditorPage.tsx
+@@ -30,6 +30,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
+   const previewRef = useRef<HTMLDivElement>(null);
+   const [previewPO, setPreviewPO] = useState<Partial<PurchaseOrder>>({});
+   const [isSaving, setIsSaving] = useState(false);
++  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+   const [activeTab, setActiveTab] = useState<"form" | "preview">("form");
+   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+   const [isConverting, setIsConverting] = useState(false);
+@@ -58,6 +59,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
+         otherCharges: Number(values.otherCharges) || 0,
+         status,
+       } as Partial<PurchaseOrder>;
++      setPreviewPO((current) => ({ ...current, ...po, status }));
+       const result = await savePurchaseOrder(po);
+       if (result.success) {
+         if (!existingPO && !poId) await documentNumberingRepository.incrementPOSequence();
+@@ -157,7 +159,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
+               Convert to Invoice
+             </Button>
+           )}
+-          <PDFExportButton previewRef={previewRef} filename={pdfFilename} />
++          <PDFExportButton previewRef={previewRef} filename={pdfFilename} onGeneratingChange={setIsGeneratingPDF} />
+           <PrintButton contentRef={previewRef} />
+         </div>
+       </div>
+@@ -214,7 +216,7 @@ export function POEditorPage({ poId }: POEditorPageProps) {
+           >
+             <A4PreviewWrapper ref={previewRef} noPadding>
+               <div className="pdf-preview-surface">
+-                <POPreview po={previewPO} />
++                <POPreview po={previewPO} isGeneratingPDF={isGeneratingPDF} />
+               </div>
+             </A4PreviewWrapper>
+           </div>
+diff --git a/components/purchase-order/POForm.tsx b/components/purchase-order/POForm.tsx
+index b39e0b8..b046297 100644
+--- a/components/purchase-order/POForm.tsx
++++ b/components/purchase-order/POForm.tsx
+@@ -39,6 +39,11 @@ function buildDefaultValues(settings: DocumentTemplateSettings | null, profile:
+   return {
+     poNumber: suggested,
+     poDate: new Date().toISOString().slice(0, 10),
++    validUntil: "",
++    deliveryDate: "",
++    poReference: "",
++    placeOfSupply: "",
++    placeOfSupplyCode: "",
+     paymentTerms: "Net 30",
+     deliveryTerms: "FOR Destination",
+     status: "DRAFT",
+@@ -50,6 +55,14 @@ function buildDefaultValues(settings: DocumentTemplateSettings | null, profile:
+     delivery: { address: { line1: "", city: "", state: "", stateCode: "", pincode: "", country: "India" } },
+     approvedBy: profile?.defaultSignatoryName ?? "",
+     approvedBySignature: { signatureImageBase64: profile?.defaultSignatureImageBase64 },
++    bankDetails: profile?.bankDetails ? {
++      accountName: profile.bankDetails.accountName,
++      accountNumber: profile.bankDetails.accountNumber,
++      bankName: profile.bankDetails.bankName,
++      branch: profile.bankDetails.branch,
++      ifscCode: profile.bankDetails.ifscCode,
++      upiId: profile.bankDetails.upiId,
++    } : undefined,
+     commercialTerms: { termsAndConditions: profile?.defaultTermsAndConditions },
+   };
+ }
+@@ -120,6 +133,14 @@ export function POForm({
+     setValue("approvedBy", profile.defaultSignatoryName ?? "");
+     setValue("approvedBySignature.signatureImageBase64", profile.defaultSignatureImageBase64 ?? "");
+     if (profile.logoImageBase64) setValue("buyer.logoImageBase64", profile.logoImageBase64);
++    if (profile.bankDetails) {
++      setValue("bankDetails.bankName", profile.bankDetails.bankName ?? "");
++      setValue("bankDetails.accountName", profile.bankDetails.accountName ?? "");
++      setValue("bankDetails.accountNumber", profile.bankDetails.accountNumber ?? "");
++      setValue("bankDetails.ifscCode", profile.bankDetails.ifscCode ?? "");
++      setValue("bankDetails.branch", profile.bankDetails.branch ?? "");
++      setValue("bankDetails.upiId", profile.bankDetails.upiId ?? "");
++    }
+   }, [setValue]);
+ 
+   useEffect(() => {
+@@ -133,30 +154,30 @@ export function POForm({
+ 
+   const applySavedClient = useCallback((client: SavedClient | null) => {
+     if (!client) {
+-      setValue("buyer.name", "");
+-      setValue("buyer.address.line1", "");
+-      setValue("buyer.address.line2", "");
+-      setValue("buyer.address.city", "");
+-      setValue("buyer.address.state", "");
+-      setValue("buyer.address.stateCode", "");
+-      setValue("buyer.address.pincode", "");
+-      setValue("buyer.stateCode", "");
+-      setValue("buyer.gstin", "");
+-      setValue("buyer.contact.email", "");
+-      setValue("buyer.contact.phone", "");
++      setValue("vendor.name", "");
++      setValue("vendor.address.line1", "");
++      setValue("vendor.address.line2", "");
++      setValue("vendor.address.city", "");
++      setValue("vendor.address.state", "");
++      setValue("vendor.address.stateCode", "");
++      setValue("vendor.address.pincode", "");
++      setValue("vendor.gstin", "");
++      setValue("vendor.contact.email", "");
++      setValue("vendor.contact.phone", "");
+       return;
+     }
+-    setValue("buyer.name", client.name);
+-    setValue("buyer.address.line1", client.address1);
+-    setValue("buyer.address.line2", client.address2);
+-    setValue("buyer.address.city", client.city);
+-    setValue("buyer.address.state", client.state);
+-    setValue("buyer.address.stateCode", client.stateCode);
+-    setValue("buyer.address.pincode", client.pincode);
+-    setValue("buyer.stateCode", client.stateCode);
+-    setValue("buyer.gstin", client.gstin);
+-    setValue("buyer.contact.email", client.email);
+-    setValue("buyer.contact.phone", client.phone);
++    setValue("vendor.name", client.name);
++    setValue("vendor.address.line1", client.address1);
++    setValue("vendor.address.line2", client.address2);
++    setValue("vendor.address.city", client.city);
++    setValue("vendor.address.state", client.state);
++    setValue("vendor.address.stateCode", client.stateCode);
++    setValue("vendor.address.pincode", client.pincode);
++    setValue("vendor.gstin", client.gstin);
++    setValue("vendor.contact.email", client.email);
++    setValue("vendor.contact.phone", client.phone);
++    setValue("placeOfSupply", client.placeOfSupply);
++    setValue("placeOfSupplyCode", client.placeOfSupplyCode);
+   }, [setValue]);
+ 
+   return (
+@@ -166,7 +187,6 @@ export function POForm({
+         control={control}
+         register={register}
+         errors={errors}
+-        onSelectSavedClient={applySavedClient}
+         showCompanyProfileControls={isNewDocument}
+         hasSavedProfile={isNewDocument && Boolean(storedCompanyProfile)}
+         useCompanyProfile={isNewDocument && Boolean(storedCompanyProfile) ? useCompanyProfile : false}
+@@ -178,7 +198,7 @@ export function POForm({
+           }
+         }}
+       />
+-      <POVendorSection control={control} register={register} errors={errors} />
++      <POVendorSection control={control} register={register} errors={errors} onSelectSavedClient={applySavedClient} />
+       <PODeliverySection register={register} errors={errors} />
+       <POLineItemsSection control={control} setValue={setValue} errors={errors} />
+       <POTotalsSection control={control} register={register} />
+@@ -187,10 +207,26 @@ export function POForm({
+ 
+       <div className="flex items-center gap-3 pt-2">
+         <span className="text-xs text-slate-500">Save as:</span>
+-        <Button type="button" variant="secondary" loading={isSaving} onClick={handleSubmit((v) => onSave(v, "DRAFT"))}>
++        <Button
++          type="button"
++          variant="secondary"
++          loading={isSaving}
++          onClick={() => {
++            setValue("status", "DRAFT");
++            handleSubmit((v) => onSave(v, "DRAFT"))();
++          }}
++        >
+           Save Draft
+         </Button>
+-        <Button type="button" variant="primary" loading={isSaving} onClick={handleSubmit((v) => onSave(v, "FINAL"))}>
++        <Button
++          type="button"
++          variant="primary"
++          loading={isSaving}
++          onClick={() => {
++            setValue("status", "FINAL");
++            handleSubmit((v) => onSave(v, "FINAL"))();
++          }}
++        >
+           Save as Final
+         </Button>
+       </div>
+diff --git a/components/purchase-order/POPreview.tsx b/components/purchase-order/POPreview.tsx
+index 879416a..e17d6d5 100644
+--- a/components/purchase-order/POPreview.tsx
++++ b/components/purchase-order/POPreview.tsx
+@@ -1,432 +1,107 @@
++import { DocumentTemplate } from "@/components/DocumentTemplate";
+ import type { PurchaseOrder } from "@/lib/types/purchase-order";
+-import { DesignInnsaeitDocumentShell } from "@/components/document/DesignInnsaeitDocumentShell";
+-import { formatCurrencyINR, formatDate, formatNumber } from "@/lib/utils/formatting";
+-
+-const BRAND_PURPLE = "#2828b0";
+-const HEADER_LABEL_STYLE: React.CSSProperties = {
+-  fontSize: "9px",
+-  fontWeight: 700,
+-  letterSpacing: "0.08em",
+-  textTransform: "uppercase",
+-  color: "#6b7280",
+-  marginBottom: "10px",
+-};
+-
+-const DETAIL_TEXT_STYLE: React.CSSProperties = {
+-  fontSize: "11px",
+-  color: "#374151",
+-  lineHeight: 1.55,
+-};
+-
+-const DOC_VALUE_STYLE: React.CSSProperties = {
+-  fontSize: "11px",
+-  fontWeight: 500,
+-  color: "#111827",
+-  textAlign: "right",
+-};
+ 
+ interface POPreviewProps {
+   po: Partial<PurchaseOrder>;
++  isGeneratingPDF?: boolean;
+ }
+ 
+-function StatusBadge({ status }: { status?: string }) {
+-  if (!status) return null;
+-  const map: Record<string, { bg: string; color: string; label: string }> = {
+-    DRAFT: { bg: "#fef3c7", color: "#92400e", label: "Draft" },
+-    FINAL: { bg: "#d1fae5", color: "#065f46", label: "Final" },
+-    PAID: { bg: "#dbeafe", color: "#1e40af", label: "Paid" },
+-    CANCELLED: { bg: "#fee2e2", color: "#991b1b", label: "Cancelled" },
+-  };
+-  const s = map[status] ?? { bg: "#f3f4f6", color: "#374151", label: status };
+-  return (
+-    <span
+-      className={status === "DRAFT" ? "draft-badge" : undefined}
+-      style={{
+-        display: "inline-block",
+-        backgroundColor: s.bg,
+-        color: s.color,
+-        fontSize: "8px",
+-        fontWeight: 600,
+-        padding: "2px 7px",
+-        borderRadius: "10px",
+-        letterSpacing: "0.5px",
+-        textTransform: "uppercase",
+-      }}
+-    >
+-      {s.label}
+-    </span>
+-  );
+-}
+-
+-function buildAddressLines(addr?: {
+-  line1?: string;
+-  line2?: string;
+-  city?: string;
+-  state?: string;
+-  pincode?: string;
+-}): string[] {
+-  if (!addr) return [];
+-  const cityStatePincode = [addr.city, addr.state, addr.pincode].filter(Boolean).join(", ");
+-  return [addr.line1, addr.line2, cityStatePincode].filter((line): line is string => Boolean(line));
+-}
++export function POPreview({ po, isGeneratingPDF = false }: POPreviewProps) {
++  const from = po.buyer;
++  const billTo = po.vendor;
++  const totals = po.totals;
++  const bankDetails = po.bankDetails;
+ 
+-function DocMetaRow({ label, value }: { label: string; value?: string | null }) {
+-  if (!value) return null;
+   return (
+-    <div
+-      style={{
+-        display: "flex",
+-        justifyContent: "space-between",
+-        gap: "12px",
+-        marginBottom: "5px",
++    <DocumentTemplate
++      documentType="purchase_order"
++      status={po.status === "FINAL" ? "final" : "draft"}
++      isGeneratingPDF={isGeneratingPDF}
++      from={{
++        logo: from?.logoImageBase64 ?? null,
++        name: from?.name ?? "",
++        address1: from?.address?.line1 ?? "",
++        address2: from?.address?.line2 ?? "",
++        city: from?.address?.city ?? "",
++        state: from?.address?.state ?? "",
++        pincode: from?.address?.pincode ?? "",
++        gstin: from?.gstin ?? "",
++        phone: from?.contact?.phone ?? "",
++        email: from?.contact?.email ?? "",
+       }}
+-    >
+-      <span style={{ ...DETAIL_TEXT_STYLE, color: "#6b7280" }}>{label}</span>
+-      <span style={DOC_VALUE_STYLE}>{value}</span>
+-    </div>
+-  );
+-}
+-
+-function PartyColumn({
+-  label,
+-  name,
+-  lines,
+-  gstin,
+-  phone,
+-  email,
+-  logo,
+-  showUnregistered,
+-}: {
+-  label: string;
+-  name?: string;
+-  lines: string[];
+-  gstin?: string;
+-  phone?: string;
+-  email?: string;
+-  logo?: string;
+-  showUnregistered?: boolean;
+-}) {
+-  return (
+-    <div style={{ padding: "0 14px" }}>
+-      <div style={HEADER_LABEL_STYLE}>{label}</div>
+-      {logo && (
+-        // eslint-disable-next-line @next/next/no-img-element
+-        <img
+-          src={logo}
+-          alt={`${name || label} logo`}
+-          crossOrigin="anonymous"
+-          style={{ maxHeight: "38px", width: "auto", objectFit: "contain", marginBottom: "8px" }}
+-        />
+-      )}
+-      <div style={{ fontSize: "14px", fontWeight: 700, color: "#111827", marginBottom: "4px" }}>
+-        {name || "—"}
+-      </div>
+-      <div style={DETAIL_TEXT_STYLE}>
+-        {lines.map((line, index) => (
+-          <div key={`${label}-${index}`}>{line}</div>
+-        ))}
+-      </div>
+-      <div style={{ marginTop: "6px", ...DETAIL_TEXT_STYLE }}>
+-        {gstin ? (
+-          <div>
+-            <span style={{ fontWeight: 600 }}>GSTIN:</span> {gstin}
+-          </div>
+-        ) : showUnregistered ? (
+-          <div style={{ fontSize: "10px", color: "#6b7280" }}>Unregistered</div>
+-        ) : null}
+-        {phone && (
+-          <div>
+-            <span style={{ fontWeight: 600 }}>Phone:</span> {phone}
+-          </div>
+-        )}
+-        {email && (
+-          <div>
+-            <span style={{ fontWeight: 600 }}>Email:</span> {email}
+-          </div>
+-        )}
+-      </div>
+-    </div>
+-  );
+-}
+-
+-export function POPreview({ po }: POPreviewProps) {
+-  const { buyer, vendor, lineItems = [], totals, commercialTerms } = po;
+-  const statusBadge = po.status ? <StatusBadge status={po.status} /> : undefined;
+-  const placeOfSupply = po.delivery?.address?.state || vendor?.address?.state || buyer?.address?.state;
+-  const validUntil = (po as Partial<PurchaseOrder> & { validUntil?: string }).validUntil;
+-
+-  return (
+-    <DesignInnsaeitDocumentShell
+-      title="Purchase Order"
+-      subtitle="Procurement / Vendor Confirmation"
+-      statusBadge={statusBadge}
+-      footerEmail={buyer?.contact?.email ?? ""}
+-      footerPhone={buyer?.contact?.phone ?? ""}
+-      footerTagline={buyer?.name ?? ""}
+-      documentClassName="po-template"
+-    >
+-      <div
+-        style={{
+-          minHeight: "100%",
+-          minWidth: 0,
+-          display: "flex",
+-          flexDirection: "column",
+-          justifyContent: "space-between",
+-          padding: "16px 24px",
+-          boxSizing: "border-box",
+-        }}
+-      >
+-        <div style={{ flex: 1 }}>
+-          <div
+-            style={{
+-              display: "grid",
+-              gridTemplateColumns: "1fr 1fr 1fr",
+-              borderBottom: "1px solid #d1d5db",
+-              marginBottom: "16px",
+-              paddingBottom: "14px",
+-            }}
+-          >
+-            <div style={{ borderRight: "1px solid #e5e7eb" }}>
+-              <PartyColumn
+-                label="From"
+-                name={buyer?.name}
+-                lines={buildAddressLines(buyer?.address)}
+-                gstin={buyer?.gstin}
+-                phone={buyer?.contact?.phone}
+-                email={buyer?.contact?.email}
+-                logo={buyer?.logoImageBase64}
+-              />
+-            </div>
+-
+-            <div style={{ borderRight: "1px solid #e5e7eb" }}>
+-              <PartyColumn
+-                label="Bill To"
+-                name={vendor?.name}
+-                lines={buildAddressLines(vendor?.address)}
+-                gstin={vendor?.gstin}
+-                showUnregistered
+-              />
+-            </div>
+-
+-            <div style={{ padding: "0 14px" }}>
+-              <div style={HEADER_LABEL_STYLE}>Doc Details</div>
+-              <DocMetaRow label="PO No." value={po.poNumber} />
+-              <DocMetaRow label="PO Date" value={formatDate(po.poDate)} />
+-              <DocMetaRow label="Valid Until" value={formatDate(validUntil)} />
+-              <DocMetaRow label="Delivery Date" value={formatDate(po.expectedDeliveryDate)} />
+-
+-              {(po.projectDescription || placeOfSupply) && (
+-                <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid #e5e7eb" }}>
+-                  {po.projectDescription && (
+-                    <div style={{ marginBottom: placeOfSupply ? "10px" : 0 }}>
+-                      <div style={HEADER_LABEL_STYLE}>Project / Service For</div>
+-                      <div style={DETAIL_TEXT_STYLE}>{po.projectDescription}</div>
+-                    </div>
+-                  )}
+-                  {placeOfSupply && (
+-                    <div>
+-                      <div style={HEADER_LABEL_STYLE}>Place of Supply</div>
+-                      <div style={DETAIL_TEXT_STYLE}>{placeOfSupply}</div>
+-                    </div>
+-                  )}
+-                </div>
+-              )}
+-            </div>
+-          </div>
+-
+-          <div style={{ marginBottom: "16px" }}>
+-            <table
+-              style={{
+-                width: "100%",
+-                borderCollapse: "collapse",
+-                fontSize: "9px",
+-                tableLayout: "fixed",
+-              }}
+-            >
+-              <colgroup>
+-                <col style={{ width: "34px" }} />
+-                <col />
+-                <col style={{ width: "72px" }} />
+-                <col style={{ width: "52px" }} />
+-                <col style={{ width: "70px" }} />
+-                <col style={{ width: "84px" }} />
+-                <col style={{ width: "56px" }} />
+-                <col style={{ width: "84px" }} />
+-              </colgroup>
+-              <thead>
+-                <tr style={{ backgroundColor: BRAND_PURPLE, color: "#ffffff" }}>
+-                  <th style={{ padding: "8px 12px", textAlign: "center" }}>#</th>
+-                  <th style={{ padding: "8px 12px", textAlign: "left" }}>Item / Service Description</th>
+-                  <th style={{ padding: "8px 12px", textAlign: "center" }}>HSN/SAC</th>
+-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Qty</th>
+-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Rate</th>
+-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Taxable</th>
+-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>GST%</th>
+-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Total</th>
+-                </tr>
+-              </thead>
+-              <tbody>
+-                {lineItems.length === 0 ? (
+-                  <tr>
+-                    <td
+-                      colSpan={8}
+-                      style={{ textAlign: "center", padding: "20px 0", color: "#9ca3af", fontStyle: "italic", fontSize: "9px" }}
+-                    >
+-                      No line items yet.
+-                    </td>
+-                  </tr>
+-                ) : (
+-                  lineItems.map((item, index) => (
+-                    <tr key={item.id} style={{ backgroundColor: index % 2 === 0 ? "#ffffff" : "#f3f4f6" }}>
+-                      <td style={{ padding: "8px 12px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
+-                        {index + 1}
+-                      </td>
+-                      <td style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb", wordBreak: "break-word" }}>
+-                        <div style={{ fontWeight: 500, color: "#111827" }}>{item.description}</div>
+-                      </td>
+-                      <td style={{ padding: "8px 12px", textAlign: "center", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
+-                        {item.hsnSac || "—"}
+-                      </td>
+-                      <td style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
+-                        {formatNumber(item.quantity, 2)}
+-                      </td>
+-                      <td style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
+-                        {formatNumber(item.rate, 2)}
+-                      </td>
+-                      <td style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
+-                        {formatNumber(item.taxableValue, 2)}
+-                      </td>
+-                      <td style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>
+-                        {formatNumber(item.gstRate, 2)}%
+-                      </td>
+-                      <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid #e5e7eb" }}>
+-                        {formatNumber(item.lineTotal, 2)}
+-                      </td>
+-                    </tr>
+-                  ))
+-                )}
+-              </tbody>
+-            </table>
+-          </div>
+-
+-          {totals && (
+-            <div className="print-keep-together" style={{ marginBottom: "16px" }}>
+-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+-                <div style={{ width: "240px", border: "1px solid #e5e7eb", borderRadius: "4px", overflow: "hidden" }}>
+-                  {(
+-                    [
+-                      ["Subtotal", totals.subtotal],
+-                      ["Discount", totals.totalDiscount],
+-                      ["Taxable Value", totals.totalTaxableValue],
+-                      ["GST / Tax", totals.totalTax],
+-                      ...(totals.otherCharges > 0 ? [["Other Charges", totals.otherCharges]] : []),
+-                      ...(totals.roundOff !== 0 ? [["Round Off", totals.roundOff]] : []),
+-                    ] as [string, number][]
+-                  ).map(([label, value]) => (
+-                    <div
+-                      key={label}
+-                      style={{
+-                        display: "flex",
+-                        justifyContent: "space-between",
+-                        padding: "6px 12px",
+-                        borderBottom: "1px solid #f3f4f6",
+-                        fontSize: "9.5px",
+-                      }}
+-                    >
+-                      <span style={{ color: "#6b7280" }}>{label}</span>
+-                      <span style={{ color: "#111827" }}>{formatNumber(value, 2)}</span>
+-                    </div>
+-                  ))}
+-                  <div
+-                    style={{
+-                      display: "flex",
+-                      justifyContent: "space-between",
+-                      padding: "8px 12px",
+-                      backgroundColor: BRAND_PURPLE,
+-                      color: "#ffffff",
+-                    }}
+-                  >
+-                    <span style={{ fontWeight: 700, fontSize: "10.5px" }}>Grand Total</span>
+-                    <span style={{ fontWeight: 700, fontSize: "10.5px" }}>{formatCurrencyINR(totals.grandTotal)}</span>
+-                  </div>
+-                </div>
+-              </div>
+-
+-              {totals.amountInWords && (
+-                <div
+-                  style={{
+-                    marginTop: "8px",
+-                    textAlign: "right",
+-                    fontSize: "9.5px",
+-                    color: "#374151",
+-                    fontStyle: "italic",
+-                  }}
+-                >
+-                  Amount in Words: {totals.amountInWords}
+-                </div>
+-              )}
+-            </div>
+-          )}
+-        </div>
+-
+-        <div style={{ borderTop: "1px solid #d1d5db", paddingTop: "14px", marginTop: "16px" }}>
+-          {(po.paymentTerms || po.deliveryTerms || commercialTerms?.notes || commercialTerms?.termsAndConditions || commercialTerms?.warrantyTerms) && (
+-            <div className="print-keep-together" style={{ marginBottom: "14px" }}>
+-              <div style={HEADER_LABEL_STYLE}>Terms &amp; Conditions</div>
+-              <div style={{ fontSize: "9px", color: "#374151", lineHeight: 1.6 }}>
+-                {po.paymentTerms && (
+-                  <div><span style={{ fontWeight: 600 }}>Payment Terms: </span>{po.paymentTerms}</div>
+-                )}
+-                {po.deliveryTerms && (
+-                  <div><span style={{ fontWeight: 600 }}>Delivery Terms: </span>{po.deliveryTerms}</div>
+-                )}
+-                {commercialTerms?.notes && (
+-                  <div><span style={{ fontWeight: 600 }}>Notes: </span>{commercialTerms.notes}</div>
+-                )}
+-                {commercialTerms?.warrantyTerms && (
+-                  <div><span style={{ fontWeight: 600 }}>Warranty: </span>{commercialTerms.warrantyTerms}</div>
+-                )}
+-                {commercialTerms?.inspectionTerms && (
+-                  <div><span style={{ fontWeight: 600 }}>Inspection: </span>{commercialTerms.inspectionTerms}</div>
+-                )}
+-                {commercialTerms?.returnPolicy && (
+-                  <div><span style={{ fontWeight: 600 }}>Return Policy: </span>{commercialTerms.returnPolicy}</div>
+-                )}
+-                {commercialTerms?.cancellationPolicy && (
+-                  <div><span style={{ fontWeight: 600 }}>Cancellation: </span>{commercialTerms.cancellationPolicy}</div>
+-                )}
+-                {commercialTerms?.termsAndConditions && (
+-                  <div><span style={{ fontWeight: 600 }}>T&amp;C: </span>{commercialTerms.termsAndConditions}</div>
+-                )}
+-              </div>
+-            </div>
+-          )}
+-
+-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
+-            <div style={{ textAlign: "center", minWidth: "170px", fontSize: "9.5px" }}>
+-              {po.approvedBySignature?.signatureImageBase64 && (
+-                // eslint-disable-next-line @next/next/no-img-element
+-                <img
+-                  src={po.approvedBySignature.signatureImageBase64}
+-                  alt="Signature"
+-                  crossOrigin="anonymous"
+-                  style={{ height: "36px", width: "auto", objectFit: "contain", marginBottom: "4px" }}
+-                />
+-              )}
+-              <div
+-                style={{
+-                  borderTop: `1px solid ${BRAND_PURPLE}`,
+-                  paddingTop: "4px",
+-                  marginTop: "2px",
+-                }}
+-              >
+-                <div style={{ fontWeight: 600, color: "#111827" }}>{po.approvedBy || "Authorized Signatory"}</div>
+-                <div style={{ color: "#6b7280", fontSize: "9px" }}>{buyer?.name}</div>
+-              </div>
+-            </div>
+-          </div>
+-        </div>
+-      </div>
+-    </DesignInnsaeitDocumentShell>
++      billTo={{
++        name: billTo?.name ?? "",
++        address1: billTo?.address?.line1 ?? "",
++        address2: billTo?.address?.line2 ?? "",
++        city: billTo?.address?.city ?? "",
++        state: billTo?.address?.state ?? "",
++        pincode: billTo?.address?.pincode ?? "",
++        gstin: billTo?.gstin ?? null,
++      }}
++      docDetails={{
++        number: po.poNumber ?? "",
++        date: po.poDate ?? "",
++        validUntil: po.validUntil,
++        deliveryDate: po.deliveryDate ?? po.expectedDeliveryDate,
++        poReference: po.poReference ?? po.quotationReference,
++        projectDescription: po.projectDescription,
++        placeOfSupply: po.placeOfSupply ?? po.delivery?.address?.state ?? billTo?.address?.state ?? from?.address?.state ?? "",
++      }}
++      lineItems={(po.lineItems ?? []).map((item) => ({
++        description: item.description,
++        hsnSac: item.hsnSac ?? "",
++        qty: item.quantity,
++        unit: item.unit,
++        rate: item.rate,
++        discountPercent: item.discountPercent,
++        gstPercent: item.gstRate,
++        taxableAmount: item.taxableValue,
++        cgst: item.taxAmount / 2,
++        sgst: item.taxAmount / 2,
++        igst: item.taxAmount,
++        total: item.lineTotal,
++      }))}
++      totals={{
++        subtotal: totals?.subtotal ?? 0,
++        totalDiscount: totals?.totalDiscount ?? 0,
++        taxableValue: totals?.totalTaxableValue ?? 0,
++        cgst: 0,
++        sgst: 0,
++        igst: totals?.totalTax ?? 0,
++        cess: 0,
++        otherCharges: totals?.otherCharges ?? 0,
++        grandTotal: totals?.grandTotal ?? 0,
++        amountInWords: totals?.amountInWords ?? "",
++        gstMode: "igst",
++      }}
++      bankDetails={bankDetails ? {
++        accountName: bankDetails.accountName ?? "",
++        bankName: bankDetails.bankName ?? "",
++        accountNumber: bankDetails.accountNumber ?? "",
++        ifsc: bankDetails.ifscCode ?? "",
++        branch: bankDetails.branch ?? "",
++        upiId: bankDetails.upiId ?? "",
++      } : null}
++      termsAndConditions={po.commercialTerms?.termsAndConditions ?? ""}
++      notes={[
++        po.paymentTerms ? `Payment Terms: ${po.paymentTerms}` : "",
++        po.deliveryTerms ? `Delivery Terms: ${po.deliveryTerms}` : "",
++        po.commercialTerms?.notes ?? "",
++        po.commercialTerms?.warrantyTerms ? `Warranty: ${po.commercialTerms.warrantyTerms}` : "",
++        po.commercialTerms?.inspectionTerms ? `Inspection: ${po.commercialTerms.inspectionTerms}` : "",
++        po.commercialTerms?.returnPolicy ? `Return Policy: ${po.commercialTerms.returnPolicy}` : "",
++        po.commercialTerms?.cancellationPolicy ? `Cancellation: ${po.commercialTerms.cancellationPolicy}` : "",
++      ].filter(Boolean).join("\n")}
++      signatory={{
++        name: po.approvedBy ?? "",
++        designation: po.approvedBySignature?.designation ?? "",
++        signatureImage: po.approvedBySignature?.signatureImageBase64 ?? null,
++      }}
++      footer={{
++        email: from?.contact?.email ?? "",
++        phone: from?.contact?.phone ?? "",
++        tagline: from?.name ?? "",
++      }}
++    />
+   );
+ }
+diff --git a/components/purchase-order/sections/POBuyerSection.tsx b/components/purchase-order/sections/POBuyerSection.tsx
+index d225252..a380afe 100644
+--- a/components/purchase-order/sections/POBuyerSection.tsx
++++ b/components/purchase-order/sections/POBuyerSection.tsx
+@@ -1,7 +1,6 @@
+ "use client";
+ 
+ import Link from "next/link";
+-import { useEffect, useState } from "react";
+ import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
+ import { Controller } from "react-hook-form";
+ import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
+@@ -9,13 +8,11 @@ import { FormSection } from "@/components/ui/FormSection";
+ import { FormField, inputClass } from "@/components/ui/FormField";
+ import { GSTINInput } from "@/components/ui/GSTINInput";
+ import { FileUpload } from "@/components/ui/FileUpload";
+-import type { SavedClient } from "@/lib/types/client";
+ 
+ interface Props {
+   control: Control<POFormValues>;
+   register: UseFormRegister<POFormValues>;
+   errors: FieldErrors<POFormValues>;
+-  onSelectSavedClient: (client: SavedClient | null) => void;
+   showCompanyProfileControls: boolean;
+   hasSavedProfile: boolean;
+   useCompanyProfile: boolean;
+@@ -27,35 +24,17 @@ export function POBuyerSection({
+   control,
+   register,
+   errors,
+-  onSelectSavedClient,
+   showCompanyProfileControls,
+   hasSavedProfile,
+   useCompanyProfile,
+   companyName,
+   onUseCompanyProfileChange,
+ }: Props) {
+-  const [savedClients, setSavedClients] = useState<SavedClient[]>([]);
+-  const [selectedClientId, setSelectedClientId] = useState("");
+-
+-  useEffect(() => {
+-    if (typeof window === "undefined") return;
+-
+-    try {
+-      const raw = window.localStorage.getItem("di_clients");
+-      const parsed = raw ? JSON.parse(raw) : [];
+-      setSavedClients(Array.isArray(parsed) ? parsed : []);
+-    } catch {
+-      setSavedClients([]);
+-    }
+-  }, []);
+-
+-  const hasClients = savedClients.length > 0;
+-
+   return (
+-    <FormSection title="Supplier Details">
++    <FormSection title="Supplier Details (FROM)">
+       {showCompanyProfileControls && !hasSavedProfile ? (
+         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+-          <div>No company profile set up yet. Set it up once and it will auto-fill here every time.</div>
++          <div>Set up your company profile once and it auto-fills here every time.</div>
+           <Link href="/company-profile" className="mt-2 inline-flex font-medium text-amber-950 underline underline-offset-2">
+             Set up company profile →
+           </Link>
+@@ -71,13 +50,13 @@ export function POBuyerSection({
+             />
+             <div className="text-sm">
+               <div className="font-medium text-slate-900">
+-                {useCompanyProfile ? "Use my company profile (default)" : "Using custom supplier details"}
++                Use my company profile as FROM
+               </div>
+               {useCompanyProfile ? (
+                 <div className="text-slate-600">&quot;{companyName || "Saved company profile"}&quot;</div>
+               ) : (
+                 <div className="text-slate-500">
+-                  You are using a custom supplier. This will not affect your saved company profile.
++                  Using custom supplier. Your saved profile is unchanged.
+                 </div>
+               )}
+             </div>
+@@ -92,33 +71,7 @@ export function POBuyerSection({
+ 
+       <fieldset disabled={showCompanyProfileControls && hasSavedProfile && useCompanyProfile} className={showCompanyProfileControls && hasSavedProfile && useCompanyProfile ? "space-y-0 opacity-60" : "space-y-0"}>
+         <div className="grid grid-cols-2 gap-3">
+-          <FormField label="Select saved client" className="col-span-2">
+-            <select
+-              className={inputClass}
+-              value={selectedClientId}
+-              disabled={!hasClients || (hasSavedProfile && useCompanyProfile)}
+-              onChange={(e) => {
+-                const nextValue = e.target.value;
+-                setSelectedClientId(nextValue);
+-                if (!nextValue || nextValue === "__clear__") {
+-                  onSelectSavedClient(null);
+-                  return;
+-                }
+-                onSelectSavedClient(savedClients.find((client) => client.id === nextValue) ?? null);
+-              }}
+-            >
+-              <option value="">
+-                {hasClients ? "Select a saved client..." : "No saved clients — add one in Clients"}
+-              </option>
+-              {hasClients && <option value="__clear__">Clear selection</option>}
+-              {savedClients.map((client) => (
+-                <option key={client.id} value={client.id}>
+-                  {client.name}{client.gstin ? ` • ${client.gstin}` : ""}
+-                </option>
+-              ))}
+-            </select>
+-          </FormField>
+-          <FormField label="Company Name" required error={errors.buyer?.name?.message} className="col-span-2">
++          <FormField label="Supplier Name" required error={errors.buyer?.name?.message} className="col-span-2">
+             <input type="text" className={inputClass} {...register("buyer.name")} />
+           </FormField>
+           <FormField label="Address Line 1" required error={errors.buyer?.address?.line1?.message} className="col-span-2">
+diff --git a/components/purchase-order/sections/PODetailsSection.tsx b/components/purchase-order/sections/PODetailsSection.tsx
+index eb9ae53..5b73d70 100644
+--- a/components/purchase-order/sections/PODetailsSection.tsx
++++ b/components/purchase-order/sections/PODetailsSection.tsx
+@@ -28,8 +28,16 @@ export function PODetailsSection({ control, register, errors, isDuplicate }: Pro
+           <input type="date" className={inputClass} {...register("poDate")} />
+         </FormField>
+ 
+-        <FormField label="Expected Delivery Date">
+-          <input type="date" className={inputClass} {...register("expectedDeliveryDate")} />
++        <FormField label="Valid Until">
++          <input type="date" className={inputClass} {...register("validUntil")} />
++        </FormField>
++
++        <FormField label="Delivery Date">
++          <input type="date" className={inputClass} {...register("deliveryDate")} />
++        </FormField>
++
++        <FormField label="PO Reference">
++          <input type="text" className={inputClass} placeholder="PO-REF-001" {...register("poReference")} />
+         </FormField>
+ 
+         <FormField label="Project Description (optional)" error={errors.projectDescription?.message}>
+@@ -42,12 +50,12 @@ export function PODetailsSection({ control, register, errors, isDuplicate }: Pro
+           />
+         </FormField>
+ 
+-        <FormField label="PO Status">
+-          <select className={inputClass} {...register("poStatus")}>
+-            <option value="Under Approval">Under Approval</option>
+-            <option value="Approved">Approved</option>
+-            <option value="Processed">Processed</option>
+-          </select>
++        <FormField label="Place of Supply" required error={errors.placeOfSupply?.message}>
++          <input type="text" className={inputClass} placeholder="State name" {...register("placeOfSupply")} />
++        </FormField>
++
++        <FormField label="Place of Supply Code" required error={errors.placeOfSupplyCode?.message}>
++          <input type="text" className={inputClass} placeholder="e.g. 27" maxLength={2} {...register("placeOfSupplyCode")} />
+         </FormField>
+ 
+         <FormField label="Payment Terms" required error={errors.paymentTerms?.message}>
+@@ -57,30 +65,6 @@ export function PODetailsSection({ control, register, errors, isDuplicate }: Pro
+         <FormField label="Delivery Terms" required error={errors.deliveryTerms?.message}>
+           <input type="text" className={inputClass} placeholder="e.g. FOR Destination" {...register("deliveryTerms")} />
+         </FormField>
+-
+-        <FormField label="Vendor Code">
+-          <input type="text" className={inputClass} {...register("vendor.vendorCode")} />
+-        </FormField>
+-
+-        <FormField label="Quotation Reference">
+-          <input type="text" className={inputClass} {...register("quotationReference")} />
+-        </FormField>
+-
+-        <FormField label="Quotation Date">
+-          <input type="date" className={inputClass} {...register("quotationDate")} />
+-        </FormField>
+-
+-        <FormField label="Internal Requisition No.">
+-          <input type="text" className={inputClass} {...register("internalRequisitionNumber")} />
+-        </FormField>
+-
+-        <FormField label="Project Name">
+-          <input type="text" className={inputClass} {...register("projectName")} />
+-        </FormField>
+-
+-        <FormField label="Department / Cost Center">
+-          <input type="text" className={inputClass} {...register("department")} />
+-        </FormField>
+       </div>
+     </FormSection>
+   );
+diff --git a/components/purchase-order/sections/POVendorSection.tsx b/components/purchase-order/sections/POVendorSection.tsx
+index 799e228..1f1a221 100644
+--- a/components/purchase-order/sections/POVendorSection.tsx
++++ b/components/purchase-order/sections/POVendorSection.tsx
+@@ -1,23 +1,68 @@
+ "use client";
+ 
++import { useEffect, useState } from "react";
+ import type { Control, UseFormRegister, FieldErrors } from "react-hook-form";
+ import { Controller } from "react-hook-form";
+ import type { POFormValues } from "@/lib/schemas/purchase-order.schema";
+ import { FormSection } from "@/components/ui/FormSection";
+ import { FormField, inputClass } from "@/components/ui/FormField";
+ import { GSTINInput } from "@/components/ui/GSTINInput";
++import type { SavedClient } from "@/lib/types/client";
+ 
+ interface Props {
+   control: Control<POFormValues>;
+   register: UseFormRegister<POFormValues>;
+   errors: FieldErrors<POFormValues>;
++  onSelectSavedClient: (client: SavedClient | null) => void;
+ }
+ 
+-export function POVendorSection({ control, register, errors }: Props) {
++export function POVendorSection({ control, register, errors, onSelectSavedClient }: Props) {
++  const [savedClients, setSavedClients] = useState<SavedClient[]>([]);
++  const [selectedClientId, setSelectedClientId] = useState("");
++
++  useEffect(() => {
++    if (typeof window === "undefined") return;
++    try {
++      const raw = window.localStorage.getItem("di_clients");
++      const parsed = raw ? JSON.parse(raw) : [];
++      setSavedClients(Array.isArray(parsed) ? parsed : []);
++    } catch {
++      setSavedClients([]);
++    }
++  }, []);
++
++  const hasClients = savedClients.length > 0;
++
+   return (
+-    <FormSection title="Buyer / Vendor Details">
++    <FormSection title="Vendor / Buyer Details (BILL TO)">
+       <div className="grid grid-cols-2 gap-3">
+-        <FormField label="Supplier Name" required error={errors.vendor?.name?.message} className="col-span-2">
++        <FormField label="Select saved client for BILL TO" className="col-span-2">
++          <select
++            className={inputClass}
++            value={selectedClientId}
++            disabled={!hasClients}
++            onChange={(e) => {
++              const nextValue = e.target.value;
++              setSelectedClientId(nextValue);
++              if (!nextValue || nextValue === "__clear__") {
++                onSelectSavedClient(null);
++                return;
++              }
++              onSelectSavedClient(savedClients.find((client) => client.id === nextValue) ?? null);
++            }}
++          >
++            <option value="">
++              {hasClients ? "Select a saved client..." : "No saved clients — add one in Clients"}
++            </option>
++            {hasClients && <option value="__clear__">Clear selection</option>}
++            {savedClients.map((client) => (
++              <option key={client.id} value={client.id}>
++                {client.name}{client.gstin ? ` • ${client.gstin}` : ""}
++              </option>
++            ))}
++          </select>
++        </FormField>
++        <FormField label="Name" required error={errors.vendor?.name?.message} className="col-span-2">
+           <input type="text" className={inputClass} {...register("vendor.name")} />
+         </FormField>
+         <FormField label="Address Line 1" required error={errors.vendor?.address?.line1?.message} className="col-span-2">
+diff --git a/lib/schemas/purchase-order.schema.ts b/lib/schemas/purchase-order.schema.ts
+index 6744c80..37ceda4 100644
+--- a/lib/schemas/purchase-order.schema.ts
++++ b/lib/schemas/purchase-order.schema.ts
+@@ -30,8 +30,13 @@ const poLineItemSchema = z.object({
+ export const purchaseOrderSchema = z.object({
+   poNumber: z.string().min(1, "PO number is required"),
+   poDate: z.string().min(1, "PO date is required"),
++  validUntil: z.string().optional(),
++  deliveryDate: z.string().optional(),
+   expectedDeliveryDate: z.string().optional(),
+   projectDescription: z.string().max(120, "Project description must be ≤ 120 characters").optional(),
++  poReference: z.string().optional(),
++  placeOfSupply: z.string().min(1, "Place of supply is required"),
++  placeOfSupplyCode: z.string().min(1, "Place of supply code is required"),
+   paymentTerms: z.string().min(1, "Payment terms are required"),
+   deliveryTerms: z.string().min(1, "Delivery terms are required"),
+   quotationReference: z.string().optional(),
+@@ -70,6 +75,14 @@ export const purchaseOrderSchema = z.object({
+ 
+   lineItems: z.array(poLineItemSchema).min(1, "At least one line item is required"),
+   otherCharges: z.preprocess(Number, z.number().min(0).default(0)),
++  bankDetails: z.object({
++    accountName: z.string().optional(),
++    accountNumber: z.string().optional(),
++    bankName: z.string().optional(),
++    branch: z.string().optional(),
++    ifscCode: z.string().optional(),
++    upiId: z.string().optional(),
++  }).optional(),
+ 
+   commercialTerms: z.object({
+     warrantyTerms: z.string().optional(),
+diff --git a/lib/types/purchase-order.ts b/lib/types/purchase-order.ts
+index 256dc9c..eab0e37 100644
+--- a/lib/types/purchase-order.ts
++++ b/lib/types/purchase-order.ts
+@@ -1,4 +1,4 @@
+-import type { Address, ContactInfo, DocumentStatus, POStatus, SignatureInfo } from "./common";
++import type { Address, BankDetails, ContactInfo, DocumentStatus, POStatus, SignatureInfo } from "./common";
+ 
+ export interface POLineItem {
+   id: string;
+@@ -69,8 +69,13 @@ export interface PurchaseOrder {
+   id: string;
+   poNumber: string;
+   poDate: string;
++  validUntil?: string;
++  deliveryDate?: string;
+   expectedDeliveryDate?: string;
+   projectDescription?: string;
++  poReference?: string;
++  placeOfSupply?: string;
++  placeOfSupplyCode?: string;
+   paymentTerms: string;
+   deliveryTerms: string;
+   quotationReference?: string;
+@@ -84,6 +89,7 @@ export interface PurchaseOrder {
+   lineItems: POLineItem[];
+   totals: POTotals;
+   otherCharges: number;
++  bankDetails?: BankDetails;
+   commercialTerms: POCommercialTerms;
+   preparedBy?: string;
+   approvedBy: string;

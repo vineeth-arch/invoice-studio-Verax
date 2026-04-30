@@ -5,7 +5,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -27,9 +26,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const configured = isSupabaseConfigured();
+  const [client] = useState(() => getSupabaseBrowserClient());
 
   useEffect(() => {
-    const client = getSupabaseBrowserClient();
     if (!client) {
       setLoading(false);
       return;
@@ -55,10 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [client]);
 
   const signInWithMagicLink = useCallback(async (email: string) => {
-    const client = getSupabaseBrowserClient();
     if (!client) {
       return { success: false, error: "Supabase is not configured yet." };
     }
@@ -71,26 +69,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return error ? { success: false, error: error.message } : { success: true };
-  }, []);
+  }, [client]);
 
   const signOut = useCallback(async () => {
-    const client = getSupabaseBrowserClient();
     if (!client) {
       return { success: false, error: "Supabase is not configured yet." };
     }
 
     const { error } = await client.auth.signOut();
     return error ? { success: false, error: error.message } : { success: true };
-  }, []);
+  }, [client]);
 
-  const value = useMemo<AuthContextValue>(() => ({
+  const value: AuthContextValue = {
     configured,
     loading,
     session,
     user: session?.user ?? null,
     signInWithMagicLink,
     signOut,
-  }), [configured, loading, session, signInWithMagicLink, signOut]);
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

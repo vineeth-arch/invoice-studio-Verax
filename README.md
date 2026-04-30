@@ -280,6 +280,8 @@ npm run dev
 
 4. Open [http://localhost:3000](http://localhost:3000).
 
+   Note: In Supabase Authentication -> URL Configuration, set Redirect URLs to `http://localhost:3000/auth/callback` and `https://gstininvoice.designinnsaeit.com/auth/callback`, and set the Site URL to `https://gstininvoice.designinnsaeit.com`.
+
 5. Optional verification commands:
 
 ```bash

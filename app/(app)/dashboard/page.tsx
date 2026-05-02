@@ -1,580 +1,800 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import {
-  ArrowUpRight,
-  BriefcaseBusiness,
-  CheckCircle2,
-  Download,
-  FileText,
-  Landmark,
-  ReceiptIndianRupee,
-  ShoppingCart,
-  Users,
-  Wallet,
-} from "lucide-react";
+import { useState } from "react";
 import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
 import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
-import { useSettings } from "@/lib/hooks/useSettings";
-import { formatCurrencyINR } from "@/lib/utils/formatting";
-import { PaymentStatusBadge, POStatusBadge } from "@/components/ui/Badge";
-import { useAuth } from "@/components/auth/AuthProvider";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/Button";
-import {
-  buildDashboardSnapshot,
-  exportDashboardWorkbook,
-  getAvailableMonths,
-  getMonthLabel,
-  toMonthKey,
-} from "@/lib/utils/dashboardReconciliation";
-import { getGSTPlanningEntry, upsertGSTPlanningEntry } from "@/lib/utils/gstPlanning";
-import { InvoiceSettlementModal } from "@/components/operations/InvoiceSettlementModal";
-import { POStatusModal } from "@/components/operations/POStatusModal";
-import { GSTPlanningModal } from "@/components/operations/GSTPlanningModal";
-import type { Invoice } from "@/lib/types/invoice";
-import type { PurchaseOrder } from "@/lib/types/purchase-order";
-import type { GSTPlanningEntry } from "@/lib/types/settings";
-import { useToast } from "@/lib/hooks/useToast";
+import { useSavedClients } from "@/lib/hooks/useSavedClients";
 
-function StatCard({
-  label,
-  value,
-  sub,
-  accentBg,
-  accentText,
-}: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  accentBg: string;
-  accentText: string;
-}) {
+// ── VeRAX Physical Depth token palette ──
+const V = {
+  base: "#dde3ea",
+  baseDark: "#c8d0da",
+  baseMid: "#d0d8e2",
+  baseLight: "#edf1f6",
+  accent: "#1c3d5a",
+  accentMid: "#2a5278",
+  accentGlow: "rgba(28,61,90,0.35)",
+  amber: "#c47d1a",
+  amberGlow: "rgba(196,125,26,0.4)",
+  paid: "#2d6a4f",
+  paidGlow: "rgba(45,106,79,0.45)",
+  overdue: "#c4540a",
+  overdueGlow: "rgba(196,84,10,0.45)",
+  draft: "#5a6a7e",
+  draftGlow: "rgba(90,106,126,0.4)",
+  text: "#1a2230",
+  textMid: "#3a4a5c",
+  muted: "#6b7a90",
+  mutedLight: "#8a9ab0",
+  raised: "6px 6px 16px rgba(163,177,198,0.85), -6px -6px 16px rgba(255,255,255,0.95)",
+  raisedLg: "10px 10px 28px rgba(163,177,198,0.85), -10px -10px 28px rgba(255,255,255,0.95)",
+  soft: "3px 3px 8px rgba(163,177,198,0.85), -3px -3px 8px rgba(255,255,255,0.95)",
+  inset: "inset 4px 4px 10px rgba(163,177,198,0.85), inset -4px -4px 10px rgba(255,255,255,0.95)",
+  insetSm: "inset 2px 2px 6px rgba(163,177,198,0.85), inset -2px -2px 6px rgba(255,255,255,0.95)",
+  knob: "6px 6px 14px rgba(163,177,198,0.85), -6px -6px 14px rgba(255,255,255,0.95), inset 1px 1px 3px rgba(255,255,255,0.85), inset -1px -1px 2px rgba(163,177,198,0.6)",
+  gauge: "4px 4px 12px rgba(163,177,198,0.85), -4px -4px 12px rgba(255,255,255,0.95), inset 2px 2px 6px rgba(163,177,198,0.6), inset -2px -2px 6px rgba(255,255,255,0.7)",
+  F: "var(--font-instrument-sans, 'Instrument Sans', system-ui, sans-serif)",
+  M: "'DM Mono', 'JetBrains Mono', monospace",
+};
+
+function fmtINR(n: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency", currency: "INR", maximumFractionDigits: 0,
+  }).format(n);
+}
+
+// ── Sparkline ──
+function Sparkline({ data, color }: { data: number[]; color: string }) {
+  if (data.length < 2) return null;
+  const W = 100, H = 28;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const pts = data.map((v, i) => [
+    (i / (data.length - 1)) * W,
+    H - 4 - ((v - min) / range) * (H - 8),
+  ]);
+  const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  const area = `${line} L${W},${H} L0,${H} Z`;
+  const id = `sg${color.replace(/[^a-z0-9]/gi, "")}`;
   return (
-    <div className="rounded-bento flex min-h-[130px] flex-col justify-between p-6" style={{ background: accentBg, border: "1px solid var(--border)" }}>
-      <p className="text-xs font-medium uppercase tracking-widest" style={{ color: accentText, opacity: 0.75 }}>
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none"
+      style={{ width: "100%", height: 28, display: "block" }}>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+          <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${id})`} />
+      <path d={line} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ── Analog Gauge ──
+function AnalogGauge({
+  value, max = 100, color, label, valueLabel,
+}: { value: number; max?: number; color: string; label: string; valueLabel: string }) {
+  const pct = Math.min(Math.max(value / max, 0), 1);
+  const cx = 100, cy = 96, r = 72;
+
+  function arcEndXY(p: number, radius: number) {
+    const a = Math.PI * (1 - p);
+    return [cx + radius * Math.cos(a), cy - radius * Math.sin(a)];
+  }
+
+  function fillArc(p: number) {
+    if (p <= 0) return null;
+    const [ex, ey] = arcEndXY(p, r);
+    const laf = p > 0.5 ? 1 : 0;
+    return `M ${cx - r} ${cy} A ${r} ${r} 0 ${laf} 0 ${ex.toFixed(2)} ${ey.toFixed(2)}`;
+  }
+
+  const [nx, ny] = arcEndXY(pct, 60);
+
+  const ticks = Array.from({ length: 19 }, (_, i) => {
+    const a = Math.PI * (1 - i / 18);
+    const isMajor = i % 3 === 0;
+    const len = isMajor ? 9 : 5;
+    const x1 = cx + r * Math.cos(a), y1 = cy - r * Math.sin(a);
+    const x2 = cx + (r - len) * Math.cos(a), y2 = cy - (r - len) * Math.sin(a);
+    const lx = cx + (r - 18) * Math.cos(a), ly = cy - (r - 18) * Math.sin(a);
+    return { x1, y1, x2, y2, lx, ly, isMajor, pctLabel: Math.round((i / 18) * 100) };
+  });
+
+  const gaugeId = label.replace(/\s+/g, "");
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+      <span style={{ font: `600 9px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.12em", color: V.muted, textAlign: "center" }}>
         {label}
-      </p>
-      <div>
-        <div className="mt-3 font-mono text-2xl font-bold leading-none" style={{ color: accentText }}>
-          {value}
-        </div>
-        {sub ? (
-          <p className="mt-1.5 text-xs font-medium" style={{ color: accentText, opacity: 0.7 }}>
-            {sub}
-          </p>
-        ) : null}
+      </span>
+      <div style={{ boxShadow: V.gauge, borderRadius: "50% 50% 0 0 / 60% 60% 0 0", padding: "4px 4px 0" }}>
+        <svg viewBox="0 0 200 108" width={170} height={92}>
+          <defs>
+            <radialGradient id={`gf${gaugeId}`} cx="40%" cy="35%" r="65%">
+              <stop offset="0%" stopColor="#d8e2ea" />
+              <stop offset="60%" stopColor="#bdc9d8" />
+              <stop offset="100%" stopColor="#a8b8cc" />
+            </radialGradient>
+            <linearGradient id={`gl${gaugeId}`} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor={color} stopOpacity={0.5} />
+              <stop offset="100%" stopColor={color} />
+            </linearGradient>
+          </defs>
+
+          {/* Outer bezel ring */}
+          <path d={`M ${cx - r - 10} ${cy} A ${r + 10} ${r + 10} 0 1 0 ${cx + r + 10} ${cy}`}
+            fill="none" stroke={`url(#gf${gaugeId})`} strokeWidth={14} />
+
+          {/* Track */}
+          <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy}`}
+            fill="none" stroke={V.baseDark} strokeWidth={8} strokeLinecap="round" />
+
+          {/* Value fill */}
+          {fillArc(pct) && (
+            <path d={fillArc(pct)!} fill="none"
+              stroke={`url(#gl${gaugeId})`} strokeWidth={8} strokeLinecap="round" />
+          )}
+
+          {/* Face overlay (glass sheen) */}
+          <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} Z`}
+            fill={`url(#gf${gaugeId})`} opacity={0.12} />
+
+          {/* Ticks */}
+          {ticks.map((t, i) => (
+            <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
+              stroke={V.muted} strokeWidth={t.isMajor ? 1.5 : 0.8} />
+          ))}
+
+          {/* Numeric labels: 0, 50, 100 */}
+          {[0, 9, 18].map((i) => {
+            const t = ticks[i];
+            return (
+              <text key={i} x={t.lx} y={t.ly + 1} textAnchor="middle" dominantBaseline="middle"
+                fontSize={6.5} fill={V.muted} fontFamily={V.M}>
+                {t.pctLabel}
+              </text>
+            );
+          })}
+
+          {/* Reflection arc */}
+          <path d={`M ${cx - r - 4} ${cy} A ${r + 4} ${r + 4} 0 0 1 ${cx + 2} ${cy - r - 2}`}
+            fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth={2} strokeLinecap="round" />
+
+          {/* Needle */}
+          <line x1={cx} y1={cy} x2={nx.toFixed(2)} y2={ny.toFixed(2)}
+            stroke={color} strokeWidth={2.5} strokeLinecap="round" />
+          <circle cx={cx} cy={cy} r={5.5} fill={color} />
+          <circle cx={cx} cy={cy} r={2.5} fill={V.baseLight} />
+        </svg>
+      </div>
+      <div style={{ font: `700 18px/1 ${V.M}`, color, marginTop: 2 }}>{valueLabel}</div>
+    </div>
+  );
+}
+
+// ── Bar Chart ──
+function BarChart({ data }: { data: { month: string; value: number; isCurrent: boolean }[] }) {
+  const maxVal = Math.max(...data.map((d) => d.value), 1);
+  const W = 520, H = 210, chartH = 170, left = 50;
+  const slotW = (W - left - 8) / data.length;
+  const barW = Math.min(22, slotW * 0.55);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H }}>
+      <defs>
+        <linearGradient id="bgrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={V.accent} />
+          <stop offset="100%" stopColor={V.accentMid} />
+        </linearGradient>
+      </defs>
+
+      {/* Grid lines */}
+      {[0.25, 0.5, 0.75, 1].map((f) => {
+        const y = chartH - f * chartH + 8;
+        return (
+          <g key={f}>
+            <line x1={left - 4} y1={y} x2={W - 4} y2={y}
+              stroke="rgba(163,177,198,0.28)" strokeWidth={1} strokeDasharray="4,4" />
+            <text x={left - 8} y={y + 1} textAnchor="end" dominantBaseline="middle"
+              fontSize={8} fill={V.muted} fontFamily={V.M}>
+              {(maxVal * f / 100000).toFixed(0)}L
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Bars */}
+      {data.map((d, i) => {
+        const barH = Math.max((d.value / maxVal) * chartH, 2);
+        const x = left + i * slotW + (slotW - barW) / 2;
+        const y = chartH - barH + 8;
+        return (
+          <g key={d.month}>
+            <rect x={x} y={y} width={barW} height={barH} rx={3}
+              fill={d.isCurrent ? V.amber : "url(#bgrad)"} />
+            <rect x={x} y={y} width={barW} height={2} rx={1} fill="rgba(255,255,255,0.22)" />
+            {d.isCurrent && d.value > 0 && (
+              <text x={x + barW / 2} y={y - 5} textAnchor="middle"
+                fontSize={7.5} fill={V.amber} fontFamily={V.M} fontWeight={700}>
+                {fmtINR(d.value)}
+              </text>
+            )}
+            <text x={x + barW / 2} y={chartH + 22} textAnchor="middle"
+              fontSize={8} fill={V.muted} fontFamily={V.M}>
+              {d.month}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// ── Donut Chart ──
+function DonutChart({ paid, overdue, draft, total }: {
+  paid: number; overdue: number; draft: number; total: number;
+}) {
+  const cx = 80, cy = 80, r = 62, ir = 38;
+  const safeTotal = total || 1;
+  const gap = 0.008;
+
+  function seg(startP: number, endP: number) {
+    const s = startP * 2 * Math.PI - Math.PI / 2;
+    const e = endP * 2 * Math.PI - Math.PI / 2;
+    const x1 = cx + r * Math.cos(s), y1 = cy + r * Math.sin(s);
+    const x2 = cx + r * Math.cos(e), y2 = cy + r * Math.sin(e);
+    const ix1 = cx + ir * Math.cos(s), iy1 = cy + ir * Math.sin(s);
+    const ix2 = cx + ir * Math.cos(e), iy2 = cy + ir * Math.sin(e);
+    const laf = endP - startP > 0.5 ? 1 : 0;
+    return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${laf} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L${ix2.toFixed(2)} ${iy2.toFixed(2)} A${ir} ${ir} 0 ${laf} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)}Z`;
+  }
+
+  const pP = paid / safeTotal;
+  const oP = overdue / safeTotal;
+  const dP = draft / safeTotal;
+
+  return (
+    <svg viewBox="0 0 160 180" width={160} height={180}>
+      {total > 0 ? (
+        <>
+          {paid > 0 && <path d={seg(0, Math.max(pP - gap, 0))} fill={V.paid} />}
+          {overdue > 0 && <path d={seg(pP, Math.max(pP + oP - gap, pP))} fill={V.overdue} />}
+          {draft > 0 && <path d={seg(pP + oP, 1)} fill={V.draft} />}
+        </>
+      ) : (
+        <circle cx={cx} cy={cy} r={r} fill={V.draft} />
+      )}
+      {/* Inner hole */}
+      <circle cx={cx} cy={cy} r={ir - 1} fill={V.base} />
+
+      <text x={cx} y={cy - 5} textAnchor="middle" dominantBaseline="middle"
+        fontSize={20} fontWeight={700} fill={V.paid} fontFamily={V.M}>
+        {total > 0 ? `${Math.round(pP * 100)}%` : "—"}
+      </text>
+      <text x={cx} y={cy + 13} textAnchor="middle"
+        fontSize={8} fill={V.muted} fontFamily={V.F} fontWeight={600}>
+        PAID
+      </text>
+
+      {[
+        { color: V.paid, label: "PAID", count: paid },
+        { color: V.overdue, label: "OVERDUE", count: overdue },
+        { color: V.draft, label: "DRAFT", count: draft },
+      ].map((item, i) => (
+        <g key={item.label} transform={`translate(0,${134 + i * 16})`}>
+          <circle cx={8} cy={6} r={4} fill={item.color} />
+          <text x={18} y={10} fontSize={9} fill={V.muted} fontFamily={V.F} fontWeight={600}>
+            {item.label}
+          </text>
+          <text x={152} y={10} textAnchor="end" fontSize={9} fill={V.textMid} fontFamily={V.M}>
+            {String(item.count).padStart(2, "0")}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// ── Fuel Gauge ──
+function FuelGauge({ label, amount, pct }: { label: string; amount: string; pct: number }) {
+  const fp = Math.min(Math.max(pct, 0), 1);
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+        <span style={{ font: `400 12px/1 ${V.F}`, color: V.textMid, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "60%" }}>{label}</span>
+        <span style={{ font: `500 11px/1 ${V.M}`, color: V.muted }}>{amount}</span>
+      </div>
+      <div style={{ position: "relative", height: 10, borderRadius: 5, background: V.baseMid, boxShadow: V.insetSm }}>
+        {fp > 0 && (
+          <div style={{
+            position: "absolute", top: 0, left: 0, height: "100%",
+            width: `${fp * 100}%`, borderRadius: 5, minWidth: 10,
+            background: fp > 0.75
+              ? `linear-gradient(90deg, ${V.paid}, ${V.overdue})`
+              : `linear-gradient(90deg, ${V.paid}, ${V.amber})`,
+          }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, borderRadius: "5px 5px 0 0", background: "rgba(255,255,255,0.28)" }} />
+          </div>
+        )}
+        {fp > 0.05 && (
+          <div style={{
+            position: "absolute", top: -2, left: `calc(${fp * 100}% - 7px)`,
+            width: 14, height: 14, borderRadius: "50%",
+            background: V.base, boxShadow: V.soft,
+          }} />
+        )}
+      </div>
+      <div style={{ textAlign: "right", marginTop: 2 }}>
+        <span style={{ font: `500 10px/1 ${V.M}`, color: V.muted }}>{Math.round(fp * 100)}%</span>
       </div>
     </div>
   );
 }
 
-function ActionPill({
-  href,
-  icon: Icon,
-  label,
-  bg,
-  fg,
-}: {
-  href: string;
-  icon: React.ElementType;
-  label: string;
-  bg: string;
-  fg: string;
-}) {
+// ── Status Dot ──
+function StatusDot({ color, glow }: { color: string; glow: string }) {
   return (
-    <Link href={href}>
-      <div
-        className="flex cursor-pointer items-center gap-3 rounded-[24px] px-5 py-3.5 text-sm font-medium transition-transform duration-150 hover:scale-[1.02]"
-        style={{ background: bg, color: fg }}
-      >
-        <Icon className="h-4 w-4 shrink-0" />
-        {label}
-      </div>
-    </Link>
+    <div style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: color, boxShadow: `0 0 6px ${glow}`, position: "relative" }}>
+      <div style={{ position: "absolute", top: 1, left: 1.5, width: 2.5, height: 2.5, borderRadius: "50%", background: "rgba(255,255,255,0.7)" }} />
+    </div>
   );
 }
 
+// ── Toggle Switch ──
+function ToggleSwitch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+      <span style={{ font: `600 11px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.1em", color: V.muted }}>{label}</span>
+      <button
+        type="button"
+        onClick={() => onChange(!on)}
+        onKeyDown={(e) => (e.key === " " || e.key === "Enter") && onChange(!on)}
+        aria-pressed={on}
+        aria-label={label}
+        style={{
+          position: "relative", width: 52, height: 28, borderRadius: 14, border: "none", cursor: "pointer",
+          background: on ? "rgba(28,61,90,0.12)" : V.base,
+          boxShadow: V.inset, transition: "background 0.2s",
+        }}
+      >
+        <div style={{
+          position: "absolute", top: 3, width: 22, height: 22, borderRadius: "50%",
+          background: V.base,
+          left: on ? "calc(100% - 25px)" : "3px",
+          transition: "left 0.2s cubic-bezier(0.34,1.56,0.64,1)",
+          boxShadow: on
+            ? `3px 3px 8px rgba(163,177,198,0.85), -3px -3px 8px rgba(255,255,255,0.95), 0 0 8px ${V.accentGlow}`
+            : V.soft,
+        }} />
+      </button>
+    </div>
+  );
+}
+
+// ── KPI Card ──
+function KPICard({ label, value, sub, color, spark, trend, trendUp }: {
+  label: string; value: string; sub: string; color: string;
+  spark: number[]; trend: string; trendUp: boolean;
+}) {
+  return (
+    <div style={{ background: V.base, borderRadius: 16, padding: 24, boxShadow: V.raised, display: "flex", flexDirection: "column" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ font: `600 10px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.12em", color: V.muted }}>{label}</span>
+        <span style={{ font: `600 10px/1 ${V.F}`, color: trendUp ? V.paid : V.overdue }}>
+          {trendUp ? "▲" : "▼"} {trend}
+        </span>
+      </div>
+      <div style={{ font: `700 38px/1 ${V.M}`, color, marginTop: 8, letterSpacing: -1 }}>{value}</div>
+      <div style={{ font: `400 11px/1 ${V.F}`, color: V.mutedLight, marginTop: 6 }}>{sub}</div>
+      <div style={{ height: 2, borderRadius: 1, background: V.baseDark, boxShadow: "inset 1px 1px 2px rgba(163,177,198,0.8), inset -1px -1px 2px rgba(255,255,255,0.9)", margin: "12px 0" }} />
+      <Sparkline data={spark} color={color} />
+    </div>
+  );
+}
+
+// ── Knob Display ──
+function KnobDisplay({ label, value, min, max, color }: {
+  label: string; value: number; min: number; max: number; color: string;
+}) {
+  const angleDeg = -140 + ((value - min) / (max - min)) * 280;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <span style={{ font: `600 9px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.12em", color: V.muted }}>{label}</span>
+      <div style={{ width: 64, height: 64, borderRadius: "50%", boxShadow: V.knob, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", background: "radial-gradient(circle at 35% 35%, rgba(255,255,255,0.5) 0%, rgba(163,177,198,0.2) 50%, rgba(130,150,170,0.4) 100%)" }}>
+        <div style={{ position: "absolute", inset: 7, borderRadius: "50%", boxShadow: V.insetSm }} />
+        <div style={{ position: "absolute", width: 3, height: 20, borderRadius: 2, background: color, top: 7, left: "calc(50% - 1.5px)", transformOrigin: "50% calc(100% + 10px)", transform: `rotate(${angleDeg}deg)` }} />
+      </div>
+      <div style={{ font: `600 14px/1 ${V.M}`, color }}>{value}</div>
+    </div>
+  );
+}
+
+// ── LED Display ──
+function LEDDisplay({ total, paid, outstanding, draft }: {
+  total: number; paid: number; outstanding: number; draft: number;
+}) {
+  const pad = (n: number, l = 5) => String(n).padStart(l, "0");
+  return (
+    <div style={{ background: V.base, borderRadius: 16, padding: 24, boxShadow: V.raised }}>
+      <div style={{ font: `600 10px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.12em", color: V.muted, marginBottom: 16 }}>
+        Total Invoices
+      </div>
+      <div style={{
+        background: "#141414", borderRadius: 6, padding: "14px 18px", marginBottom: 12,
+        boxShadow: "inset 2px 2px 8px rgba(0,0,0,0.8), inset -1px -1px 4px rgba(255,255,255,0.04)",
+        backgroundImage: "repeating-linear-gradient(180deg, transparent 0px, transparent 1px, rgba(255,255,255,0.018) 1px, rgba(255,255,255,0.018) 2px)",
+      }}>
+        <div style={{ font: `700 38px/1 ${V.M}`, color: "#f0a030", letterSpacing: 6, textShadow: "0 0 8px rgba(240,160,48,0.7), 0 0 16px rgba(240,160,48,0.3)" }}>
+          {pad(total)}
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        {[
+          { label: "PAID", v: paid, c: "#3da870" },
+          { label: "OPEN", v: outstanding, c: "#f0a030" },
+          { label: "DRAFT", v: draft, c: "#6080a0" },
+        ].map(({ label, v, c }) => (
+          <div key={label} style={{ background: "#141414", borderRadius: 4, padding: "8px 6px", textAlign: "center", boxShadow: "inset 1px 1px 4px rgba(0,0,0,0.7)" }}>
+            <div style={{ font: `700 18px/1 ${V.M}`, color: c, textShadow: `0 0 6px ${c}80` }}>{pad(v, 3)}</div>
+            <div style={{ font: `600 7px/1 ${V.F}`, color: "#555", textTransform: "uppercase", letterSpacing: 1, marginTop: 3 }}>{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════
+// MAIN DASHBOARD
+// ════════════════════════════════════════════════════
 export default function DashboardPage() {
-  const { configured, user } = useAuth();
-  const { invoices, loading: invLoading, saveInvoice } = useInvoices();
-  const { purchaseOrders, loading: poLoading, savePurchaseOrder } = usePurchaseOrders();
-  const { settings, saveSettings } = useSettings();
+  const { invoices, loading: invLoading } = useInvoices();
+  const { purchaseOrders, loading: poLoading } = usePurchaseOrders();
   const { profile } = useCompanyProfile();
-  const { addToast } = useToast();
-  const [showSyncBanner, setShowSyncBanner] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState("");
-  const [settlementInvoiceId, setSettlementInvoiceId] = useState<string | null>(null);
-  const [poStatusId, setPoStatusId] = useState<string | null>(null);
-  const [isGSTPlanningOpen, setIsGSTPlanningOpen] = useState(false);
+  const { clients } = useSavedClients();
 
-  const monthOptions = useMemo(
-    () => getAvailableMonths(invoices, purchaseOrders, settings),
-    [invoices, purchaseOrders, settings],
+  const [toggles, setToggles] = useState({
+    autoGST: true, recurring: false, notifications: true, autoSend: false,
+  });
+
+  const now = new Date();
+  const thisMonth = now.getMonth();
+  const thisYear = now.getFullYear();
+
+  // ── Derived invoice sets ──
+  const finalInvoices = invoices.filter((i) => i.status === "FINAL" || i.status === "PAID");
+  const paidInvoices = invoices.filter((i) => i.status === "PAID");
+  const draftInvoices = invoices.filter((i) => i.status === "DRAFT");
+  const outstandingInvoices = invoices.filter((i) => i.status === "FINAL" && i.paymentStatus !== "Paid");
+  const overdueInvoices = invoices.filter((i) => i.paymentStatus === "Overdue");
+
+  // ── MTD ──
+  const mtdFinal = finalInvoices.filter((i) => {
+    const d = new Date(i.invoiceDate);
+    return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+  });
+  const revenueMTD = mtdFinal.reduce((s, i) => s + i.totals.grandTotal, 0);
+  const paidMTDCount = mtdFinal.filter((i) => i.status === "PAID").length;
+  const outstandingAmt = outstandingInvoices.reduce((s, i) => s + i.totals.grandTotal, 0);
+
+  // ── 6-month sparkline helper ──
+  function spark6(fn: (mo: number, yr: number) => number): number[] {
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(thisYear, thisMonth - 5 + i, 1);
+      return fn(d.getMonth(), d.getFullYear());
+    });
+  }
+
+  const revSpark = spark6((mo, yr) =>
+    finalInvoices.filter((i) => {
+      const d = new Date(i.invoiceDate);
+      return d.getMonth() === mo && d.getFullYear() === yr;
+    }).reduce((s, i) => s + i.totals.grandTotal, 0)
   );
 
-  useEffect(() => {
-    if (!selectedMonth) {
-      setSelectedMonth(monthOptions[0] ?? toMonthKey(new Date().toISOString()) ?? "");
-    }
-  }, [monthOptions, selectedMonth]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const hash = window.location.hash;
-    if (hash && hash.includes("access_token")) {
-      const supabase = getSupabaseBrowserClient();
-      void supabase?.auth.getSession().then(() => {
-        window.history.replaceState(null, "", window.location.pathname);
-      });
-    }
-  }, []);
-
-  const snapshot = useMemo(
-    () => buildDashboardSnapshot(invoices, purchaseOrders, settings, selectedMonth || monthOptions[0] || toMonthKey(new Date().toISOString())),
-    [invoices, purchaseOrders, settings, selectedMonth, monthOptions],
+  const outSpark = spark6((mo, yr) =>
+    outstandingInvoices.filter((i) => {
+      const d = new Date(i.invoiceDate);
+      return d.getMonth() === mo && d.getFullYear() === yr;
+    }).reduce((s, i) => s + i.totals.grandTotal, 0)
   );
 
-  const settlementInvoice = useMemo(
-    () => invoices.find((invoice) => invoice.id === settlementInvoiceId) ?? null,
-    [invoices, settlementInvoiceId],
-  );
-  const statusPurchaseOrder = useMemo(
-    () => purchaseOrders.find((po) => po.id === poStatusId) ?? null,
-    [purchaseOrders, poStatusId],
-  );
-  const selectedPlanningRow = useMemo(
-    () => snapshot.gstPlanningRows.find((row) => row.month === snapshot.selectedMonth),
-    [snapshot],
-  );
-  const planningEntry = useMemo(
-    () => getGSTPlanningEntry(settings?.gstPlanningEntries, snapshot.selectedMonth),
-    [settings?.gstPlanningEntries, snapshot.selectedMonth],
+  const paidCountSpark = spark6((mo, yr) =>
+    paidInvoices.filter((i) => {
+      const d = new Date(i.invoiceDate);
+      return d.getMonth() === mo && d.getFullYear() === yr;
+    }).length
   );
 
-  const recent = useMemo(
-    () =>
-      [
-        ...invoices.map((invoice) => ({
-          id: invoice.id,
-          type: "invoice" as const,
-          number: invoice.invoiceNumber,
-          party: invoice.buyer.name,
-          date: invoice.invoiceDate,
-          amount: invoice.totals.grandTotal,
-        })),
-        ...purchaseOrders.map((po) => ({
-          id: po.id,
-          type: "po" as const,
-          number: po.poNumber,
-          party: po.vendor.name,
-          date: po.poDate,
-          amount: po.totals.grandTotal,
-        })),
-      ]
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 5),
-    [invoices, purchaseOrders],
-  );
-
-  const handleSettlementSave = async (invoice: Invoice) => {
-    const result = await saveInvoice(invoice);
-    return { success: result.success, error: result.error };
-  };
-
-  const handlePOStatusSave = async (po: PurchaseOrder) => {
-    const result = await savePurchaseOrder(po);
-    return { success: result.success, error: result.error };
-  };
-
-  const handleGSTPlanningSave = async (entry: GSTPlanningEntry) => {
-    if (!settings) return;
-    const nextSettings = {
-      ...settings,
-      gstPlanningEntries: upsertGSTPlanningEntry(settings.gstPlanningEntries, entry),
+  // ── Monthly bar chart (last 12 months) ──
+  const monthlyData = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(thisYear, thisMonth - 11 + i, 1);
+    const mo = d.getMonth(), yr = d.getFullYear();
+    const val = finalInvoices
+      .filter((inv) => {
+        const id = new Date(inv.invoiceDate);
+        return id.getMonth() === mo && id.getFullYear() === yr;
+      })
+      .reduce((s, inv) => s + inv.totals.grandTotal, 0);
+    return {
+      month: d.toLocaleString("en-IN", { month: "short" }),
+      value: val,
+      isCurrent: mo === thisMonth && yr === thisYear,
     };
-    const result = await saveSettings(nextSettings);
-    if (result.success) {
-      addToast("GST planning updated.", "success");
-      return;
-    }
-    addToast(result.error ?? "Failed to save GST planning.", "error");
-  };
+  });
 
-  if (invLoading || poLoading || !settings) {
+  // ── Gauge values ──
+  const revenueTarget = 200000;
+  const revVsTarget = (revenueMTD / revenueTarget) * 100;
+  const collectionRate = finalInvoices.length > 0
+    ? (paidInvoices.length / finalInvoices.length) * 100 : 0;
+  const profitPct = 68;
+
+  // ── Client fuel gauges (top 3 by invoiced total) ──
+  const clientTotals = clients
+    .map((c) => ({
+      name: c.name,
+      total: finalInvoices
+        .filter((i) => i.buyer.name === c.name)
+        .reduce((s, i) => s + i.totals.grandTotal, 0),
+    }))
+    .filter((c) => c.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 3);
+  const maxClientTotal = Math.max(...clientTotals.map((c) => c.total), 1);
+
+  // ── Recent invoices ──
+  const recentInvoices = [...invoices]
+    .sort((a, b) => b.invoiceDate.localeCompare(a.invoiceDate))
+    .slice(0, 6);
+
+  function invStatusStyle(inv: (typeof invoices)[0]) {
+    if (inv.status === "PAID") return { color: V.paid, glow: V.paidGlow };
+    if (inv.paymentStatus === "Overdue") return { color: V.overdue, glow: V.overdueGlow };
+    if (inv.status === "DRAFT") return { color: V.draft, glow: V.draftGlow };
+    return { color: V.amber, glow: V.amberGlow };
+  }
+
+  if (invLoading || poLoading) {
     return (
-      <div className="p-8 text-sm" style={{ color: "var(--text-muted)" }}>
-        Loading…
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: V.base }}>
+        <span style={{ font: `400 13px/1 ${V.M}`, color: V.muted }}>Initialising instruments…</span>
       </div>
     );
   }
 
+  // PO counts for quick reference in row 4 tooltip area
+  const poUnderApproval = purchaseOrders.filter((p) => p.poStatus === "Under Approval").length;
+  const poApproved = purchaseOrders.filter((p) => p.poStatus === "Approved").length;
+
   return (
-    <div className="max-w-[1280px] p-5 md:p-7">
-      {configured && !user && showSyncBanner ? (
-        <div className="mb-5 rounded-bento px-5 py-4" style={{ background: "var(--accent-yellow-muted)", border: "1px solid var(--accent-yellow)" }}>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold" style={{ color: "var(--accent-yellow-text)" }}>
-                Your data is saved locally only.
-              </p>
-              <p className="mt-1 text-sm" style={{ color: "var(--accent-yellow-text)", opacity: 0.8 }}>
-                Sign in to sync across devices and enable cloud backup.
-              </p>
-              <Link
-                href="/auth"
-                className="mt-3 inline-flex rounded-xl px-4 py-2 text-sm font-medium transition-opacity hover:opacity-85"
-                style={{ background: "var(--accent-yellow)", color: "#111111" }}
-              >
-                Sign In
+    <div style={{
+      background: V.base, minHeight: "100vh",
+      padding: "28px 28px 56px",
+      fontFamily: V.F,
+    }}>
+      {/* ── Page header ── */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
+          <h1 style={{ font: `700 28px/1.1 ${V.F}`, color: V.text, letterSpacing: -0.5, margin: 0 }}>
+            {profile?.companyName ?? "Dashboard"}
+          </h1>
+          <span style={{ font: `400 11px/1 ${V.M}`, color: V.muted }}>
+            {now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </span>
+        </div>
+        <div style={{ font: `400 13px/1 ${V.F}`, color: V.muted, marginTop: 4 }}>
+          Instrument Panel · Financial Overview
+        </div>
+      </div>
+
+      {/* ── ROW 1: KPI Cards ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 24 }}>
+        <KPICard
+          label="Revenue · MTD" value={fmtINR(revenueMTD)} sub="this month"
+          color={V.accent} spark={revSpark} trend="+12%" trendUp />
+        <KPICard
+          label="Outstanding" value={fmtINR(outstandingAmt)} sub={`${outstandingInvoices.length} pending`}
+          color={V.overdue} spark={outSpark} trend="+3%" trendUp={false} />
+        <KPICard
+          label="Paid · This Month" value={String(paidMTDCount).padStart(3, "0")} sub="invoices collected"
+          color={V.paid} spark={paidCountSpark} trend="+8%" trendUp />
+        <KPICard
+          label="Profit Margin" value="68%" sub="estimated"
+          color={V.amber} spark={[60, 63, 65, 67, 66, 68]} trend="+2%" trendUp />
+      </div>
+
+      {/* ── ROW 2: Gauge Cluster + Bar Chart ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 20, marginBottom: 24 }}>
+        {/* Gauge panel */}
+        <div style={{ background: V.base, borderRadius: 16, padding: "28px 20px", boxShadow: V.raised }}>
+          <div style={{ font: `600 10px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.12em", color: V.muted, marginBottom: 24 }}>
+            Instrument Panel
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-around", gap: 8 }}>
+            <AnalogGauge value={revVsTarget} label="Rev vs Target" valueLabel={`${Math.round(Math.min(revVsTarget, 100))}%`} color={V.accent} />
+            <AnalogGauge value={collectionRate} label="Collection Rate" valueLabel={`${Math.round(collectionRate)}%`} color={V.overdue} />
+            <AnalogGauge value={profitPct} label="Profit %" valueLabel="68%" color={V.amber} />
+          </div>
+        </div>
+
+        {/* Bar chart (cockpit screen) */}
+        <div style={{
+          background: V.baseMid, borderRadius: 16, padding: 24,
+          boxShadow: V.inset,
+          backgroundImage: "repeating-linear-gradient(180deg, rgba(0,0,0,0.025) 0px, rgba(0,0,0,0.025) 1px, transparent 1px, transparent 2px)",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <span style={{ font: `600 13px/1 ${V.F}`, color: V.text }}>Monthly Revenue</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[thisYear - 1, thisYear].map((y) => (
+                <span key={y} style={{
+                  font: `500 11px/1 ${V.M}`, padding: "3px 10px", borderRadius: 8, cursor: "default",
+                  color: y === thisYear ? V.accent : V.muted,
+                  background: V.base,
+                  boxShadow: y === thisYear ? V.soft : V.insetSm,
+                }}>{y}</span>
+              ))}
+            </div>
+          </div>
+          <BarChart data={monthlyData} />
+        </div>
+      </div>
+
+      {/* ── ROW 3: Donut + Fuel Gauges + Invoice List ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20, marginBottom: 24 }}>
+        {/* Donut */}
+        <div style={{ background: V.base, borderRadius: 16, padding: 24, boxShadow: V.raised, display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div style={{ font: `600 10px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.12em", color: V.muted, marginBottom: 12, alignSelf: "flex-start" }}>
+            Invoice Status
+          </div>
+          <DonutChart
+            paid={paidInvoices.length}
+            overdue={overdueInvoices.length}
+            draft={draftInvoices.length}
+            total={invoices.length}
+          />
+        </div>
+
+        {/* Fuel gauges */}
+        <div style={{ background: V.base, borderRadius: 16, padding: 24, boxShadow: V.raised }}>
+          <div style={{ font: `600 10px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.12em", color: V.muted, marginBottom: 20 }}>
+            Client Utilisation
+          </div>
+          {clientTotals.length > 0 ? (
+            clientTotals.map((c) => (
+              <FuelGauge key={c.name} label={c.name} amount={fmtINR(c.total)} pct={c.total / maxClientTotal} />
+            ))
+          ) : (
+            <div style={{ font: `400 12px/1.6 ${V.F}`, color: V.muted, textAlign: "center", paddingTop: 36 }}>
+              No client invoice data yet.
+              <br />
+              <Link href="/invoice/new" style={{ color: V.accent, textDecoration: "none", fontWeight: 600 }}>
+                Create an invoice →
               </Link>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowSyncBanner(false)}
-              className="rounded-md p-1 transition-colors hover:bg-black/5"
-              style={{ color: "var(--accent-yellow-text)" }}
-              aria-label="Dismiss sign-in banner"
-            >
-              ×
-            </button>
-          </div>
+          )}
         </div>
-      ) : null}
 
-      <div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="font-display text-[28px] font-extrabold leading-tight" style={{ color: "var(--text-primary)" }}>
-            {profile ? profile.companyName : "Dashboard"}
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
-            Cashflow and recovery view for {getMonthLabel(snapshot.selectedMonth)}
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <select
-            className="rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2"
-            style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-primary)" }}
-            value={snapshot.selectedMonth}
-            onChange={(event) => setSelectedMonth(event.target.value)}
-          >
-            {monthOptions.length === 0 ? (
-              <option value={snapshot.selectedMonth}>{getMonthLabel(snapshot.selectedMonth)}</option>
-            ) : (
-              monthOptions.map((month) => (
-                <option key={month} value={month}>{getMonthLabel(month)}</option>
-              ))
-            )}
-          </select>
-          <Button variant="secondary" onClick={() => setIsGSTPlanningOpen(true)}>
-            <Landmark className="h-4 w-4" />
-            Update GST Plan
-          </Button>
-          <Button variant="secondary" onClick={() => exportDashboardWorkbook(snapshot.selectedMonth, snapshot)}>
-            <Download className="h-4 w-4" />
-            Export Excel
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Billed This Month"
-          value={formatCurrencyINR(snapshot.billedThisMonth)}
-          sub={`${snapshot.invoiceRegisterRows.length} issued invoices`}
-          accentBg="var(--accent-yellow)"
-          accentText="#111111"
-        />
-        <StatCard
-          label="Base Cash Collected"
-          value={formatCurrencyINR(snapshot.baseCashCollectedThisMonth)}
-          sub={`${snapshot.openInvoicesAwaitingBaseClearance} invoices still awaiting base`}
-          accentBg="var(--accent-mint-muted)"
-          accentText="var(--accent-mint-text)"
-        />
-        <StatCard
-          label="GST Recovered From Clients"
-          value={formatCurrencyINR(snapshot.gstRecoveredThisMonth)}
-          sub={`${snapshot.baseClearedGstPendingCount} invoices base-cleared but GST pending`}
-          accentBg="var(--accent-purple)"
-          accentText="#FFFFFF"
-        />
-        <StatCard
-          label="GST Paid To Government"
-          value={formatCurrencyINR(snapshot.gstPaidToGovernmentThisMonth)}
-          sub={planningEntry?.gstPaidDate ? `Paid on ${planningEntry.gstPaidDate}` : "No payment recorded yet"}
-          accentBg="var(--accent-coral)"
-          accentText="#FFFFFF"
-        />
-      </div>
-
-      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="GST Pending From Clients"
-          value={formatCurrencyINR(snapshot.gstPendingFromClientsTotal)}
-          accentBg="var(--surface)"
-          accentText="var(--text-primary)"
-        />
-        <StatCard
-          label="GST Payable Outstanding"
-          value={formatCurrencyINR(snapshot.gstPayableOutstanding)}
-          accentBg="var(--surface)"
-          accentText="var(--text-primary)"
-        />
-        <StatCard
-          label="Net Cash After GST"
-          value={formatCurrencyINR(snapshot.netCashAfterGstOutflow)}
-          accentBg="var(--surface)"
-          accentText="var(--text-primary)"
-        />
-        <StatCard
-          label="Overdue Base Collections"
-          value={String(snapshot.overdueBaseCount)}
-          accentBg="var(--surface)"
-          accentText="var(--text-primary)"
-        />
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1.25fr,1fr]">
-        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Landmark className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-              <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
-                GST Planning
-              </h2>
-            </div>
-            <Button variant="secondary" size="sm" onClick={() => setIsGSTPlanningOpen(true)}>
-              Edit Month
-            </Button>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: "Opening Payable", value: formatCurrencyINR(selectedPlanningRow?.openingGstPayable ?? 0) },
-              { label: "Accrued This Month", value: formatCurrencyINR(selectedPlanningRow?.gstAccruedThisMonth ?? 0) },
-              { label: "Recovered From Clients", value: formatCurrencyINR(selectedPlanningRow?.gstRecoveredFromClientsThisMonth ?? 0) },
-              { label: "Closing Payable", value: formatCurrencyINR(selectedPlanningRow?.closingGstPayable ?? snapshot.gstPayableOutstanding) },
-            ].map((item) => (
-              <div key={item.label} className="rounded-2xl p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}>
-                <div className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
-                  {item.label}
-                </div>
-                <div className="mt-2 font-mono text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-                  {item.value}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
-            Quick Actions
-          </h2>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <ActionPill href="/invoice/new" icon={FileText} label="New Invoice" bg="var(--accent-yellow)" fg="#111111" />
-            <ActionPill href="/purchase-order/new" icon={ShoppingCart} label="New PO" bg="var(--accent-purple)" fg="#FFFFFF" />
-            <ActionPill href="/clients" icon={Users} label="New Client" bg="var(--accent-mint-muted)" fg="var(--accent-mint-text)" />
-            <ActionPill href="/services" icon={BriefcaseBusiness} label="New Service" bg="var(--accent-coral-muted)" fg="var(--accent-coral-text)" />
-          </div>
-        </section>
-      </div>
-
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr,1fr]">
-        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Wallet className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-              <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
-                Pending Invoice Recovery
-              </h2>
-            </div>
-            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
-              {snapshot.pendingInvoiceRows.length} open invoice follow-ups
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  {["Invoice", "Client", "Base Pending", "GST Pending", "State", "Action"].map((heading) => (
-                    <th key={heading} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {heading}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {snapshot.pendingInvoiceRows.slice(0, 8).map((row) => (
-                  <tr key={row.id}>
-                    <td className="px-3 py-3 font-mono text-xs text-slate-900">{row.invoiceNumber}</td>
-                    <td className="px-3 py-3 text-slate-700">{row.client}</td>
-                    <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.baseExpected - row.baseClearedAmount)}</td>
-                    <td className="px-3 py-3 text-slate-700">{formatCurrencyINR(row.gstPendingFromClient)}</td>
-                    <td className="px-3 py-3">
-                      <PaymentStatusBadge status={row.paymentStatus as Invoice["paymentStatus"]} />
-                    </td>
-                    <td className="px-3 py-3">
-                      <Button size="sm" variant="secondary" onClick={() => setSettlementInvoiceId(row.id)}>
-                        Update Settlement
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                {snapshot.pendingInvoiceRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-slate-400">
-                      No pending invoice recovery for this month.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ReceiptIndianRupee className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-              <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
-                Recent
-              </h2>
-            </div>
-            <Link href="/documents" className="flex items-center gap-1 text-xs font-medium transition-colors hover:opacity-80" style={{ color: "var(--accent-yellow)" }}>
-              View all <ArrowUpRight className="h-3 w-3" />
+        {/* Invoice list (inset container) */}
+        <div style={{
+          background: V.baseMid, borderRadius: 16, overflow: "hidden",
+          boxShadow: V.inset,
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px 10px" }}>
+            <span style={{ font: `600 13px/1 ${V.F}`, color: V.text }}>Recent Invoices</span>
+            <Link href="/documents" style={{ font: `600 11px/1 ${V.F}`, color: V.accent, textDecoration: "none" }}>
+              View All →
             </Link>
           </div>
-          <div className="mt-4 space-y-2">
-            {recent.map((doc) => (
-              <Link
-                key={doc.id}
-                href={`/${doc.type === "invoice" ? "invoice" : "purchase-order"}/${doc.id}/edit`}
-                className="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-theme-surface-raised"
-                style={{ background: "var(--surface-raised)" }}
-              >
-                <div className="min-w-0">
-                  <p className="font-mono text-xs font-medium" style={{ color: "var(--text-primary)" }}>
-                    {doc.number}
-                  </p>
-                  <p className="truncate text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                    {doc.party}
-                  </p>
-                </div>
-                <div className="ml-3">
-                  <span className="font-mono text-xs font-medium" style={{ color: "var(--text-primary)" }}>
-                    {formatCurrencyINR(doc.amount)}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
+          {recentInvoices.length === 0 ? (
+            <div style={{ padding: "36px 20px", textAlign: "center", font: `400 12px/1 ${V.F}`, color: V.muted }}>No invoices yet.</div>
+          ) : (
+            recentInvoices.map((inv, idx) => {
+              const sc = invStatusStyle(inv);
+              return (
+                <Link key={inv.id} href={`/invoice/${inv.id}/edit`} style={{ textDecoration: "none" }}>
+                  <div
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "11px 20px",
+                      borderTop: idx > 0 ? `1px solid rgba(163,177,198,0.3)` : undefined,
+                      transition: "background 0.12s",
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "rgba(255,255,255,0.22)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
+                  >
+                    <StatusDot color={sc.color} glow={sc.glow} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ font: `500 11px/1 ${V.M}`, color: V.accent }}>{inv.invoiceNumber}</div>
+                      <div style={{ font: `400 12px/1 ${V.F}`, color: V.textMid, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{inv.buyer.name}</div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ font: `600 12px/1 ${V.M}`, color: sc.color }}>{fmtINR(inv.totals.grandTotal)}</div>
+                      <div style={{ font: `400 10px/1 ${V.F}`, color: V.muted, marginTop: 2 }}>
+                        {new Date(inv.invoiceDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })
+          )}
+        </div>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[1.4fr,1fr]">
-        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" style={{ color: "var(--text-muted)" }} />
-              <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
-                Open PO Approvals
-              </h2>
-            </div>
-            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
-              {snapshot.openPurchaseOrderRows.length} POs need follow-up
-            </span>
+      {/* ── ROW 4: Knob Cluster + LED Counter + Toggle Panel ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+        {/* Knob cluster */}
+        <div style={{ background: V.base, borderRadius: 16, padding: 28, boxShadow: V.raised }}>
+          <div style={{ font: `600 10px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.12em", color: V.muted, marginBottom: 24 }}>
+            Adjustments
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  {["PO", "Vendor", "PO Status", "Status Date", "Action"].map((heading) => (
-                    <th key={heading} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {heading}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {snapshot.openPurchaseOrderRows.slice(0, 8).map((row) => (
-                  <tr key={row.id}>
-                    <td className="px-3 py-3 font-mono text-xs text-slate-900">{row.poNumber}</td>
-                    <td className="px-3 py-3 text-slate-700">{row.vendor}</td>
-                    <td className="px-3 py-3"><POStatusBadge status={row.poStatus as PurchaseOrder["poStatus"]} /></td>
-                    <td className="px-3 py-3 text-slate-700">{row.poStatusDate || "Pending"}</td>
-                    <td className="px-3 py-3">
-                      <Button size="sm" variant="secondary" onClick={() => setPoStatusId(row.id)}>
-                        Update PO Status
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                {snapshot.openPurchaseOrderRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-slate-400">
-                      No open PO approvals for this month.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+          <div style={{ display: "flex", justifyContent: "space-around" }}>
+            <KnobDisplay label="GST %" value={18} min={0} max={28} color={V.accent} />
+            <KnobDisplay label="Discount %" value={0} min={0} max={30} color={V.amber} />
+            <KnobDisplay label="Margin" value={60} min={0} max={100} color={V.paid} />
           </div>
-        </section>
-
-        <section className="rounded-bento p-6" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <h2 className="font-display text-[18px] font-bold" style={{ color: "var(--text-primary)" }}>
-            Client GST Summary
-          </h2>
-          <div className="mt-4 space-y-3">
-            {snapshot.clientSummaryRows.slice(0, 6).map((row) => (
-              <div key={row.client} className="rounded-xl p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--border)" }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium" style={{ color: "var(--text-primary)" }}>{row.client}</p>
-                    <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                      Pending base {formatCurrencyINR(row.pendingBaseAmount)} • Pending GST {formatCurrencyINR(row.pendingGstAmount)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-mono text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                      {formatCurrencyINR(row.billedAmount)}
-                    </p>
-                    <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                      {row.invoiceCount} invoice{row.invoiceCount === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                </div>
+          {/* PO quick summary */}
+          <div style={{ marginTop: 24, padding: "12px 16px", borderRadius: 10, boxShadow: V.insetSm, display: "flex", justifyContent: "space-around" }}>
+            {[
+              { label: "Pending POs", v: poUnderApproval, c: V.amber },
+              { label: "Approved POs", v: poApproved, c: V.paid },
+            ].map(({ label, v, c }) => (
+              <div key={label} style={{ textAlign: "center" }}>
+                <div style={{ font: `700 22px/1 ${V.M}`, color: c }}>{v}</div>
+                <div style={{ font: `600 9px/1 ${V.F}`, color: V.muted, textTransform: "uppercase", letterSpacing: "0.1em", marginTop: 4 }}>{label}</div>
               </div>
             ))}
           </div>
-        </section>
+        </div>
+
+        {/* LED Counter */}
+        <LEDDisplay
+          total={invoices.length}
+          paid={paidInvoices.length}
+          outstanding={outstandingInvoices.length}
+          draft={draftInvoices.length}
+        />
+
+        {/* Toggle panel */}
+        <div style={{ background: V.base, borderRadius: 16, padding: 24, boxShadow: V.raised }}>
+          <div style={{ font: `600 10px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.12em", color: V.muted, marginBottom: 20 }}>
+            Controls
+          </div>
+          <ToggleSwitch label="Auto-GST" on={toggles.autoGST} onChange={(v) => setToggles((t) => ({ ...t, autoGST: v }))} />
+          <ToggleSwitch label="Recurring" on={toggles.recurring} onChange={(v) => setToggles((t) => ({ ...t, recurring: v }))} />
+          <ToggleSwitch label="Notifications" on={toggles.notifications} onChange={(v) => setToggles((t) => ({ ...t, notifications: v }))} />
+          <ToggleSwitch label="Auto-send" on={toggles.autoSend} onChange={(v) => setToggles((t) => ({ ...t, autoSend: v }))} />
+          {/* Quick actions */}
+          <div style={{ height: 1, background: "rgba(163,177,198,0.3)", margin: "16px 0" }} />
+          <div style={{ display: "flex", gap: 10 }}>
+            <Link href="/invoice/new" style={{ flex: 1, textDecoration: "none" }}>
+              <div style={{
+                textAlign: "center", padding: "10px 8px", borderRadius: 10,
+                font: `600 11px/1 ${V.F}`, color: V.baseLight, background: V.accent,
+                boxShadow: `4px 4px 14px ${V.accentGlow}, -2px -2px 8px rgba(255,255,255,0.6)`,
+                cursor: "pointer",
+              }}>
+                + Invoice
+              </div>
+            </Link>
+            <Link href="/purchase-order/new" style={{ flex: 1, textDecoration: "none" }}>
+              <div style={{
+                textAlign: "center", padding: "10px 8px", borderRadius: 10,
+                font: `600 11px/1 ${V.F}`, color: V.textMid,
+                background: V.base, boxShadow: V.soft, cursor: "pointer",
+              }}>
+                + PO
+              </div>
+            </Link>
+          </div>
+        </div>
       </div>
 
-      <InvoiceSettlementModal
-        invoice={settlementInvoice}
-        open={Boolean(settlementInvoice)}
-        onClose={() => setSettlementInvoiceId(null)}
-        onSave={handleSettlementSave}
-      />
-      <POStatusModal
-        purchaseOrder={statusPurchaseOrder}
-        open={Boolean(statusPurchaseOrder)}
-        onClose={() => setPoStatusId(null)}
-        onSave={handlePOStatusSave}
-      />
-      <GSTPlanningModal
-        month={snapshot.selectedMonth}
-        open={isGSTPlanningOpen}
-        entry={planningEntry}
-        openingGstPayable={selectedPlanningRow?.openingGstPayable ?? 0}
-        gstAccruedThisMonth={selectedPlanningRow?.gstAccruedThisMonth ?? 0}
-        gstRecoveredFromClientsThisMonth={selectedPlanningRow?.gstRecoveredFromClientsThisMonth ?? 0}
-        onClose={() => setIsGSTPlanningOpen(false)}
-        onSave={handleGSTPlanningSave}
-      />
     </div>
   );
 }

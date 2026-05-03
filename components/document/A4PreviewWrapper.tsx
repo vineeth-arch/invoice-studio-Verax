@@ -62,7 +62,7 @@ export const A4PreviewWrapper = forwardRef<HTMLDivElement, A4PreviewWrapperProps
         <div style={{ height: pageHeight * scale }}>
           <div
             ref={setRefs}
-            className={`a4-print-area bg-white shadow-lg${noPadding ? " di-document-wrapper" : ""}`}
+            className={`a4-print-area verax-paper${noPadding ? " di-document-wrapper" : ""}`}
             style={{
               width: "210mm",
               minHeight: "297mm",
@@ -71,7 +71,6 @@ export const A4PreviewWrapper = forwardRef<HTMLDivElement, A4PreviewWrapperProps
               transformOrigin: "top left",
               transform: `scale(${scale})`,
               padding: noPadding ? "0" : "60px 53px",
-              fontFamily: "'Inter', system-ui, sans-serif",
             }}
           >
             {children}

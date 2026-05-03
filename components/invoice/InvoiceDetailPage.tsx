@@ -3,7 +3,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   Mail,
   Download,
@@ -81,7 +80,6 @@ function PaymentStatusToggle({
         flexShrink: 0,
         userSelect: "none",
         transition: "background-color 200ms ease",
-        outline: "none",
       }}
     >
       <div
@@ -468,7 +466,7 @@ export function InvoiceDetailPage({ invoiceId }: InvoiceDetailPageProps) {
   return (
     <div
       className="flex flex-col"
-      style={{ height: "100vh", overflow: "hidden" }}
+      style={{ height: "100dvh", overflow: "hidden" }}
     >
       {/* ══ BRUSHED METAL HEADER ══ */}
       <header
@@ -476,16 +474,15 @@ export function InvoiceDetailPage({ invoiceId }: InvoiceDetailPageProps) {
         style={{ zIndex: 10 }}
       >
         {/* Back */}
-        <Link href="/documents">
-          <NeuButton
-            variant="ghost"
-            size="sm"
-            aria-label="Back to Documents"
-            className="gap-1"
-          >
-            <ArrowLeft size={13} />
-          </NeuButton>
-        </Link>
+        <NeuButton
+          variant="ghost"
+          size="sm"
+          aria-label="Back to Documents"
+          className="gap-1"
+          onClick={() => router.push("/documents")}
+        >
+          <ArrowLeft size={13} />
+        </NeuButton>
 
         {/* Vertical groove separator */}
         <div
@@ -576,18 +573,21 @@ export function InvoiceDetailPage({ invoiceId }: InvoiceDetailPageProps) {
         </span>
 
         {/* Edit button */}
-        <Link href={`/invoice/${invoiceId}/edit`}>
-          <NeuButton variant="default" size="sm" className="gap-1.5">
-            <Pencil size={11} />
-            Edit
-          </NeuButton>
-        </Link>
+        <NeuButton
+          variant="default"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => router.push(`/invoice/${invoiceId}/edit`)}
+        >
+          <Pencil size={11} />
+          Edit
+        </NeuButton>
       </header>
 
       {/* ══ MAIN 2-COLUMN LAYOUT ══ */}
       <div
         className="flex flex-1 min-h-0"
-        style={{ height: "calc(100vh - var(--header-height))" }}
+        style={{ height: "calc(100dvh - var(--header-height))" }}
       >
         {/* ── LEFT: Document Well (65%) — hidden on mobile ── */}
         <div
@@ -604,11 +604,11 @@ export function InvoiceDetailPage({ invoiceId }: InvoiceDetailPageProps) {
               style={{
                 position: "relative",
                 width: "fit-content",
-                marginLeft: "32px", // space for hole punches
+                marginLeft: "18px",
               }}
             >
-              {/* Three hole punches */}
-              <div className="verax-holes" aria-hidden="true">
+              {/* Three hole punches — left: -6px overlaps paper edge by ~6px */}
+              <div className="verax-holes" aria-hidden="true" style={{ left: "-6px" }}>
                 <span />
               </div>
 
@@ -660,8 +660,8 @@ export function InvoiceDetailPage({ invoiceId }: InvoiceDetailPageProps) {
 
         {/* ── RIGHT: Action Sidebar (35% desktop / full mobile) ── */}
         <div
-          className="flex-1 lg:flex-none overflow-y-auto"
-          style={{ width: "100%" }}
+          className="flex-1 overflow-y-auto"
+          style={{ background: "var(--base)", boxShadow: "var(--shadow-raised)" }}
         >
           {/* Inner sticky container — scrolls within right column */}
           <div

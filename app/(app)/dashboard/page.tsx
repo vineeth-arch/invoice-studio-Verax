@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo, useRef, useId } from "react";
+import { useState, useMemo, useRef, useId, useEffect } from "react";
 import { useInvoices } from "@/lib/hooks/useInvoices";
 import { usePurchaseOrders } from "@/lib/hooks/usePurchaseOrders";
 import { useCompanyProfile } from "@/lib/hooks/useCompanyProfile";
@@ -53,6 +53,25 @@ function computeTrend(spark: number[]): { trend: string; trendUp: boolean } {
   if (prev === 0) return { trend: "new", trendUp: true };
   const pct = ((curr - prev) / Math.abs(prev)) * 100;
   return { trend: `${Math.abs(Math.round(pct))}%`, trendUp: pct >= 0 };
+}
+
+function useCountUp(target: number, duration = 800, delay = 0) {
+  const [value, setValue] = useState(0);
+  const raf = useRef<number>(0);
+  useEffect(() => {
+    let timeout: ReturnType<typeof setTimeout>;
+    timeout = setTimeout(() => {
+      const start = performance.now();
+      function tick(now: number) {
+        const p = Math.min((now - start) / duration, 1);
+        setValue(Math.round((1 - Math.pow(1 - p, 3)) * target));
+        if (p < 1) raf.current = requestAnimationFrame(tick);
+      }
+      raf.current = requestAnimationFrame(tick);
+    }, delay);
+    return () => { clearTimeout(timeout); cancelAnimationFrame(raf.current); };
+  }, [target, duration, delay]);
+  return value;
 }
 
 // ── Neumorphic groove separator: dark line + light line = engraved rule ──
@@ -132,7 +151,12 @@ function AnalogGauge({
     return `M ${cx - r} ${cy} A ${r} ${r} 0 ${laf} 0 ${ex.toFixed(2)} ${ey.toFixed(2)}`;
   }
 
-  const [nx, ny] = arcEndXY(pct, 60);
+  const [displayPct, setDisplayPct] = useState(0);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setDisplayPct(pct));
+    return () => cancelAnimationFrame(id);
+  }, [pct]);
+  const needleAngle = -90 + displayPct * 180;
 
   const ticks = Array.from({ length: 19 }, (_, i) => {
     const a = Math.PI * (1 - i / 18);
@@ -189,8 +213,10 @@ function AnalogGauge({
           })}
           <path d={`M ${cx - r - 4} ${cy} A ${r + 4} ${r + 4} 0 0 1 ${cx + 2} ${cy - r - 2}`}
             fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth={2} strokeLinecap="round" />
-          <line x1={cx} y1={cy} x2={nx.toFixed(2)} y2={ny.toFixed(2)}
-            stroke={color} strokeWidth={2.5} strokeLinecap="round" />
+          <g style={{ transform: `rotate(${needleAngle}deg)`, transformOrigin: `${cx}px ${cy}px`, transition: "transform 0.6s cubic-bezier(0.34,1.56,0.64,1)" }}>
+            <line x1={cx} y1={cy} x2={cx} y2={cy - 60}
+              stroke={color} strokeWidth={2.5} strokeLinecap="round" />
+          </g>
           <circle cx={cx} cy={cy} r={5.5} fill={color} />
           <circle cx={cx} cy={cy} r={2.5} fill={V.baseLight} />
         </svg>
@@ -389,7 +415,7 @@ function FuelGauge({ label, amount, pct }: { label: string; amount: string; pct:
 function StatusDot({ color, glow, label }: { color: string; glow: string; label: string }) {
   return (
     <div style={{ position: "relative", width: 8, height: 8, flexShrink: 0 }}>
-      <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, boxShadow: `0 0 6px ${glow}` }}>
+      <div className="vx-dot-pulse" style={{ width: 8, height: 8, borderRadius: "50%", background: color, "--dot-glow": glow } as React.CSSProperties}>
         <div style={{ position: "absolute", top: 1, left: 1.5, width: 2.5, height: 2.5, borderRadius: "50%", background: "rgba(255,255,255,0.7)" }} />
       </div>
       <span style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
@@ -431,9 +457,9 @@ function ToggleSwitch({ on, onChange, label }: { on: boolean; onChange: (v: bool
 }
 
 // ── KPI Card — shadow transitions on hover/press ──
-function KPICard({ label, value, sub, color, spark, trend, trendUp, goodWhenUp = true }: {
+function KPICard({ label, value, sub, color, spark, trend, trendUp, goodWhenUp = true, index = 0 }: {
   label: string; value: string; sub: string; color: string;
-  spark: number[]; trend: string; trendUp: boolean; goodWhenUp?: boolean;
+  spark: number[]; trend: string; trendUp: boolean; goodWhenUp?: boolean; index?: number;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
@@ -441,6 +467,7 @@ function KPICard({ label, value, sub, color, spark, trend, trendUp, goodWhenUp =
   const isGood = goodWhenUp ? trendUp : !trendUp;
   return (
     <div
+      className={`vx-kpi-${index}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => { setIsHovered(false); setIsPressed(false); }}
       onMouseDown={() => setIsPressed(true)}
@@ -465,11 +492,13 @@ function KnobDisplay({ label, value: initialValue, min, max, color }: {
   label: string; value: number; min: number; max: number; color: string;
 }) {
   const [value, setValue] = useState(initialValue);
+  const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startY: number; startVal: number } | null>(null);
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     e.currentTarget.setPointerCapture(e.pointerId);
     dragRef.current = { startY: e.clientY, startVal: value };
+    setIsDragging(true);
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -484,6 +513,7 @@ function KnobDisplay({ label, value: initialValue, min, max, color }: {
 
   function handlePointerUp() {
     dragRef.current = null;
+    setIsDragging(false);
   }
 
   const angleDeg = -140 + ((value - min) / (max - min)) * 280;
@@ -514,7 +544,7 @@ function KnobDisplay({ label, value: initialValue, min, max, color }: {
           cursor: "ns-resize", touchAction: "none", userSelect: "none",
         }}>
         <div style={{ position: "absolute", inset: 7, borderRadius: "50%", boxShadow: V.insetSm }} />
-        <div style={{ position: "absolute", width: 3, height: 20, borderRadius: 2, background: color, top: 7, left: "calc(50% - 1.5px)", transformOrigin: "50% calc(100% + 10px)", transform: `rotate(${angleDeg}deg)` }} />
+        <div style={{ position: "absolute", width: 3, height: 20, borderRadius: 2, background: color, top: 7, left: "calc(50% - 1.5px)", transformOrigin: "50% calc(100% + 10px)", transform: `rotate(${angleDeg}deg)`, transition: isDragging ? "none" : "transform 0.4s cubic-bezier(0.34,1.56,0.64,1)" }} />
       </div>
       <div style={{ font: `600 14px/1 ${V.M}`, color }}>{value}</div>
     </div>
@@ -525,6 +555,10 @@ function KnobDisplay({ label, value: initialValue, min, max, color }: {
 function LEDDisplay({ total, paid, outstanding, draft }: {
   total: number; paid: number; outstanding: number; draft: number;
 }) {
+  const animTotal = useCountUp(total, 900, 200);
+  const animPaid = useCountUp(paid, 700, 350);
+  const animOutstanding = useCountUp(outstanding, 700, 450);
+  const animDraft = useCountUp(draft, 700, 550);
   return (
     <div style={{ background: V.base, borderRadius: 16, padding: 24, boxShadow: V.raised }}>
       <div style={{ font: `600 10px/1 ${V.F}`, textTransform: "uppercase", letterSpacing: "0.12em", color: V.muted, marginBottom: 16 }}>
@@ -536,14 +570,14 @@ function LEDDisplay({ total, paid, outstanding, draft }: {
         backgroundImage: "repeating-linear-gradient(180deg, transparent 0px, transparent 1px, rgba(255,255,255,0.018) 1px, rgba(255,255,255,0.018) 2px)",
       }}>
         <div style={{ font: `700 38px/1 ${V.M}`, color: "#f0a030", letterSpacing: 6, textShadow: "0 0 8px rgba(240,160,48,0.7), 0 0 16px rgba(240,160,48,0.3)" }}>
-          <LedDigits n={total} digits={5} />
+          <LedDigits n={animTotal} digits={5} />
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
         {[
-          { label: "PAID", v: paid, c: "#3da870" },
-          { label: "OPEN", v: outstanding, c: "#f0a030" },
-          { label: "DRAFT", v: draft, c: "#6080a0" },
+          { label: "PAID", v: animPaid, c: "#3da870" },
+          { label: "OPEN", v: animOutstanding, c: "#f0a030" },
+          { label: "DRAFT", v: animDraft, c: "#6080a0" },
         ].map(({ label, v, c }) => (
           <div key={label} style={{ background: "#141414", borderRadius: 4, padding: "8px 6px", textAlign: "center", boxShadow: "inset 1px 1px 4px rgba(0,0,0,0.7)" }}>
             <div style={{ font: `700 18px/1 ${V.M}`, color: c, textShadow: `0 0 6px ${c}80` }}>
@@ -738,6 +772,23 @@ export default function DashboardPage() {
         @media (max-width:479px) {
           .vx-grid-kpi { grid-template-columns:1fr; }
         }
+        @keyframes vx-kpi-up {
+          from { opacity:0; transform:translateY(12px); }
+          to   { opacity:1; transform:translateY(0); }
+        }
+        .vx-kpi-0 { animation:vx-kpi-up 0.4s cubic-bezier(0.23,1,0.32,1) both; animation-delay:0ms; }
+        .vx-kpi-1 { animation:vx-kpi-up 0.4s cubic-bezier(0.23,1,0.32,1) both; animation-delay:65ms; }
+        .vx-kpi-2 { animation:vx-kpi-up 0.4s cubic-bezier(0.23,1,0.32,1) both; animation-delay:130ms; }
+        .vx-kpi-3 { animation:vx-kpi-up 0.4s cubic-bezier(0.23,1,0.32,1) both; animation-delay:195ms; }
+        @keyframes vx-dot-pulse {
+          0%,100% { box-shadow:0 0 4px var(--dot-glow); }
+          50%     { box-shadow:0 0 10px var(--dot-glow), 0 0 16px var(--dot-glow); }
+        }
+        .vx-dot-pulse { animation:vx-dot-pulse 2s ease-in-out infinite; }
+        @media (prefers-reduced-motion:reduce) {
+          .vx-kpi-0,.vx-kpi-1,.vx-kpi-2,.vx-kpi-3 { animation:none; opacity:1; transform:none; }
+          .vx-dot-pulse { animation:none; }
+        }
       `}</style>
 
       {/* ── Page header ── */}
@@ -757,16 +808,16 @@ export default function DashboardPage() {
 
       {/* ── ROW 1: KPI Cards ── */}
       <div className="vx-grid-kpi">
-        <KPICard
+        <KPICard index={0}
           label="Revenue · MTD" value={fmtINR(revenueMTD)} sub="this month"
           color={V.accent} spark={revSpark} trend={revTrend} trendUp={revTrendUp} />
-        <KPICard
+        <KPICard index={1}
           label="Outstanding" value={fmtINR(outstandingAmt)} sub={`${outstandingInvoices.length} pending`}
           color={V.overdue} spark={outSpark} trend={outTrend} trendUp={outTrendUp} goodWhenUp={false} />
-        <KPICard
+        <KPICard index={2}
           label="Paid · This Month" value={String(paidMTDCount).padStart(3, "0")} sub="invoices collected"
           color={V.paid} spark={paidCountSpark} trend={paidTrend} trendUp={paidTrendUp} />
-        <KPICard
+        <KPICard index={3}
           label="Profit Margin" value="68%" sub="estimated"
           color={V.amber} spark={[60, 63, 65, 67, 66, 68]} trend="—" trendUp />
       </div>

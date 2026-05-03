@@ -279,6 +279,15 @@ body {
   .status-light[data-status="overdue"] { animation: none; }
 }
 
+/* Timeline dot — pulses on the most recent active event */
+@keyframes verax-dot-pulse {
+  0%, 100% { transform: scale(1);    opacity: 1;    box-shadow: 0 0 0 2px var(--base), var(--shadow-soft); }
+  50%       { transform: scale(1.5); opacity: 0.75; box-shadow: 0 0 0 3px var(--base), 0 0 8px currentColor, var(--shadow-soft); }
+}
+.verax-dot-current {
+  animation: verax-dot-pulse 2400ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    BUTTONS
    Never flat. Every button is neumorphically raised.
@@ -408,6 +417,20 @@ body {
   z-index: 1;
 }
 
+/* Paper hover lift — entire assembly (holes + paper + stamp) lifts together */
+.verax-paper-lift {
+  transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .verax-paper-lift:hover {
+    transform: translateY(-5px);
+  }
+  .verax-paper-lift:hover .verax-paper {
+    box-shadow: var(--shadow-raised-lg), 0 28px 52px rgba(163, 177, 198, 0.45);
+    transition: box-shadow 220ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+}
+
 /* Warm sepia ruled lines — invoice row separators */
 .verax-ruled {
   border-bottom: 1px solid var(--paper-rule);
@@ -446,24 +469,39 @@ body {
   box-shadow: inset 1px 1px 3px rgba(0,0,0,0.25), inset -1px -1px 2px rgba(255,255,255,0.5);
 }
 
-/* Status stamp — position absolute inside .verax-paper */
+/* Status stamp — position absolute; animates in on mount via @starting-style */
 .verax-stamp {
   position: absolute;
   padding: 5px 16px;
   border-radius: 3px;
   font-family: 'Instrument Sans', system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  opacity: 0.8;
+  letter-spacing: 0.3em;
+  opacity: 0.82;
   border: 2.5px solid currentColor;
   pointer-events: none;
-  transform: rotate(-12deg);
+  transform: rotate(-14deg);
+  transition: opacity 500ms cubic-bezier(0.23, 1, 0.32, 1),
+              transform 500ms cubic-bezier(0.34, 1.15, 0.64, 1);
+
+  @starting-style {
+    opacity: 0;
+    transform: rotate(-26deg) scale(1.25);
+  }
 }
 .verax-stamp[data-status="paid"]    { color: var(--paid); }
 .verax-stamp[data-status="overdue"] { color: var(--overdue); }
-.verax-stamp[data-status="draft"]   { color: var(--draft); transform: rotate(-8deg); }
+.verax-stamp[data-status="draft"] {
+  color: var(--draft);
+  transform: rotate(-8deg);
+
+  @starting-style {
+    opacity: 0;
+    transform: rotate(4deg) scale(1.25);
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    TYPOGRAPHY UTILITIES
@@ -566,6 +604,13 @@ body {
 .animate-slide-in-down    { animation: slideInDown       200ms ease-out forwards; }
 .animate-slide-out-up     { animation: slideOutUp        150ms ease-in  forwards; }
 .animate-fade-in          { animation: fadeIn            200ms ease-out forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .verax-paper-lift,
+  .verax-paper-lift .verax-paper { transition: none !important; }
+  .verax-stamp { transition: none !important; }
+  .verax-dot-current { animation: none !important; }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    PDF / PRINT

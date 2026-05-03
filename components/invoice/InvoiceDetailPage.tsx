@@ -113,6 +113,7 @@ interface TimelineEvent {
   label: string;
   date: string | undefined;
   done: boolean;
+  current?: boolean;
   accentColor?: string;
 }
 
@@ -133,7 +134,7 @@ function StatusTimeline({ events }: { events: TimelineEvent[] }) {
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-        {events.map(({ label, date, done, accentColor }, idx) => (
+        {events.map(({ label, date, done, current, accentColor }, idx) => (
           <div
             key={idx}
             style={{
@@ -143,9 +144,10 @@ function StatusTimeline({ events }: { events: TimelineEvent[] }) {
               gap: "12px",
             }}
           >
-            {/* Dot — raised + filled if done, inset + empty if pending */}
+            {/* Dot — raised + filled if done, inset + empty if pending; pulses when current */}
             <div
               aria-hidden="true"
+              className={current ? "verax-dot-current" : undefined}
               style={{
                 position: "absolute",
                 left: "-22px",
@@ -160,6 +162,7 @@ function StatusTimeline({ events }: { events: TimelineEvent[] }) {
                   ? `0 0 0 2px var(--base), var(--shadow-soft)`
                   : "var(--shadow-inset-sm)",
                 flexShrink: 0,
+                color: accentColor ?? "var(--accent)",
               }}
             />
 
@@ -423,8 +426,8 @@ export function InvoiceDetailPage({ invoiceId }: InvoiceDetailPageProps) {
     ? "Draft"
     : invoice.paymentStatus ?? "Unpaid";
 
-  // Timeline events
-  const timelineEvents: TimelineEvent[] = [
+  // Timeline events — current = last done event (the frontier)
+  const rawTimelineEvents: TimelineEvent[] = [
     {
       label: "Created",
       date: invoice.createdAt,
@@ -450,6 +453,8 @@ export function InvoiceDetailPage({ invoiceId }: InvoiceDetailPageProps) {
       accentColor: "var(--paid)",
     },
   ];
+  const lastDoneIdx = rawTimelineEvents.reduce((last, ev, i) => (ev.done ? i : last), -1);
+  const timelineEvents = rawTimelineEvents.map((ev, i) => ({ ...ev, current: i === lastDoneIdx }));
 
   const invoiceNumber = getDisplayInvoiceNumber(invoice);
   const pdfFilename = `INV-${invoice.invoiceNumber ?? "draft"}-${invoice.buyer?.name ?? "client"}`;
@@ -599,8 +604,9 @@ export function InvoiceDetailPage({ invoiceId }: InvoiceDetailPageProps) {
             className="chart-cockpit flex-1 flex items-start justify-center p-8"
             style={{ minHeight: "100%" }}
           >
-            {/* Relative wrapper for holes + stamp overlay */}
+            {/* Relative wrapper — verax-paper-lift hovers the whole assembly */}
             <div
+              className="verax-paper-lift"
               style={{
                 position: "relative",
                 width: "fit-content",
@@ -626,18 +632,7 @@ export function InvoiceDetailPage({ invoiceId }: InvoiceDetailPageProps) {
                   className="verax-stamp no-print"
                   data-status={stampStatus}
                   aria-hidden="true"
-                  style={{
-                    bottom: "14%",
-                    right: "7%",
-                    fontSize: "15px",
-                    fontWeight: 900,
-                    letterSpacing: "0.3em",
-                    opacity: 0.82,
-                    transform:
-                      stampStatus === "draft"
-                        ? "rotate(-8deg)"
-                        : "rotate(-14deg)",
-                  }}
+                  style={{ bottom: "14%", right: "7%" }}
                 >
                   {stampLabel}
                 </div>

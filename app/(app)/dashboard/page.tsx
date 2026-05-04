@@ -59,8 +59,7 @@ function useCountUp(target: number, duration = 800, delay = 0) {
   const [value, setValue] = useState(0);
   const raf = useRef<number>(0);
   useEffect(() => {
-    let timeout: ReturnType<typeof setTimeout>;
-    timeout = setTimeout(() => {
+    const timeout = setTimeout(() => {
       const start = performance.now();
       function tick(now: number) {
         const p = Math.min((now - start) / duration, 1);
